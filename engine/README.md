@@ -1,0 +1,561 @@
+![Tether: an iPhone linked to the tetherd Linux daemon over Wi-Fi and Bluetooth LE, providing file transfer, clipboard sync, messages, contacts, and notifications](docs/img/tether_header.png)
+
+# Tether
+
+> Bridge your iPhone to the Linux Wayland desktop
+
+**Tether** aims to support all of the [Apple Continuity](https://www.apple.com/macos/continuity/) features on Linux that are technically possible. If you've migrated away from macOS but still carry an iPhone, Tether provides the missing ecosystem integration.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+[![Get the Firefox Add-on](https://img.shields.io/badge/Firefox-Add--on-orange.svg)](https://addons.mozilla.org/en-US/firefox/addon/tether-browser-extension/)
+
+[![Get the Thunderbird / Betterbird Add-on](https://img.shields.io/badge/Thunderbird-Add--on-orange.svg)](https://addons.thunderbird.net/en-US/thunderbird/addon/tether-mail-extension/)
+
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/tether-linux-companion/id6762097135)
+
+[![Arch Linux](https://github.com/zackb/tether/actions/workflows/arch.yml/badge.svg?branch=main)](https://github.com/zackb/tether/actions/workflows/arch.yml)
+[![Fedora](https://github.com/zackb/tether/actions/workflows/fedora.yml/badge.svg?branch=main)](https://github.com/zackb/tether/actions/workflows/fedora.yml)
+[![Debian](https://github.com/zackb/tether/actions/workflows/debian.yml/badge.svg?branch=main)](https://github.com/zackb/tether/actions/workflows/debian.yml)
+[![Ubuntu](https://github.com/zackb/tether/actions/workflows/ubuntu.yml/badge.svg?branch=main)](https://github.com/zackb/tether/actions/workflows/ubuntu.yml)
+
+![The Tether desktop app's Messages view: a conversation list on the left and an open conversation with sent and received messages on the right](docs/img/messages.webp)
+
+[![GitHub Trending Repository of the Day](https://api.star-history.com/badge?repo=zackb/tether&type=trending&theme=dark)](https://www.star-history.com/zackb/tether)
+
+## Features
+
+| Feature | Status |
+|---------|--------|
+| **Clipboard Sync** | ✅ Stable |
+| **File Transfer** | ✅ Stable |
+| **iOS App** | ✅ Stable |
+| **Browser Extension** | ✅ Stable |
+| **Mail Extension** | ✅ Stable |
+| **Messages (SMS/iMessage)** | ✅ Stable |
+| **Notification Mirroring** | ✅ Stable |
+| **Phone Calls** (PipeWire only) | 🧪 Beta |
+| **AirPods** (opt-in) | 🧪 Beta |
+| **Continuity Camera** (PipeWire only) | 🧪 Alpha |
+
+### Clipboard Sync
+Text copied on your Linux desktop appears instantly on your iPhone, and vice versa.
+
+To share only on demand, turn off **Share the clipboard automatically** in Settings and bind `tether share` to a key, e.g. Hyprland: `bind = SUPER SHIFT, C, exec, tether share`.
+
+### File Transfer
+Drag and drop files from Linux directly into the iPhone app, or receive files automatically to your `$XDG_DOWNLOAD_DIR` (~/Downloads).
+
+### Messages and Notifications
+Read and reply to SMS and iMessage conversations, and see notifications from any app on the phone, on the Linux desktop.
+
+### Device Pairing
+There are two ways tether communicates with the iPhone:
+- WiFi: for clipboard sync, file transfer, and OTP handling
+- Bluetooth: for Messages, Notifications, and Calls
+
+You can use either or both, depending on your needs.
+
+Connections run over TLS 1.2 and both sides present a self-signed X.509 certificate.
+
+### Phone Calls
+Place, answer and end calls on the iPhone from the desktop, complete with caller ID and the phone's carrier and signal. 
+Recent calls from the iPhone are listed with a button to call back, and the iPhone's favorites are starred at the top of Contacts. These need **Phone Recents** and **Phone Favorites** turned on under the iPhone's Bluetooth settings for this computer.
+
+Out of the box, Linux offers itself to the iPhone as a Bluetooth speaker. The iPhone's music and sounds then play on the computer, and call control stops working. One small audio setting fixes it, and you pick which way:
+
+- **Keep the iPhone's sound on the iPhone, always.** See [Keeping the phone's audio on the phone](docs/BLUETOOTH.md#keeping-the-phones-audio-on-the-phone).
+- **Switch whenever you like.** Settings > Experimental > *Play the iPhone's audio on this computer*, or `tether --bt-phone-audio here` and `tether --bt-phone-audio phone`. See [Switching it instead](docs/BLUETOOTH.md#switching-it-instead).
+
+### Continuity Camera
+Use the iPhone as a webcam. Open the Camera tab in the iOS app and tap **Start Streaming**. The desktop gets a PipeWire camera named after the phone. Keep the app open while streaming, because iOS turns the camera off for apps in the background.
+
+- **Chromium/Chrome:** enable `chrome://flags/#enable-webrtc-pipewire-camera`.
+- **Firefox:** set `media.webrtc.camera.allow-pipewire` to `true` in `about:config`.
+- **OBS:** add a *Video Capture Device (PipeWire)* source.
+- **Apps that only use V4L2** (such as native Zoom and Discord): try `pw-v4l2 <app>`.
+
+### OTP Handling
+Streamline two-factor authentication across your devices:
+- iOS Share Extension: Send OTP codes from your iPhone to your Linux clipboard.
+- Thunderbird Addon: Automatically parse OTP codes from incoming email messages.
+- Browser Extension: Autofill OTP codes into login forms from the iOS app or the mail extension.
+- SMS / iMessage: Detects OTP codes in incoming messages and notifications and offers them to the browser extension for autofill.
+
+### Browser & Mail Extensions
+A unified WebExtension that works in Thunderbird/Betterbird and Firefox/Chromium browsers:
+
+- **Thunderbird/Betterbird:** Detects OTP codes in incoming emails (verification codes, 2FA messages) and copies them to the clipboard or sends them to the Tether daemon for vault storage
+- **Firefox/Chromium:** Autofills OTP codes into login forms by retrieving secrets from the Tether vault, with one-click verification for sites using TOTP-based 2FA
+
+The extension communicates with `tetherd` via native messaging. This allows users to autofill OTP codes into websites when the email arrives. 
+
+## Installation
+
+### iOS App
+- Get the app: [Tether - Linux Companion](https://apps.apple.com/us/app/tether-linux-companion/id6762097135)
+
+### Browser Extension
+- Firefox: [Tether Browser Extension](https://addons.mozilla.org/en-US/firefox/addon/tether-browser-extension/)
+- Google Chrome / Chromium: [Build and install locally](extension/README.md#local-chrome--chromium-installation).
+
+### Mail Extension
+- Thunderbird: [Tether Mail Extension](https://addons.thunderbird.net/en-US/thunderbird/addon/tether-mail-extension/)
+
+### Arch Linux
+
+```bash
+yay -S tether
+```
+
+### Fedora
+
+```bash
+sudo dnf copr enable zackb/tether
+sudo dnf install tether
+```
+
+Update with `dnf upgrade`. 
+
+On Fedora Atomic (Silverblue, Kinoite, Bazzite):
+
+```bash
+curl -fsSL "https://copr.fedorainfracloud.org/coprs/zackb/tether/repo/fedora-$(rpm -E %fedora)/zackb-tether-fedora-$(rpm -E %fedora).repo" \
+  | sudo tee /etc/yum.repos.d/zackb-tether.repo
+rpm-ostree install tether
+```
+
+### Debian / Ubuntu
+
+Download the `.deb` for your release (`~ubuntu24.04`, `~ubuntu26.04` or `~debian13`) from the
+[releases page](https://github.com/zackb/tether/releases), then:
+
+```bash
+sudo apt install ./tether_*.deb
+```
+
+### AppImage
+
+One file, no install, for distros without a package and for immutable systems.
+Download `tether-<version>-<arch>.AppImage` from the
+[releases page](https://github.com/zackb/tether/releases), then:
+
+```bash
+chmod +x tether-*.AppImage
+./tether-*.AppImage                              # the GTK app
+./tether-*.AppImage --bt-setup                   # the CLI, same binary
+./tether-*.AppImage --install-extension-host     # if you use the browser or mail extension
+```
+
+The iPhone Bluetooth features need one-time system setup the AppImage cannot do for you.
+`--bt-setup` prints the commands for this machine.
+
+Requires glibc 2.38 and libstdc++ from GCC 13 (Fedora 39+, Ubuntu 23.10+, Debian 13+, Arch).
+
+### Flatpak
+
+```bash
+flatpak install --user https://zackb.github.io/tether/tether.flatpakref
+flatpak update                                                              # new releases, or use your software center
+flatpak run io.github.zackb.tether                                          # the GTK app
+flatpak run --command=tether io.github.zackb.tether --bt-setup              # the CLI
+flatpak run --command=tether io.github.zackb.tether --install-extension-host
+```
+
+Clipboard sync will most likely not work as it is a privileged protocol (`data-control`).
+Use the AppImage instead if you want clipboard sync.
+
+Installed from a `.flatpak` bundle before? Run `flatpak uninstall io.github.zackb.tether` first.
+
+For offline installs, the [releases page](https://github.com/zackb/tether/releases) has
+`tether-<version>-<arch>.flatpak` bundles. They don't update.
+
+### Nix
+
+#### Build from source
+
+Enter the development shell and run the test suite:
+
+```console
+nix develop
+make test
+```
+
+Build or run Tether directly from the flake:
+
+```console
+nix build
+nix run
+nix run .#tether -- --help
+nix run .#tetherd
+```
+
+Bare `nix run` launches `tether-gtk`. The named app outputs are `tether` (CLI),
+`tether-gtk` (GUI), `tether-tui` (terminal UI), `tetherd` (daemon), and
+`tether-dialog` (dialog helper).
+
+#### Use the package in NixOS
+
+After adding Tether as a flake input, install its package directly:
+
+```nix
+environment.systemPackages = [
+  inputs.tether.packages.${pkgs.system}.default
+];
+```
+
+Alternatively, apply the overlay and install `pkgs.tether`:
+
+```nix
+nixpkgs.overlays = [ inputs.tether.overlays.default ];
+environment.systemPackages = [ pkgs.tether ];
+```
+
+#### Use the NixOS module
+
+Import the module in your NixOS configuration:
+
+```nix
+imports = [ inputs.tether.nixosModules.default ];
+
+programs.tether = {
+  enable = true;
+
+  wifi = {
+    enable = true;
+    openFirewall = true;
+  };
+
+  bluetooth = {
+    enable = true;
+    adapters = [ "hci0" ];
+  };
+
+  extensions = [
+    "firefox"
+    "chromium"
+    "thunderbird"
+  ];
+};
+```
+
+Base enablement installs Tether and registers its native messaging hosts; it
+does not start a daemon. Firewall opening is opt-in. Bluetooth experimental
+mode and adapter class changes are also opt-in. If your system uses another
+adapter or multiple adapters, change `bluetooth.adapters` accordingly.
+
+### Container (local build)
+
+A headless Linux Docker deployment is available for amd64 and arm64. It runs
+`tetherd` and its session services as non-root, using the host's BlueZ/Avahi and
+persistent state/download mounts. Pair and send messages/files through the CLI;
+there is no web UI yet. Bluetooth messaging still needs the iPhone near the host.
+
+See [docs/CONTAINER.md](docs/CONTAINER.md) for prerequisites, Compose setup,
+security considerations and the real-iPhone acceptance checklist. No registry
+image is published by this setup.
+
+### Build from Source
+
+On Debian/Ubuntu:
+
+```bash
+sudo apt install build-essential cmake ninja-build pkg-config git \
+    libwayland-dev libavahi-client-dev libssl-dev libsecret-1-dev \
+    libglib2.0-dev libgtk-3-dev libgtk-layer-shell-dev libnotify-dev \
+    libncurses-dev libavcodec-dev libpipewire-0.3-dev npm zip
+```
+
+On Fedora:
+
+```bash
+sudo dnf install gcc-c++ cmake ninja-build pkgconf-pkg-config git \
+    wayland-devel avahi-devel openssl-devel libsecret-devel \
+    glib2-devel gtk3-devel gtk-layer-shell-devel libnotify-devel \
+    ncurses-devel npm zip
+```
+
+```bash
+# Clone the repository
+git clone https://github.com/zackb/tether.git
+cd tether
+
+# Build and test
+make release
+
+# Install the daemon, cli, GTK app, and terminal UI
+make install
+```
+
+## Quick Start
+1. On Linux, launch the GTK app (tether-gtk) or run the CLI to pair your iPhone.
+
+2. WiFi pair via the GUI or CLI:
+
+   Open the iOS app, it will auto-discover the daemon. You will be prompted on both the iPhone and Linux to accept the pairing request. Once accepted on both ends, the devices are paired.
+
+   or
+
+   ```bash
+   tether pending               # the requests waiting, with their fingerprints
+   tether accept <fingerprint>
+   ```
+
+3. Bluetooth (for Messages and Notifications):
+
+   First, one-time system setup. This prints only the steps your machine still
+   needs, with the exact commands:
+
+   ```bash
+   tether bt setup
+   ```
+
+   Tether never applies these itself: they change how the machine behaves over
+   Bluetooth outside of Tether, so running them is your call. The same steps
+   appear in the GTK app's Devices page, with a "Copy commands" button.
+
+   *If* you have more than one Bluetooth controller, pick the one to use. Default is the first powered one.
+
+   ```bash
+   tether bt adapter hci1  # or the controller's address, or "auto"
+   ```
+
+   Then pair. In the GTK app, pick your iPhone under BLUETOOTH on the Devices
+   page and press "Pair over Bluetooth". Confirm the code on both the iPhone and
+   Linux.
+
+   or
+
+   ```bash
+   tether bt devices         # find the iPhone's address
+   tether bt pair <address>
+   tether bt connection      # what is up, and what is not
+   ```
+
+4. On the iPhone, under Settings > Bluetooth > (i) for this computer, enable
+   "Show Message Notifications" and "Sync Contacts". Both are needed. They can
+   take a few minutes to appear; "Show iPhone Permissions" in the GTK app
+   re-advertises so they show up again.
+
+
+### No desktop on the machine?
+
+The daemon does not need a Wayland session. Everything but clipboard sync works
+over SSH, pairing included:
+
+```bash
+systemctl --user enable --now tetherd.service  # portable build? tether service first
+tether pending                                 # the pairing requests waiting, with fingerprints
+tether accept 9a4f21...
+tether status                                  # devices, links, and recent transfers
+```
+
+See [docs/HEADLESS.md](docs/HEADLESS.md), or [the container guide](docs/CONTAINER.md)
+for Docker deployment.
+
+### Terminal UI
+
+`tether-tui` is a front end for tetherd in the terminal, with vim keys: `j`/`k`
+to move, `h`/`l` between panes, `1`-`6` or `gt`/`gT` for tabs, `/` to filter,
+`i` to write in a conversation, `o` for a new message, `dd` to dismiss or
+forget, `:q` to quit. Press `?` for the full list.
+
+### Alternative web UI
+
+The [tether-web project](https://github.com/napisani/tether-web) provides a lightweight browser interface for running Tether without a desktop session. It runs `tetherd` in headless mode and lets you pair and manage a Bluetooth-connected iPhone from a browser.
+
+This setup is useful for homelabs and headless Linux servers where a full GTK desktop is not available. The iPhone must remain within Bluetooth range of the Linux host. The current interface focuses on guided pairing and connection status.
+
+## Components
+
+```mermaid
+flowchart LR
+  subgraph phone["iPhone"]
+    app["Tether app<br/>+ share extension"]
+    ios["iOS<br/>MAP · PBAP · ANCS · HFP"]
+  end
+  peer["Other PC<br/>(tetherd)"]
+
+  subgraph linux["Linux"]
+    tetherd["tetherd"]
+    subgraph bluez["BlueZ"]
+      btd["bluetoothd"]
+      obexd["obexd"]
+    end
+    gtk["tether-gtk<br/>(GUI + tray)"]
+    tui["tether-tui"]
+    cli["tether CLI"]
+    host["native messaging host"]
+    ext["Browser / Thunderbird<br/>extension"]
+    desk["Wayland clipboard · notifications<br/>MPRIS · PipeWire"]
+  end
+
+  app <-- "WiFi: mTLS :5134, mDNS" --> tetherd
+  peer <-- "WiFi: mTLS :5134, mDNS" --> tetherd
+  ios <-- "Bluetooth BR/EDR + LE" --> btd
+  btd <-- "D-Bus" --> tetherd
+  obexd <-- "D-Bus" --> tetherd
+  obexd --- btd
+  tetherd <-- "UNIX socket" --> gtk
+  tetherd <-- "UNIX socket" --> tui
+  tetherd <-- "UNIX socket" --> cli
+  host <-- "stdin/stdout" --> ext
+  tetherd <-- "UNIX socket" --> host
+  tetherd --- desk
+```
+
+1. **`tetherd`**: A background process running on Linux manages Bluetooth, TCP+TLS with pinned device certificates, and Wayland integration.
+
+2. **`tether`**: A CLI to communicate with the daemon. This also allows the WebExtension to interface with the daemon via native messaging.
+
+3. **`tether-gtk`**: An application for Linux that provides a graphical interface to manage devices, send files, trigger clipboard sync, read and reply to iPhone messages, see mirrored notifications, and monitor connection status. **`tether-tui`** does the same in a terminal.
+
+4. **iPhone App**: Discovers the daemon via Bonjour/mDNS, utilizing Apple's `Network.framework` for secure TLS negotiation. Not required for SMS/iMessage and notification mirroring, which use Bluetooth.
+
+5. **Browser/Mail Extension**: WebExtension that interfaces with the daemon via native messaging. Use with Thunderbird/Betterbird and Firefox or Chromium-based browsers.
+
+## Requirements
+
+### Linux
+- Wayland compositor with `wlr-data-control` protocol (Hyprland, Sway, [Fenriz](https://github.com/zackb/fenriz) etc.)
+- Build tools: cmake, ninja, pkg-config
+- x86_64 or aarch64 (Asahi, Raspberry Pi OS Trixie+). 32-bit ARM is not supported.
+
+### Bluetooth adapters
+
+iPhone notifications need an adapter that supports BR/EDR Secure Connections. Messages, contacts, and calls work on any adapter. Many cheap USB dongles lack it, and `tether --bt-status` then reports `Bond: BR/EDR only`. Re-pairing cannot fix that.
+
+To check, look at the bond's link key type:
+
+```bash
+sudo grep -A3 '\[LinkKey\]' /var/lib/bluetooth/<adapter address>/<iPhone address>/info
+```
+
+- `Type=4` or `Type=5`: the adapter can't do it. Use another adapter (`tether --bt-adapter <hciN>`) or replace it.
+- `Type=7` or `Type=8`: the adapter is fine. Forget this computer on the iPhone and pair again. It can take more than one try.
+
+Known not to work: Realtek RTL8761BU dongles such as the TP-Link UB500 ([#255](https://github.com/zackb/tether/issues/255), [#301](https://github.com/zackb/tether/issues/301)), CSR clones ([#69](https://github.com/zackb/tether/issues/69)), and Barrot dongles ([#128](https://github.com/zackb/tether/issues/128)). Reported working: ASUS USB-BT600 ([#255](https://github.com/zackb/tether/issues/255)).
+
+### Dependencies
+- `wayland-client`
+- `openssl`
+- `pkg-config`
+- `ninja`
+- `gtk3` (for `tether-gtk`)
+- `ncurses` (for `tether-tui`; turn off with `-DTETHER_BUILD_TUI=OFF`)
+- `nlohmann-json`
+- `glib2`
+- `avahi`
+- `bluez`, `bluez-utils`, and `bluez-obex` (for messages and notifications)
+- `ffmpeg` (libavcodec) and `pipewire` (for Continuity Camera; turn off with `-DTETHER_CAMERA=OFF`)
+
+#### Bluetooth (for Messages and Notifications)
+- BlueZ 5.86+ must be running with experimental bearer API. `tether bt setup`
+  prints the command that enables it on this machine. Do this **before** pairing.
+- A controller with BR/EDR, LE, and advertising support.
+- Notification mirroring does not work on iOS 18 and earlier.
+
+#### Network ports
+
+WiFi features need two inbound ports on the Linux machine:
+
+| Port | Why |
+|------|-----|
+| 5134/tcp | The `tetherd` mTLS listener the iPhone connects to |
+| 5353/udp | mDNS service discovery `avahi-daemon` |
+
+## Troubleshooting
+
+### The iPhone finds this PC but never connects
+
+Probably firewall. Most firewalls allow mDNS through, so discovery works, but then the iPhone can't get through on it's port (5134/tcp). Open the ports in your firewall.
+
+```bash
+sudo ufw allow Tether                                  # ufw
+sudo firewall-cmd --permanent --add-service=tether     # firewalld
+sudo firewall-cmd --reload
+```
+
+AppImage or the Flatpak, open the ports directly:
+
+```bash
+sudo ufw allow 5134/tcp && sudo ufw allow 5353/udp
+sudo firewall-cmd --permanent --add-port=5134/tcp --add-port=5353/udp
+sudo firewall-cmd --reload
+```
+
+On NixOS, set `programs.tether.wifi.openFirewall = true;` instead (see the [NixOS module](#use-the-nixos-module) above.
+
+### The iPhone does not appear at all
+
+`avahi-daemon` is not running, so nothing can discover this machine:
+
+```bash
+sudo systemctl enable --now avahi-daemon
+```
+
+### The network blocks mDNS
+
+Some public and corporate networks block multicast, so the app never sees this machine even when
+both are on the same network. If the iPhone is paired with this machine over Bluetooth with LE
+(the setup notifications need), tap **Find over Bluetooth** in the app. It reads this machine's
+addresses over Bluetooth, and connects on its own from then on.
+
+### Bluetooth
+
+Messages and notifications need one-time system setup. See [docs/BLUETOOTH.md](docs/BLUETOOTH.md), or run:
+
+```bash
+tether bt setup
+```
+
+## Accessibility
+
+Tether should work for everyone. The desktop app is built to work with the Orca screen reader, keyboard-only use, and the system's text scaling. The iOS app is built to work with VoiceOver and Reduce Motion.
+
+Keyboard shortcuts in the desktop app:
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+1 … Ctrl+5 | Devices, Messages, Notifications, Contacts, Calls |
+| Ctrl+N | New message |
+| Ctrl+F | Search conversations |
+| Ctrl+, | Settings |
+| Ctrl++ / Ctrl+- / Ctrl+0 | Larger text, smaller text, reset |
+| Escape | Close Settings, leave search |
+| Ctrl+W | Close window |
+| Ctrl+Q | Quit |
+
+If something can't be reached with the keyboard, is read wrongly by a screen reader, or is hard to see, please [open an issue](https://github.com/zackb/tether/issues). Those reports are bugs.
+
+The manual checks run before a release are in [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md).
+
+Colors come from your GTK theme. You can override tether specific elements in `~/.config/gtk-3.0/gtk.css` and restart the app.
+
+Example:
+
+```css
+.tether-bubble-out { background-color: #0b5cad; color: #ffffff; }
+.tether-bubble-in  { background-color: #e9e9eb; color: #000000; }
+.tether-bubble label { font-family: "Inter"; }
+```
+
+
+## Security
+
+Report security findings privately through
+[GitHub Security Advisories](https://github.com/zackb/tether/security/advisories/new),
+not a public issue. See [SECURITY.md](.github/SECURITY.md).
+
+## Acknowledgements
+* [ancs4linux](https://github.com/pzmarzly/ancs4linux) for pioneering the ANCS notifications technique.
+* [iphonebridge](https://github.com/gabrielmeir53/iphonebridge) for the research on MAP Messages.
+* [BlueFerry](https://github.com/erikwb/blueferry) for the [gold mine](https://github.com/erikwb/blueferry/blob/main/PROTOCOL.md).
+* [@orychalk](https://github.com/orychalk) for many many feature ideas, bug reports, beta testing.
+
+
+Contributions are welcome!
+
+## License
+
+Tether is licensed under the [MIT License](LICENSE).

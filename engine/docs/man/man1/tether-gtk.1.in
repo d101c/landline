@@ -1,0 +1,56 @@
+.TH TETHER-GTK 1 "@BUILD_DATE@" "Tether @TETHER_VERSION@" "User Commands"
+.SH NAME
+tether-gtk \- Graphical interface for Tether
+.SH SYNOPSIS
+.B tether-gtk
+[\fB\-\-tray\fR]
+[\fB\-\-devices\fR | \fB\-\-messages\fR | \fB\-\-notifications\fR | \fB\-\-contacts\fR | \fB\-\-calls\fR]
+[\fB\-\-thread\fR=\fIKEY\fR]
+.SH DESCRIPTION
+.B tether-gtk
+is a GTK-based graphical application for managing Tether connections and devices.
+It provides a user-friendly interface to:
+.IP \(bu 2
+Monitor the status of the connection to the Tether daemon.
+.IP \(bu 2
+Manage paired devices and accept new pairing requests.
+.IP \(bu 2
+Send and receive files.
+.IP \(bu 2
+View clipboard sync history and status.
+.PP
+If the \fBtetherd\fR(8) daemon is not running, \fBtether-gtk\fR will attempt to
+start it automatically.
+.SH OPTIONS
+.TP
+.B \-\-tray
+Start without showing the window. The application is reachable only from its
+tray icon until \fBOpen Tether\fR is chosen.
+.TP
+.B \-\-devices\fR, \fB\-\-messages\fR, \fB\-\-notifications\fR, \fB\-\-contacts\fR, \fB\-\-calls
+Open on that tab. When \fBtether-gtk\fR is already running the existing window
+is raised and switched instead of a second one being started. Without one of
+these, the tab last open is restored. \fB\-\-calls\fR only applies while call
+control is enabled.
+.TP
+.B \-\-thread=\fIKEY\fR
+Open the messages tab on the conversation with this thread key, for example
+\fBtel:+15551234567\fR. This is what the \fBReply\fR button on a message
+notification uses.
+.SH FILES
+.TP
+.I ~/.config/tether/gtk.json
+Interface preferences.
+.B close_to_tray
+(boolean) keeps the application running in the tray when the window is closed.
+.B tray_icon
+selects the tray icon set:
+.B symbolic
+(default) is monochrome and recolored by the panel,
+.B color
+is the full-color application icon.
+.B last_view
+(string) is the tab restored on the next start.
+.SH SEE ALSO
+.BR tether (1),
+.BR tetherd (8)

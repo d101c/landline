@@ -1,0 +1,43 @@
+# User unit for the Landline engine (the landlined daemon).
+# scripts/install-local.sh copies it to ~/.config/systemd/user/.
+#
+# What the daemon needs when it starts:
+#   - XDG_RUNTIME_DIR: its socket and single-instance lock live in
+#     $XDG_RUNTIME_DIR/landline/ (the user manager provides the variable);
+#   - the session bus, for obexd (messages, contacts), and the system bus,
+#     for BlueZ;
+#   - "btmgmt" in PATH (adapter state);
+#   - HOME: settings in ~/.config/landline, data in ~/.local/share/landline,
+#     log in ~/.local/state/landline/landlined.log (the daemon redirects its
+#     own output there when it is not a terminal).
+# It reads no arguments.
+[Unit]
+Description=Landline engine (Bluetooth link to an iPhone)
+Documentation=https://github.com/d101c/landline
+# Tied to the graphical session and the session bus: the bus restarts when
+# the user logs in again, and an engine left on the old bus can no longer
+# reach obexd (no messages, no contacts, and the iPhone stops offering their
+# switches).
+PartOf=graphical-session.target dbus.service
+After=graphical-session.target dbus.socket dbus.service
+# Another landlined holding the lock makes this one exit with an error:
+# give up after a few tries instead of looping.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/lib/landline/engine:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# Libraries bundled by install-local.sh (searched before the build RUNPATH).
+Environment=LD_LIBRARY_PATH=%h/.local/lib/landline/engine/lib
+Environment=LANDLINE_LOCALEDIR=%h/.local/lib/landline/engine/locale
+# A landlined started by hand through the command-line tool (it spawns one
+# under the name "landlined") holds the lock: replace it. The pattern cannot
+# match this service, whose command line starts with an absolute path.
+ExecStartPre=-/usr/bin/pkill -u %U -f ^landlined
+ExecStart=%h/.local/lib/landline/engine/landlined
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

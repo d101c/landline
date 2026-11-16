@@ -1,0 +1,3517 @@
+# Italian translation of Tether.
+# DRAFT — machine-assisted, not reviewed by a native speaker. Corrections welcome:
+# https://github.com/zackb/tether
+# Copyright (C) 2026 the Tether authors
+# This file is distributed under the same license as the tether package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: landlinectl\n"
+"Report-Msgid-Bugs-To: zack@bartel.com\n"
+"POT-Creation-Date: 2026-11-15 11:58-0800\n"
+"PO-Revision-Date: 2026-08-23\n"
+"Last-Translator: Tether project\n"
+"Language-Team: Italian\n"
+"Language: it\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/cli/main.cpp
+msgid "yes"
+msgstr "sì"
+
+#: src/cli/main.cpp
+msgid "no"
+msgstr "no"
+
+#: src/cli/main.cpp
+msgid "Show this help message."
+msgstr "Mostra questo messaggio di aiuto."
+
+#: src/cli/main.cpp
+msgid "Print the landlinectl version."
+msgstr "Mostra la versione di landlinectl."
+
+#: src/cli/main.cpp
+msgid "Retrieve the current Wayland clipboard text."
+msgstr "Recupera il testo attuale degli appunti di Wayland."
+
+#: src/cli/main.cpp
+msgid "Take string input and copy it to the local Wayland clipboard."
+msgstr ""
+"Legge il testo dall'ingresso e lo copia negli appunti locali di Wayland."
+
+#: src/cli/main.cpp
+msgid "Send the current Wayland clipboard to connected devices."
+msgstr "Invia gli appunti Wayland correnti ai dispositivi connessi."
+
+#: src/cli/main.cpp
+msgid "Send a file through landlinectl."
+msgstr "Invia un file tramite landlinectl."
+
+#: src/cli/main.cpp
+msgid "With --send-file, send to one connected device (name or fingerprint)."
+msgstr ""
+"Con --send-file, invia a un solo dispositivo connesso (nome o impronta)."
+
+#: src/cli/main.cpp
+msgid "Start the browser Native Messaging Host proxy loop."
+msgstr "Avvia il ciclo proxy Native Messaging Host del browser."
+
+#: src/cli/main.cpp
+msgid "Scan the local network for landlined instances via mDNS."
+msgstr "Cerca istanze di landlined sulla rete locale tramite mDNS."
+
+#: src/cli/main.cpp
+msgid "Connect over TCP to daemon ip instead of UNIX Socket."
+msgstr "Connetti in TCP all'ip del daemon invece che al socket UNIX."
+
+#: src/cli/main.cpp
+msgid "Connect over TCP port (default 5134)."
+msgstr "Porta TCP di connessione (predefinita 5134)."
+
+#: src/cli/main.cpp
+msgid "Discovery scan duration in milliseconds (default 3000)."
+msgstr "Durata della ricerca in millisecondi (predefinita 3000)."
+
+#: src/cli/main.cpp
+msgid "List all paired connection devices."
+msgstr "Elenca tutti i dispositivi accoppiati."
+
+#: src/cli/main.cpp
+msgid "Show the one-time system setup Bluetooth still needs."
+msgstr ""
+"Mostra la configurazione di sistema una tantum che Bluetooth richiede ancora."
+
+#: src/cli/main.cpp
+msgid "Show Bluetooth adapter capability and delivery mode."
+msgstr ""
+"Mostra le capacità dell'adattatore Bluetooth e la modalità di consegna."
+
+#: src/cli/main.cpp
+msgid "List Bluetooth devices known to BlueZ."
+msgstr "Elenca i dispositivi Bluetooth noti a BlueZ."
+
+#: src/cli/main.cpp
+msgid "Show Bluetooth link and profile connection state."
+msgstr "Mostra lo stato del collegamento Bluetooth e dei profili."
+
+#: src/cli/main.cpp
+msgid "Show AirPods and case battery."
+msgstr "Mostra la batteria degli AirPods e della custodia."
+
+#: src/cli/main.cpp
+msgid "Manage AirPods from Landline at all: on or off."
+msgstr "Gestire gli AirPods da Landline: on o off."
+
+#: src/cli/main.cpp
+msgid "Set the AirPods listening mode: off, anc, transparency, adaptive."
+msgstr ""
+"Imposta la modalità di ascolto degli AirPods: off, anc, transparency, "
+"adaptive."
+
+#: src/cli/main.cpp
+msgid ""
+"Pause local playback when an AirPod is removed: never, one-removed, both-"
+"removed."
+msgstr ""
+"Metti in pausa la riproduzione locale quando un AirPod viene rimosso: never, "
+"one-removed, both-removed."
+
+#: src/cli/main.cpp
+msgid "Hand the AirPods to the iPhone during a call: on or off."
+msgstr "Passa gli AirPods all'iPhone durante una chiamata: on oppure off."
+
+#: src/cli/main.cpp
+msgid "Lock the session when the iPhone goes out of range: on or off."
+msgstr "Blocca la sessione quando l'iPhone esce dalla portata: on oppure off."
+
+#: src/cli/main.cpp
+msgid ""
+"Release messages and contacts while this computer is locked or idle: on or "
+"off."
+msgstr ""
+"Rilascia messaggi e contatti mentre questo computer è bloccato o inattivo: "
+"on o off."
+
+#: src/cli/main.cpp
+msgid ""
+"Release a profile for another computer until claimed: map, pbap, ancs, or "
+"all."
+msgstr ""
+"Rilascia un profilo per un altro computer finché non viene ripreso: map, "
+"pbap, ancs o all."
+
+#: src/cli/main.cpp
+msgid "Take back a released profile: map, pbap, ancs, or all."
+msgstr "Riprendi un profilo rilasciato: map, pbap, ancs o all."
+
+#: src/cli/main.cpp
+msgid "List iPhone message conversations."
+msgstr "Elenca le conversazioni di messaggi dell'iPhone."
+
+#: src/cli/main.cpp
+msgid "Show messages in one conversation."
+msgstr "Mostra i messaggi di una conversazione."
+
+#: src/cli/main.cpp
+msgid "Reply in one conversation."
+msgstr "Rispondi in una conversazione."
+
+#: src/cli/main.cpp
+msgid "List iPhone contacts, or search them by name or number."
+msgstr "Elenca i contatti dell'iPhone, o cercali per nome o numero."
+
+#: src/cli/main.cpp
+msgid "List contacts by first or last name."
+msgstr "Ordina i contatti per nome o per cognome."
+
+#: src/cli/main.cpp
+msgid "Pair with an iPhone over Bluetooth."
+msgstr "Accoppia un iPhone tramite Bluetooth."
+
+#: src/cli/main.cpp
+msgid ""
+"Ask the iPhone to authenticate directly instead of connecting first. Landline "
+"falls back to this on its own; use it to skip straight there."
+msgstr ""
+"Chiedere all'iPhone di autenticarsi direttamente invece di connettersi "
+"prima. Landline vi ricorre da solo; usalo per andare direttamente lì."
+
+#: src/cli/main.cpp
+msgid "Remove a Bluetooth bond."
+msgstr "Rimuove un'associazione Bluetooth."
+
+#: src/cli/main.cpp
+msgid ""
+"Re-advertise for ANCS so the iPhone shows its permission toggles again, "
+"without removing the bond."
+msgstr ""
+"Si riannuncia per ANCS in modo che l'iPhone mostri di nuovo i suoi permessi, "
+"senza rimuovere l'associazione."
+
+#: src/cli/main.cpp
+msgid "Connect to the iPhone over Bluetooth, or stop."
+msgstr "Connetti all'iPhone tramite Bluetooth, oppure interrompi."
+
+#: src/cli/main.cpp
+msgid "Turn notification mirroring on or off."
+msgstr "Attiva o disattiva il mirroring delle notifiche."
+
+#: src/cli/main.cpp
+msgid "Mirror notification titles and bodies, not just the app."
+msgstr "Rispecchia titoli e testo delle notifiche, non solo l'app."
+
+#: src/cli/main.cpp
+msgid ""
+"Stop desktop popups from an iPhone app, by name or bundle id. It still lists "
+"in --bt-notifications."
+msgstr ""
+"Interrompe gli avvisi del desktop di un'app dell'iPhone, per nome o bundle "
+"id. Resta elencata in --bt-notifications."
+
+#: src/cli/main.cpp
+msgid "Show desktop popups from a muted iPhone app again."
+msgstr ""
+"Mostra di nuovo gli avvisi del desktop di un'app dell'iPhone silenziata."
+
+#: src/cli/main.cpp
+msgid ""
+"How message history and contacts are kept on disk. Encrypted uses a key from "
+"the desktop keyring; none deletes what is stored and keeps nothing further."
+msgstr ""
+"Come vengono conservati su disco la cronologia dei messaggi e i contatti. "
+"encrypted usa una chiave del portachiavi del desktop; none elimina quanto "
+"memorizzato e non conserva altro."
+
+#: src/cli/main.cpp
+msgid "Choose which Bluetooth controller to use."
+msgstr "Sceglie quale adattatore Bluetooth usare."
+
+#: src/cli/main.cpp
+msgid "List mirrored iPhone notifications."
+msgstr "Elenca le notifiche dell'iPhone rispecchiate."
+
+#: src/cli/main.cpp
+msgid "List calls on the iPhone."
+msgstr "Elencare le chiamate sull'iPhone."
+
+#: src/cli/main.cpp
+msgid "Place a call from the iPhone."
+msgstr "Effettuare una chiamata dall'iPhone."
+
+#: src/cli/main.cpp
+msgid "Answer the ringing call."
+msgstr "Rispondere alla chiamata in arrivo."
+
+#: src/cli/main.cpp
+msgid "Hang up every call."
+msgstr "Chiudere tutte le chiamate."
+
+#: src/cli/main.cpp
+msgid ""
+"Turn call control on or off. Calls run over Bluetooth Hands-Free; the audio "
+"stays on the iPhone."
+msgstr ""
+"Attivare o disattivare il controllo delle chiamate. Le chiamate usano il "
+"vivavoce Bluetooth; l'audio resta sull'iPhone."
+
+#: src/cli/main.cpp
+msgid ""
+"Play call audio on this computer, or leave it on the iPhone. Needs PipeWire "
+"to be the stack holding Hands-Free; off applies from the next call."
+msgstr ""
+"Riproduci l'audio delle chiamate su questo computer oppure lascialo "
+"sull'iPhone. Richiede che sia PipeWire a gestire il vivavoce; off vale dalla "
+"chiamata successiva."
+
+#: src/cli/main.cpp
+msgid ""
+"Play the iPhone's music and sounds on this computer, or keep them on the "
+"iPhone. auto leaves it to the iPhone and the audio server. Without an "
+"argument, show where it plays."
+msgstr ""
+"Riproduce musica e suoni dell'iPhone su questo computer, oppure li lascia "
+"sull'iPhone. auto lascia decidere all'iPhone e al server audio. Senza "
+"argomento, mostra dove vengono riprodotti."
+
+#: src/cli/main.cpp
+msgid "Print a redacted Bluetooth report for a bug report."
+msgstr "Stampa un rapporto Bluetooth epurato per una segnalazione di errore."
+
+#: src/cli/main.cpp
+msgid ""
+"Install the browser and mail extension's native messaging manifests for this "
+"user. Needed only for portable builds; the distro packages install them "
+"system-wide."
+msgstr ""
+"Installa i manifest di messaggistica nativa dell'estensione per browser e "
+"posta per questo utente. Serve solo alle build portabili; i pacchetti della "
+"distribuzione li installano a livello di sistema."
+
+#: src/cli/main.cpp
+msgid ""
+"Write the landline-btclass@.service unit, which sets the Bluetooth adapter "
+"class iOS requires. Needs root, and never enables it. Needed only for "
+"portable builds; the distro packages install it."
+msgstr ""
+"Scrive l'unità landline-btclass@.service, che imposta la classe "
+"dell'adattatore Bluetooth richiesta da iOS. Richiede root e non la abilita "
+"mai. Serve solo per le build portabili; i pacchetti della distribuzione la "
+"installano."
+
+#: src/cli/main.cpp
+msgid ""
+"Write the landlined systemd user service for this user, and print how to "
+"enable it. Needed only for portable builds; the distro packages install it."
+msgstr ""
+"Scrive il servizio utente systemd landlined per questo utente e stampa come "
+"abilitarlo. Necessario solo per build portabili; i pacchetti della "
+"distribuzione lo installano."
+
+#: src/cli/main.cpp
+msgid "Remove the landlined systemd user service this user installed."
+msgstr ""
+"Rimuove il servizio utente systemd landlined installato da questo utente."
+
+#: src/cli/main.cpp
+msgid "Show what the daemon is doing: devices, links, and recent transfers."
+msgstr ""
+"Mostra cosa sta facendo il demone: dispositivi, connessioni e trasferimenti "
+"recenti."
+
+#: src/cli/main.cpp
+msgid "List Wi-Fi pairing requests waiting to be accepted."
+msgstr ""
+"Elenca le richieste di accoppiamento Wi-Fi in attesa di essere accettate."
+
+#: src/cli/main.cpp
+msgid "Accept a pending pairing request locally."
+msgstr "Accetta localmente una richiesta di accoppiamento in sospeso."
+
+#: src/cli/main.cpp
+msgid "Remove a Wi-Fi pairing and drop its session."
+msgstr "Rimuove un accoppiamento Wi-Fi e chiude la sua sessione."
+
+#: src/cli/main.cpp
+msgid "Send a pair_request over TCP to the daemon."
+msgstr "Invia un pair_request al daemon tramite TCP."
+
+#: src/cli/main.cpp
+msgid "landlinectl - command-line client of the engine"
+msgstr ""
+
+#: src/cli/main.cpp
+msgid "Options:"
+msgstr "Opzioni:"
+
+#: src/cli/main.cpp
+msgid "Commands:"
+msgstr "Comandi:"
+
+#: src/cli/main.cpp
+msgid "Any --bt-<name> flag, as a subcommand."
+msgstr "Qualsiasi opzione --bt-<name>, come sottocomando."
+
+#: src/cli/main.cpp
+msgid "Examples:"
+msgstr "Esempi:"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Installed %s\n"
+msgstr "Installato %s\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"The Flatpak cannot see any browser or mail client yet. For each one you use, "
+"run its line, then run this again:\n"
+"\n"
+msgstr ""
+"Il Flatpak non vede ancora alcun browser o client di posta. Per ciascuno che "
+"usi, esegui la sua riga, poi esegui di nuovo questo comando:\n"
+"\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"No browser or mail client profile was found for this user, so nothing was "
+"installed. Start Firefox, Thunderbird, or Chromium once and run this again.\n"
+msgstr ""
+"Non è stato trovato alcun profilo di browser o client di posta per questo "
+"utente, quindi non è stato installato nulla. Avvia una volta Firefox, "
+"Thunderbird o Chromium e riprova.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Restart the browser or mail client to pick this up.\n"
+msgstr ""
+"\n"
+"Riavvia il browser o il client di posta per applicare la modifica.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Writing {} needs root. Run this with sudo.\n"
+msgstr "Scrivere {} richiede root. Esegui questo comando con sudo.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Could not write {}.\n"
+msgstr "Impossibile scrivere {}.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"It is not enabled. Run 'systemctl daemon-reload', then 'systemctl enable --"
+"now landline-btclass@hci0' to apply it.\n"
+msgstr ""
+"\n"
+"Non è abilitata. Esegui 'systemctl daemon-reload', poi 'systemctl enable --"
+"now landline-btclass@hci0' per applicarla.\n"
+
+#: src/cli/main.cpp
+msgid "Could not read Bluetooth status from the daemon.\n"
+msgstr "Impossibile leggere lo stato Bluetooth dal daemon.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Bluetooth: unavailable (is bluetoothd running?)\n"
+msgstr "Bluetooth: non disponibile (bluetoothd è in esecuzione?)\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Bluetooth setup is complete. Nothing to do.\n"
+msgstr "La configurazione Bluetooth è completa. Non c'è nulla da fare.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"%zu step left before the iPhone Bluetooth features work:\n"
+msgid_plural ""
+"\n"
+"%zu steps left before the iPhone Bluetooth features work:\n"
+msgstr[0] ""
+"\n"
+"Manca %zu passaggio prima che le funzioni Bluetooth dell'iPhone funzionino:\n"
+msgstr[1] ""
+"\n"
+"Mancano %zu passaggi prima che le funzioni Bluetooth dell'iPhone "
+"funzionino:\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Re-run 'landlinectl --bt-setup' afterwards to confirm.\n"
+msgstr ""
+"\n"
+"Riesegui poi 'landlinectl --bt-setup' per confermare.\n"
+
+#: src/cli/main.cpp
+msgid "Mode"
+msgstr "Modalità"
+
+#: src/cli/main.cpp
+msgid "Bearer API"
+msgstr "API bearer"
+
+#: src/cli/main.cpp src/core/src/bluetooth/pairing.cpp
+msgid "unknown"
+msgstr "sconosciuto"
+
+#: src/cli/main.cpp
+msgid "Adapter"
+msgstr "Adattatore"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "powered={0} central={1} peripheral={2} advertising={3} class={4}"
+msgstr "acceso={0} centrale={1} periferica={2} annuncio={3} classe={4}"
+
+#: src/cli/main.cpp
+msgid "ok"
+msgstr "corretta"
+
+#: src/cli/main.cpp
+msgid "wrong"
+msgstr "errata"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "secure-connections={}"
+msgstr "Secure Connections={}"
+
+#: src/cli/main.cpp
+msgid "Bond"
+msgstr "Associazione"
+
+#: src/cli/main.cpp
+msgid "BR/EDR, notifications live"
+msgstr "BR/EDR, notifiche attive"
+
+#: src/cli/main.cpp src/gtk/devices_view.cpp src/gtk/main.cpp
+#: src/tui/devices.cpp src/tui/notifications.cpp
+msgid "Notifications"
+msgstr "Notifiche"
+
+#: src/cli/main.cpp
+msgid "mirroring on"
+msgstr "mirroring attivo"
+
+#: src/cli/main.cpp
+msgid "mirroring off (landlinectl --bt-ancs on)"
+msgstr "mirroring disattivato (landlinectl --bt-ancs on)"
+
+#: src/cli/main.cpp
+msgid "Muted"
+msgstr "Silenziate"
+
+#: src/cli/main.cpp src/daemon/main.cpp src/gtk/main.cpp
+#: src/gtk/tether-gtk.desktop.in
+msgid "Tether"
+msgstr "Tether"
+
+#: src/cli/main.cpp
+msgid "connecting"
+msgstr "in connessione"
+
+#: src/cli/main.cpp
+msgid "off (--bt-enable on)"
+msgstr "disattivato (--bt-enable on)"
+
+#: src/cli/main.cpp
+msgid "History"
+msgstr "Cronologia"
+
+#: src/cli/main.cpp
+msgid ""
+"paused - the desktop keyring has no key to offer yet.\n"
+"Unlock it, or run 'landlinectl --bt-retention plaintext'."
+msgstr ""
+"in pausa: il portachiavi del desktop non ha ancora una chiave.\n"
+"Sbloccalo oppure esegui «landlinectl --bt-retention plaintext»."
+
+#: src/cli/main.cpp
+msgid "in use"
+msgstr "in uso"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Controller {} is not present; using the first powered one instead."
+msgstr "L'adattatore {} non è presente; viene usato il primo acceso."
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"%zu setup step remaining. Run: landlinectl --bt-setup\n"
+msgid_plural ""
+"\n"
+"%zu setup steps remaining. Run: landlinectl --bt-setup\n"
+msgstr[0] ""
+"\n"
+"Manca %zu passaggio di configurazione. Esegui: landlinectl --bt-setup\n"
+msgstr[1] ""
+"\n"
+"Mancano %zu passaggi di configurazione. Esegui: landlinectl --bt-setup\n"
+
+#: src/cli/main.cpp
+msgid "Could not read Bluetooth devices from the daemon.\n"
+msgstr "Impossibile leggere i dispositivi Bluetooth dal daemon.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No Bluetooth devices known to BlueZ.\n"
+msgstr "Nessun dispositivo Bluetooth noto a BlueZ.\n"
+
+#: src/cli/main.cpp
+msgid "Could not read the AirPods battery from the daemon.\n"
+msgstr "Impossibile leggere la batteria degli AirPods dal demone.\n"
+
+#: src/cli/main.cpp
+msgid "AirPods management is off.\n"
+msgstr "La gestione degli AirPods è disattivata.\n"
+
+#: src/cli/main.cpp
+msgid "No AirPods connected.\n"
+msgstr "Nessun AirPods connesso.\n"
+
+#: src/cli/main.cpp
+msgid "Left"
+msgstr "Sinistro"
+
+#: src/cli/main.cpp
+msgid "Right"
+msgstr "Destro"
+
+#. TRANSLATORS: The AirPods charging case, on the device row beside the two earbuds.
+#: src/cli/main.cpp src/ui_common/ui_text.cpp
+msgid "Case"
+msgstr "Custodia"
+
+#: src/cli/main.cpp
+msgid "Worn"
+msgstr "Indossati"
+
+#: src/cli/main.cpp
+msgid ""
+"This computer does not present itself as Apple hardware, so a call hands the "
+"buds over by disconnecting them. See DeviceID in /etc/bluetooth/main.conf."
+msgstr ""
+"Questo computer non si presenta come hardware Apple, quindi una chiamata "
+"passa gli AirPods disconnettendoli. Vedi DeviceID in /etc/bluetooth/"
+"main.conf."
+
+#: src/cli/main.cpp
+msgid "Could not reach the daemon.\n"
+msgstr "Impossibile raggiungere il daemon.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Listening mode set to %s.\n"
+msgstr "Modalità di ascolto impostata su %s.\n"
+
+#: src/cli/main.cpp
+msgid "The listening mode could not be set."
+msgstr "Impossibile impostare la modalità di ascolto."
+
+#: src/cli/main.cpp
+msgid "Use never, one-removed or both-removed.\n"
+msgstr "Usa never, one-removed o both-removed.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Pause on removal set to %s.\n"
+msgstr "Pausa alla rimozione impostata su %s.\n"
+
+#: src/cli/main.cpp
+msgid "Use on or off.\n"
+msgstr "Usa on oppure off.\n"
+
+#: src/cli/main.cpp
+msgid "Landline is managing the AirPods."
+msgstr "Landline sta gestendo gli AirPods."
+
+#: src/cli/main.cpp
+msgid "Landline has released the AirPods channel for another program."
+msgstr "Landline ha liberato il canale degli AirPods per un altro programma."
+
+#: src/cli/main.cpp
+msgid ""
+"An iPhone call will hand the AirPods to the phone and take them back after."
+msgstr ""
+"Una chiamata sull'iPhone gli passerà gli AirPods e li riprenderà al termine."
+
+#: src/cli/main.cpp
+msgid "AirPods handoff is off."
+msgstr "Il passaggio degli AirPods è disattivato."
+
+#: src/cli/main.cpp
+msgid "The session will lock when the iPhone goes out of range."
+msgstr "La sessione verrà bloccata quando l'iPhone esce dalla portata."
+
+#: src/cli/main.cpp
+msgid "Locking on the iPhone going out of range is off."
+msgstr "Il blocco quando l'iPhone esce dalla portata è disattivato."
+
+#: src/cli/main.cpp
+msgid ""
+"Messages and contacts will be released while this computer is locked or idle."
+msgstr ""
+"Messaggi e contatti verranno rilasciati mentre questo computer è bloccato o "
+"inattivo."
+
+#: src/cli/main.cpp
+msgid ""
+"Messages and contacts stay connected while this computer is locked or idle."
+msgstr ""
+"Messaggi e contatti restano connessi mentre questo computer è bloccato o "
+"inattivo."
+
+#: src/cli/main.cpp
+msgid "Use map, pbap, ancs, or all.\n"
+msgstr "Usa map, pbap, ancs o all.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Released %s on this computer.\n"
+msgstr "Rilasciato su questo computer: %s.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Claiming %s. If another computer holds it, release it there first.\n"
+msgstr "Ripresa di %s. Se un altro computer lo tiene, rilascialo prima lì.\n"
+
+#: src/cli/main.cpp
+msgid "Daemon closed the connection before the operation finished.\n"
+msgstr "Il daemon ha chiuso la connessione prima che l'operazione finisse.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"  The iPhone should be showing this code: %s\n"
+"  Does it match? [y/N] "
+msgstr ""
+"\n"
+"  L’iPhone dovrebbe mostrare questo codice: %s\n"
+"  Corrisponde? [y/N] "
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"  Cannot confirm the pairing code: input is not a terminal.\n"
+msgstr ""
+"\n"
+"  Impossibile confermare il codice di accoppiamento: l’input non è un "
+"terminale.\n"
+
+#: src/cli/main.cpp
+msgid "Could not read Bluetooth connection state from the daemon.\n"
+msgstr "Impossibile leggere lo stato della connessione Bluetooth dal daemon.\n"
+
+#: src/cli/main.cpp
+msgid "Device present"
+msgstr "Dispositivo presente"
+
+#: src/cli/main.cpp
+msgid "BR/EDR"
+msgstr "BR/EDR"
+
+#: src/cli/main.cpp
+msgid "LE"
+msgstr "LE"
+
+#: src/cli/main.cpp
+msgid "(bearer unavailable)"
+msgstr "(bearer non disponibile)"
+
+#: src/cli/main.cpp
+msgid "Messages (MAP)"
+msgstr "Messaggi (MAP)"
+
+#: src/cli/main.cpp
+msgid "Contacts (PBAP)"
+msgstr "Contatti (PBAP)"
+
+#: src/cli/main.cpp
+msgid "no carrier"
+msgstr "nessun operatore"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid " signal {}/5"
+msgstr " segnale {}/5"
+
+#: src/cli/main.cpp src/ui_common/ui_text.cpp
+msgid "roaming"
+msgstr "roaming"
+
+#: src/cli/main.cpp
+msgid "Calls (HFP)"
+msgstr "Chiamate (HFP)"
+
+#: src/cli/main.cpp
+msgid "Battery"
+msgstr "Batteria"
+
+#: src/cli/main.cpp
+msgid "Could not read Bluetooth diagnostics from the daemon.\n"
+msgstr "Impossibile leggere la diagnostica Bluetooth dal daemon.\n"
+
+#: src/cli/main.cpp src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "The call could not be placed."
+msgstr "Non è stato possibile effettuare la chiamata."
+
+#: src/cli/main.cpp
+msgid "Could not read calls from the daemon.\n"
+msgstr "Impossibile leggere le chiamate dal servizio.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No calls. Check 'landlinectl --bt-connection'.\n"
+msgstr "Nessuna chiamata. Controllare 'landlinectl --bt-connection'.\n"
+
+#: src/cli/main.cpp
+msgid "withheld"
+msgstr "nascosto"
+
+#: src/cli/main.cpp
+msgid "Could not read notifications from the daemon.\n"
+msgstr "Impossibile leggere le notifiche dal daemon.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No notifications yet. Check 'landlinectl --bt-connection'.\n"
+msgstr "Ancora nessuna notifica. Controlla 'landlinectl --bt-connection'.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Expected an app, e.g. {} Signal\n"
+msgstr "Atteso il nome di un'app, ad es. {} Signal\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid ""
+"No mirrored notification from '{}'. Use its bundle id, e.g. "
+"org.whispersystems.signal\n"
+msgstr ""
+"Nessuna notifica replicata da '{}'. Usa il suo bundle id, ad es. "
+"org.whispersystems.signal\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "'{}' is not muted.\n"
+msgstr "'{}' non è silenziata.\n"
+
+#: src/cli/main.cpp src/tui/notifications.cpp
+#, c++-format
+msgid "Popups from {} muted."
+msgstr "Avvisi di {} silenziati."
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Popups from {} unmuted."
+msgstr "Avvisi di {} riattivati."
+
+#: src/cli/main.cpp
+msgid "Could not read conversations from the daemon.\n"
+msgstr "Impossibile leggere le conversazioni dal daemon.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No conversations yet. Check 'landlinectl --bt-connection'.\n"
+msgstr "Ancora nessuna conversazione. Controlla 'landlinectl --bt-connection'.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "({} unread)"
+msgid_plural "({} unread)"
+msgstr[0] "({} non letto)"
+msgstr[1] "({} non letti)"
+
+#: src/cli/main.cpp src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid ""
+"The running landlined is {}, but this is landlinectl {}. Stop it and it\n"
+"restarts on demand:\n"
+"    pkill landlined\n"
+msgstr ""
+"Il landlined in esecuzione è {}, ma questo è landlinectl {}. Fermalo; si riavvia su "
+"richiesta:\n"
+"    pkill landlined\n"
+
+#: src/cli/main.cpp src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "an older build"
+msgstr "una versione più vecchia"
+
+#: src/cli/main.cpp
+msgid "Could not read contacts from the daemon.\n"
+msgstr "Impossibile leggere i contatti dal daemon.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No contacts yet. Check 'landlinectl --bt-connection'.\n"
+msgstr "Ancora nessun contatto. Controlla 'landlinectl --bt-connection'.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No contacts match %s\n"
+msgstr "Nessun contatto corrisponde a %s\n"
+
+#: src/cli/main.cpp
+msgid "Could not read messages from the daemon.\n"
+msgstr "Impossibile leggere i messaggi dal daemon.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No messages in %s\n"
+msgstr "Nessun messaggio in %s\n"
+
+#: src/cli/main.cpp
+msgid "me"
+msgstr "io"
+
+#: src/cli/main.cpp
+msgid "them"
+msgstr "loro"
+
+#: src/cli/main.cpp
+msgid "Daemon closed the connection before the message was sent.\n"
+msgstr ""
+"Il daemon ha chiuso la connessione prima che il messaggio fosse inviato.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Sent to %s\n"
+msgstr "Inviato a %s\n"
+
+#: src/cli/main.cpp src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "The message was not sent."
+msgstr "Il messaggio non è stato inviato."
+
+#: src/cli/main.cpp
+msgid "Could not read the daemon's state.\n"
+msgstr "Impossibile leggere lo stato del demone.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "No connected device named {}. Run 'landlinectl status' to see them.\n"
+msgstr ""
+"Nessun dispositivo connesso di nome {}. Esegui 'landlinectl status' per vederli.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "More than one device is named {}; pass its fingerprint instead.\n"
+msgstr "Più dispositivi si chiamano {}; indica invece la sua impronta.\n"
+
+#: src/cli/main.cpp
+msgid "Version"
+msgstr "Versione"
+
+#: src/cli/main.cpp
+msgid "Daemon"
+msgstr "Demone"
+
+#: src/cli/main.cpp
+msgid "running"
+msgstr "in esecuzione"
+
+#: src/cli/main.cpp
+msgid "Clipboard"
+msgstr "Appunti"
+
+#: src/cli/main.cpp
+msgid "syncing"
+msgstr "sincronizzazione"
+
+#: src/cli/main.cpp
+msgid "off, no Wayland session on this machine"
+msgstr "disattivato, nessuna sessione Wayland su questa macchina"
+
+#: src/cli/main.cpp
+msgid "mDNS"
+msgstr "mDNS"
+
+#: src/cli/main.cpp
+msgid "advertising"
+msgstr "in annuncio"
+
+#: src/cli/main.cpp
+msgid "unavailable"
+msgstr "non disponibile"
+
+#: src/cli/main.cpp
+msgid "Firewall"
+msgstr "Firewall"
+
+#: src/cli/main.cpp
+msgid "Paired devices"
+msgstr "Dispositivi accoppiati"
+
+#: src/cli/main.cpp
+msgid "Pending requests"
+msgstr "Richieste in sospeso"
+
+#: src/cli/main.cpp
+msgid "Connected now"
+msgstr "Connessi ora"
+
+#: src/cli/main.cpp
+msgid "paired"
+msgstr "accoppiato"
+
+#: src/cli/main.cpp
+msgid "unpaired"
+msgstr "non accoppiato"
+
+#: src/cli/main.cpp
+msgid "Recently received:"
+msgstr "Ricevuti di recente:"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Run 'landlinectl --pending' to see what is waiting to be accepted.\n"
+msgstr ""
+"\n"
+"Esegui 'landlinectl --pending' per vedere cosa attende di essere accettato.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No pairing requests are waiting.\n"
+msgstr "Nessuna richiesta di accoppiamento in attesa.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Accept one with: landlinectl --accept <fingerprint>\n"
+msgstr ""
+"\n"
+"Accettane una con: landlinectl --accept <fingerprint>\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"No systemd on this machine, so there is no user service to manage. Start "
+"landlined from whatever this system uses for services, or let a client start "
+"it on demand.\n"
+msgstr ""
+"Su questa macchina non c'è systemd, quindi non c'è alcun servizio utente da "
+"gestire. Avvia landlined con ciò che questo sistema usa per i servizi, oppure "
+"lascia che sia un client ad avviarlo quando serve.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Landline does not enable it for you. To start the daemon now and on every "
+"login:\n"
+"\n"
+"systemctl --user daemon-reload\n"
+"systemctl --user enable --now landlined.service\n"
+"\n"
+"On a server you log out of, keep the user session alive too:\n"
+"\n"
+"loginctl enable-linger $USER\n"
+msgstr ""
+"\n"
+"Landline non lo abilita per te. Per avviare il demone ora e a ogni accesso:\n"
+"\n"
+"systemctl --user daemon-reload\n"
+"systemctl --user enable --now landlined.service\n"
+"\n"
+"Su un server da cui esci, mantieni attiva anche la sessione utente:\n"
+"\n"
+"loginctl enable-linger $USER\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No landlined user service was installed for this user.\n"
+msgstr "Nessun servizio utente landlined è stato installato per questo utente.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Removed %s\n"
+msgstr "Rimosso %s\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Run 'systemctl --user daemon-reload' to forget it.\n"
+msgstr ""
+"\n"
+"Esegui 'systemctl --user daemon-reload' per dimenticarlo.\n"
+
+#: src/cli/main.cpp
+msgid "--port expects a number.\n"
+msgstr "--port richiede un numero.\n"
+
+#: src/cli/main.cpp
+msgid "--timeout expects a number in milliseconds.\n"
+msgstr "--timeout richiede un numero in millisecondi.\n"
+
+#: src/cli/main.cpp
+msgid "Unknown action. Run landlinectl --help for options\n"
+msgstr "Azione sconosciuta. Esegui landlinectl --help per le opzioni\n"
+
+#: src/cli/main.cpp
+msgid "  No landlined instances found.\n"
+msgstr "  Nessuna istanza di landlined trovata.\n"
+
+#: src/cli/main.cpp
+msgid "[new]"
+msgstr "[nuovo]"
+
+#: src/cli/main.cpp
+msgid "[known]"
+msgstr "[noto]"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Found %zu device in %.1fs\n"
+msgid_plural "Found %zu devices in %.1fs\n"
+msgstr[0] "Trovato %zu dispositivo in %.1fs\n"
+msgstr[1] "Trovati %zu dispositivi in %.1fs\n"
+
+#: src/cli/main.cpp
+msgid ""
+"The daemon is not running, and could not be started. Check the log in "
+"$XDG_STATE_HOME/landline, or start it with 'systemctl --user start "
+"landlined.service'.\n"
+msgstr ""
+"Il demone non è in esecuzione e non è stato possibile avviarlo. Controlla il "
+"log in $XDG_STATE_HOME/landline, oppure avvialo con 'systemctl --user start "
+"landlined.service'.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "No daemon answered at {}:{}.\n"
+msgstr "Nessun demone ha risposto su {}:{}.\n"
+
+#: src/cli/main.cpp
+msgid ""
+"Explicit framework connection locally rejected! Did you target explicitly "
+"invalid TLS or is daemon broken?\n"
+msgstr ""
+"Connessione esplicita del framework rifiutata localmente! Hai indicato un "
+"TLS esplicitamente non valido o il daemon è guasto?\n"
+
+#: src/cli/main.cpp
+msgid "--forget expects a fingerprint.\n"
+msgstr "--forget richiede un'impronta.\n"
+
+#: src/cli/main.cpp
+msgid "No paired device with that fingerprint.\n"
+msgstr "Nessun dispositivo accoppiato con quell'impronta.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Transfer Failed: {}"
+msgstr "Trasferimento non riuscito: {}"
+
+#: src/cli/main.cpp
+msgid "A number is required, e.g. --bt-call +15551234567\n"
+msgstr "È richiesto un numero, ad es. --bt-call +15551234567\n"
+
+#: src/cli/main.cpp
+msgid "Dialing."
+msgstr "Composizione in corso."
+
+#: src/cli/main.cpp
+msgid "Answering."
+msgstr "Risposta in corso."
+
+#: src/cli/main.cpp
+msgid "Call audio comes to this computer."
+msgstr "L'audio della chiamata passa a questo computer."
+
+#: src/cli/main.cpp
+msgid "Call audio stays on the iPhone."
+msgstr "L'audio della chiamata resta sull'iPhone."
+
+#: src/cli/main.cpp
+msgid "Hanging up."
+msgstr "Chiusura in corso."
+
+#: src/cli/main.cpp
+msgid "Expected first or last, e.g. --bt-contacts-sort last\n"
+msgstr "Atteso first o last, ad es. --bt-contacts-sort last\n"
+
+#: src/cli/main.cpp
+msgid "Contacts sorted by last name."
+msgstr "Contatti ordinati per cognome."
+
+#: src/cli/main.cpp
+msgid "Contacts sorted by first name."
+msgstr "Contatti ordinati per nome."
+
+#: src/cli/main.cpp
+msgid "The iPhone's audio plays on this computer."
+msgstr "L'audio dell'iPhone viene riprodotto su questo computer."
+
+#: src/cli/main.cpp
+msgid "The iPhone's audio stays on the iPhone."
+msgstr "L'audio dell'iPhone resta sull'iPhone."
+
+#: src/cli/main.cpp
+msgid ""
+"Unavailable: the iPhone is not connected over Classic, or the audio server "
+"does not offer the a2dp_sink role."
+msgstr ""
+"Non disponibile: l'iPhone non è connesso tramite Bluetooth Classic, oppure "
+"il server audio non offre il ruolo a2dp_sink."
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Remembered choice: {}"
+msgstr "Scelta memorizzata: {}"
+
+#: src/cli/main.cpp
+msgid "Expected here, phone or auto, e.g. --bt-phone-audio here\n"
+msgstr "Previsto here, phone o auto, ad es. --bt-phone-audio here\n"
+
+#: src/cli/main.cpp
+msgid "The iPhone's audio comes to this computer."
+msgstr "L'audio dell'iPhone passa a questo computer."
+
+#: src/cli/main.cpp
+msgid "The iPhone's audio goes back to the iPhone."
+msgstr "L'audio dell'iPhone torna sull'iPhone."
+
+#: src/cli/main.cpp
+msgid "Phone audio follows the iPhone and the audio server."
+msgstr "L'audio del telefono segue l'iPhone e il server audio."
+
+#: src/cli/main.cpp
+msgid "Expected on or off, e.g. --bt-calls-enable on\n"
+msgstr "Atteso on o off, ad es. --bt-calls-enable on\n"
+
+#: src/cli/main.cpp
+msgid "Call control enabled."
+msgstr "Controllo delle chiamate attivato."
+
+#: src/cli/main.cpp
+msgid "Call control disabled."
+msgstr "Controllo delle chiamate disattivato."
+
+#: src/cli/main.cpp
+msgid "A thread key is required, e.g. --bt-messages tel:+15551234567\n"
+msgstr ""
+"È necessaria una chiave di conversazione, ad es. --bt-messages tel:"
+"+15551234567\n"
+
+#: src/cli/main.cpp
+msgid ""
+"A conversation and a message are required, e.g. --bt-send tel:+15551234567 "
+"\"hi\"\n"
+msgstr ""
+"Sono necessari una conversazione e un messaggio, ad es. --bt-send tel:"
+"+15551234567 \"ciao\"\n"
+
+#: src/cli/main.cpp
+msgid "A Bluetooth address is required, e.g. --bt-pair AA:BB:CC:DD:EE:FF\n"
+msgstr ""
+"È necessario un indirizzo Bluetooth, ad es. --bt-pair AA:BB:CC:DD:EE:FF\n"
+
+#: src/cli/main.cpp
+msgid "Expected on or off, e.g. --bt-enable off\n"
+msgstr "Atteso on oppure off, ad es. --bt-enable off\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Bluetooth enabled.\n"
+msgstr "Bluetooth attivato.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"Bluetooth disabled. Landline will not reconnect the iPhone. A link that is\n"
+"already up stays up until you disconnect it or the phone goes out of range.\n"
+msgstr ""
+"Bluetooth disattivato. Landline non riconnetterà l'iPhone. Un collegamento "
+"già\n"
+"attivo resta attivo finché non lo disconnetti o il telefono esce dalla "
+"portata.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Expected on or off, e.g. {} on\n"
+msgstr "Atteso on oppure off, ad es. {} on\n"
+
+#: src/cli/main.cpp
+msgid "Notification contents enabled."
+msgstr "Contenuto delle notifiche attivato."
+
+#: src/cli/main.cpp
+msgid "Notification contents disabled."
+msgstr "Contenuto delle notifiche disattivato."
+
+#: src/cli/main.cpp
+msgid "Notification mirroring enabled."
+msgstr "Mirroring delle notifiche attivato."
+
+#: src/cli/main.cpp
+msgid "Notification mirroring disabled."
+msgstr "Mirroring delle notifiche disattivato."
+
+#: src/cli/main.cpp
+msgid "Expected encrypted, plaintext or none, e.g. --bt-retention encrypted\n"
+msgstr "Attesi encrypted, plaintext o none, ad es. --bt-retention encrypted\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Deleting stored messages and contacts.\n"
+msgstr "Eliminazione dei messaggi e dei contatti memorizzati.\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Retention set to %s.\n"
+msgstr "Conservazione impostata su %s.\n"
+
+#: src/cli/main.cpp
+msgid "Expected a controller, e.g. --bt-adapter hci1, or --bt-adapter auto\n"
+msgstr ""
+"Atteso un adattatore, ad es. --bt-adapter hci1, oppure --bt-adapter auto\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "No Bluetooth controller matches '{}'. Available:\n"
+msgstr "Nessun adattatore Bluetooth corrisponde a «{}». Disponibili:\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Controller selection is automatic: the first powered one.\n"
+msgstr "La selezione dell'adattatore è automatica: il primo acceso.\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Using controller {}."
+msgstr "Uso dell'adattatore {}."
+
+#: src/core/src/bluetooth/airpods.cpp
+msgid "The AirPods address could not be read."
+msgstr "Impossibile leggere l'indirizzo degli AirPods."
+
+#: src/core/src/bluetooth/airpods.cpp
+msgid "Bluetooth sockets are unavailable on this system."
+msgstr "I socket Bluetooth non sono disponibili su questo sistema."
+
+#: src/core/src/bluetooth/airpods.cpp
+msgid "Another program is using the AirPods channel."
+msgstr "Un altro programma sta usando il canale degli AirPods."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"Messages and contacts are connected. BlueZ reports the Bluetooth link down "
+"because this computer offers the iPhone no profile to connect to — usual on "
+"a machine with no audio stack, or one where the a2dp_sink and hfp_hf roles "
+"are turned off. Nothing is missing and nothing needs changing on the iPhone."
+msgstr ""
+"Messaggi e contatti sono connessi. BlueZ segnala il collegamento Bluetooth "
+"non attivo perché questo computer non offre all'iPhone alcun profilo a cui "
+"connettersi — normale su una macchina senza stack audio, o su cui i ruoli "
+"a2dp_sink e hfp_hf sono disattivati. Non manca nulla e non serve cambiare "
+"nulla sull'iPhone."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"This computer is not putting the notification request on air, so the iPhone "
+"is never asked for the service. Nothing on the iPhone changes this and re-"
+"pairing will not either. Check the controller with landlinectl --bt-status; "
+"another one can be selected with landlinectl --bt-adapter."
+msgstr ""
+"Questo computer non sta trasmettendo la richiesta di notifiche, quindi "
+"all'iPhone non viene mai chiesto il servizio. Nulla sull'iPhone lo cambia, e "
+"nemmeno rifare l'associazione. Controlla il controller con landlinectl --bt-"
+"status; se ne può scegliere un altro con landlinectl --bt-adapter."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"This computer had pinned the bond to BR/EDR, which refuses the LE link the "
+"iPhone opens to carry notifications. That is being undone now; LE should "
+"come up within a minute. Nothing on the iPhone changes this and re-pairing "
+"will not either."
+msgstr ""
+"Questo computer aveva bloccato l'associazione su BR/EDR, il che rifiuta il "
+"collegamento LE che l'iPhone apre per trasportare le notifiche. Ora viene "
+"annullato; LE dovrebbe attivarsi entro un minuto. Nulla sull'iPhone cambia "
+"questo, e nemmeno rifare l'associazione."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"The iPhone is not answering on LE. Its Bluetooth is wedged on its own side: "
+"turn Bluetooth off and back on on the iPhone, which clears this even when "
+"Share System Notifications is already on. Messages and contacts are "
+"unaffected."
+msgstr ""
+"L'iPhone non risponde su LE. Il suo Bluetooth è bloccato dal suo lato: "
+"disattiva e riattiva il Bluetooth sull'iPhone, cosa che risolve anche quando "
+"\"Condividi notifiche di sistema\" è già attivo. Messaggi e contatti non "
+"sono interessati."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"The iPhone keeps refusing the Bluetooth connection. Turn Bluetooth off and "
+"back on on the iPhone — that clears it even when the permissions are already "
+"on. Re-pairing is not the fix."
+msgstr ""
+"L'iPhone continua a rifiutare la connessione Bluetooth. Disattiva e riattiva "
+"il Bluetooth sull'iPhone — questo risolve anche quando i permessi sono già "
+"attivi. Riaccoppiare non è la soluzione."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"Notifications are connected. Still reaching the iPhone for messages and "
+"contacts..."
+msgstr ""
+"Le notifiche sono connesse. Contatto ancora l'iPhone per messaggi e "
+"contatti..."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid "Connecting to the iPhone over Bluetooth..."
+msgstr "Connessione all'iPhone tramite Bluetooth..."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid "Connected. Notification mirroring is disabled."
+msgstr "Connesso. Il mirroring delle notifiche è disattivato."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+#, c++-format
+msgid ""
+"Connected, but this pairing has no LE keys, so notifications are "
+"unavailable. This is usually the Bluetooth adapter. Run landlinectl --bt-status "
+"or see {}"
+msgstr ""
+"Connesso, ma questo abbinamento non ha chiavi LE, quindi le notifiche non "
+"sono disponibili. Di solito dipende dall'adattatore Bluetooth. Esegui landlinectl "
+"--bt-status o vedi {}"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"Connected. Waiting for the iPhone to open the LE link that carries "
+"notifications. If it does not, open Settings > Bluetooth > (i) on the iPhone "
+"and check Share System Notifications."
+msgstr ""
+"Connesso. In attesa che l'iPhone apra il collegamento LE che trasporta le "
+"notifiche. Se non lo fa, apri Impostazioni > Bluetooth > (i) sull'iPhone e "
+"controlla \"Condividi notifiche di sistema\"."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid "Connected over BR/EDR and LE."
+msgstr "Connesso tramite BR/EDR e LE."
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "Nothing to send."
+msgstr "Non c'è niente da inviare."
+
+#: src/core/src/bluetooth/connection.cpp src/gtk/messages_view.cpp
+#: src/tui/messages.cpp
+msgid "Messages are not connected."
+msgstr "I messaggi non sono connessi."
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "Could not build a message for this conversation."
+msgstr "Impossibile comporre un messaggio per questa conversazione."
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "That message is no longer in the conversation history."
+msgstr "Quel messaggio non è più nella cronologia della conversazione."
+
+#: src/core/src/bluetooth/connection.cpp
+msgid ""
+"The iPhone is not serving this message right now; marked read on this "
+"computer only."
+msgstr ""
+"L'iPhone non sta fornendo questo messaggio al momento; segnato come letto "
+"solo su questo computer."
+
+#: src/core/src/bluetooth/connection.cpp
+msgid ""
+"The iPhone is not offering notifications on this link. Asking it again..."
+msgstr ""
+"L'iPhone non offre notifiche su questo collegamento. Nuova richiesta in "
+"corso..."
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "Call control is off."
+msgstr "Il controllo delle chiamate è disattivato."
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "No paired iPhone selected."
+msgstr "Nessun iPhone accoppiato selezionato."
+
+#: src/core/src/bluetooth/groups.cpp
+msgid "Group replies are turned off."
+msgstr "Le risposte di gruppo sono disattivate."
+
+#: src/core/src/bluetooth/groups.cpp
+msgid ""
+"Someone who is not in this group's saved member list has posted to it, so "
+"the list is out of date. Update it in groups.json before replying."
+msgstr ""
+"Qualcuno che non è nell'elenco dei membri salvato di questo gruppo vi ha "
+"scritto, quindi l'elenco non è aggiornato. Aggiornalo in groups.json prima "
+"di rispondere."
+
+#: src/core/src/bluetooth/groups.cpp
+#, c++-format
+msgid "The roster for this group contains an unusable address: {}"
+msgstr "L'elenco di questo gruppo contiene un indirizzo inutilizzabile: {}"
+
+#: src/core/src/bluetooth/groups.cpp
+msgid "The roster for this group is empty."
+msgstr "L'elenco di questo gruppo è vuoto."
+
+#: src/core/src/bluetooth/groups.cpp
+msgid ""
+"This conversation has not been identified as a group yet, so there is nobody "
+"to reply to."
+msgstr ""
+"Questa conversazione non è ancora stata identificata come gruppo, quindi non "
+"c'è nessuno a cui rispondere."
+
+#: src/core/src/bluetooth/groups.cpp
+msgid ""
+"This group has a name but no member list. Add its members before replying."
+msgstr ""
+"Questo gruppo ha un nome ma nessun elenco di membri. Aggiungi i suoi membri "
+"prima di rispondere."
+
+#: src/core/src/bluetooth/groups.cpp
+#, c++-format
+msgid "\"{}\" is not in your contacts."
+msgstr "\"{}\" non è nei tuoi contatti."
+
+#: src/core/src/bluetooth/groups.cpp
+#, c++-format
+msgid "\"{}\" matches more than one contact address."
+msgstr "\"{}\" corrisponde a più di un indirizzo nei contatti."
+
+#: src/core/src/bluetooth/groups.cpp
+#, c++-format
+msgid "\"{0}\" resolved to an unusable address: {1}"
+msgstr "\"{0}\" è stato risolto in un indirizzo inutilizzabile: {1}"
+
+#: src/core/src/bluetooth/groups.cpp
+msgid "No recipients could be resolved for this group."
+msgstr "Non è stato possibile risolvere alcun destinatario per questo gruppo."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "No Bluetooth adapter found."
+msgstr "Nessun adattatore Bluetooth trovato."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "Bluetooth adapter is powered off."
+msgstr "L'adattatore Bluetooth è spento."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "Adapter has no LE central role; ANCS is impossible."
+msgstr "L'adattatore non ha il ruolo centrale LE; ANCS è impossibile."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "Adapter cannot advertise as a peripheral, so ANCS cannot be solicited."
+msgstr ""
+"L'adattatore non può annunciarsi come periferica, quindi ANCS non può essere "
+"sollecitato."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"No LE advertising instances available; the iPhone may never show its "
+"Bluetooth permission toggles."
+msgstr ""
+"Nessuna istanza di annuncio LE disponibile; l'iPhone potrebbe non mostrare "
+"mai i suoi permessi Bluetooth."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"Notification mirroring needs BlueZ's experimental bearer API "
+"(org.bluez.Bearer.LE1), which bluetoothd is not exposing. Set this up before "
+"pairing: a bond made without it has no LE half."
+msgstr ""
+"Il mirroring delle notifiche richiede l'API bearer sperimentale di BlueZ "
+"(org.bluez.Bearer.LE1), che bluetoothd non sta esponendo. Configuralo prima "
+"di accoppiare: un'associazione creata senza di essa non ha la metà LE."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "Bearer API support is unconfirmed until a device is bonded."
+msgstr ""
+"Il supporto dell'API bearer non è confermato finché un dispositivo non è "
+"associato."
+
+#: src/core/src/bluetooth/objects.cpp
+#, c++-format
+msgid ""
+"This Bluetooth adapter is known to pair without Secure Connections, so "
+"iPhone notifications cannot work on it and re-pairing will not change that. "
+"Messages and contacts still work. See {}"
+msgstr ""
+"Questo adattatore Bluetooth è noto per abbinarsi senza Secure Connections, "
+"quindi le notifiche dell'iPhone non possono funzionare e un nuovo "
+"abbinamento non cambierà le cose. Messaggi e contatti funzionano comunque. "
+"Vedi {}"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"A device is bonded, but the bond covers BR/EDR only -- no LE keys were "
+"derived, so notification mirroring cannot work on it."
+msgstr ""
+"Un dispositivo è associato, ma l'associazione copre solo BR/EDR -- non sono "
+"state derivate chiavi LE, quindi il mirroring delle notifiche non può "
+"funzionare."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"This adapter cannot solicit ANCS, so notification mirroring is unavailable "
+"on it and re-pairing will not change that."
+msgstr ""
+"Questo adattatore non può sollecitare ANCS, quindi il mirroring delle "
+"notifiche non è disponibile su di esso e riaccoppiare non lo cambierà."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"Secure Connections is off on this controller, which is what blocks the "
+"derivation; re-pairing will not help until it is on."
+msgstr ""
+"Secure Connections è disattivato su questo controller, ed è ciò che blocca "
+"la derivazione; riaccoppiare non servirà finché non è attivo."
+
+#: src/core/src/bluetooth/objects.cpp
+#, c++-format
+msgid ""
+"Delete this computer on the iPhone (Forget This Device) and pair again. If "
+"it is still BR/EDR only, this adapter cannot do Secure Connections and needs "
+"replacing. See {}"
+msgstr ""
+"Elimina questo computer sull'iPhone (Dimentica questo dispositivo) e abbina "
+"di nuovo. Se è ancora solo BR/EDR, questo adattatore non supporta Secure "
+"Connections e va sostituito. Vedi {}"
+
+#: src/core/src/bluetooth/objects.cpp
+#, c++-format
+msgid ""
+"If every attempt gives a BR/EDR-only bond, this controller may not support "
+"Secure Connections on BR/EDR; try another with landlinectl --bt-adapter {} and "
+"pair again."
+msgstr ""
+"Se ogni tentativo produce un accoppiamento solo BR/EDR, questo controller "
+"potrebbe non supportare Secure Connections su BR/EDR; provane un altro con "
+"landlinectl --bt-adapter {} e accoppia di nuovo."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"The iPhone will not offer its Messages and Contacts permissions until this "
+"adapter presents itself as A/V Hands-Free (major 4, minor 8)."
+msgstr ""
+"L'iPhone non offrirà i permessi per Messaggi e Contatti finché questo "
+"adattatore non si presenta come A/V Hands-Free (major 4, minor 8)."
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"Messages and Contacts need L2CAP ERTM, which the kernel has disabled "
+"(bluetooth.disable_ertm). This turns it back on until reboot. To keep it, "
+"remove disable_ertm from the kernel command line or /etc/modprobe.d (rpm-"
+"ostree: sudo rpm-ostree kargs --delete=bluetooth.disable_ertm=1)."
+msgstr ""
+"Messaggi e Contatti richiedono L2CAP ERTM, che il kernel ha disattivato "
+"(bluetooth.disable_ertm). Questo lo riattiva fino al prossimo riavvio. Per "
+"mantenerlo, rimuovi disable_ertm dalla riga di comando del kernel o da /etc/"
+"modprobe.d (rpm-ostree: sudo rpm-ostree kargs --"
+"delete=bluetooth.disable_ertm=1)."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "No Bluetooth adapter is available."
+msgstr "Nessun adattatore Bluetooth è disponibile."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Could not prepare the ANCS advertisement."
+msgstr "Impossibile preparare l'annuncio ANCS."
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Could not advertise for ANCS: {}"
+msgstr "Impossibile annunciare per ANCS: {}"
+
+#: src/core/src/bluetooth/pairing.cpp src/core/src/net.cpp
+msgid "Bluetooth is unavailable."
+msgstr "Bluetooth non è disponibile."
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid ""
+"{0} wants to pair.\n"
+"\n"
+"Confirm this code matches the one on your iPhone:\n"
+"\n"
+"{1}"
+msgstr ""
+"{0} vuole accoppiarsi.\n"
+"\n"
+"Conferma che questo codice corrisponda a quello sull'iPhone:\n"
+"\n"
+"{1}"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Bluetooth Pairing"
+msgstr "Accoppiamento Bluetooth"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Confirm"
+msgstr "Conferma"
+
+#: src/core/src/bluetooth/pairing.cpp src/gtk/messages_view.cpp
+msgid "Cancel"
+msgstr "Annulla"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid ""
+"Device {} is not visible to BlueZ. Unlock the iPhone and open its Bluetooth "
+"settings so it is discoverable, then try again."
+msgstr ""
+"Il dispositivo {} non è visibile a BlueZ. Sblocca l'iPhone e apri le sue "
+"impostazioni Bluetooth perché sia rilevabile, poi riprova."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Could not register a Bluetooth pairing agent."
+msgstr "Impossibile registrare un agente di accoppiamento Bluetooth."
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid ""
+"The pairing code could not be shown for confirmation: this computer has no "
+"display, and whatever started the pairing did not answer either. Run landlinectl "
+"--bt-pair {} from a terminal and confirm the code there."
+msgstr ""
+"Non è stato possibile mostrare il codice di accoppiamento per la conferma: "
+"questo computer non ha uno schermo e nemmeno ciò che ha avviato "
+"l'accoppiamento ha risposto. Esegui landlinectl --bt-pair {} in un terminale e "
+"conferma lì il codice."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Pairing was not confirmed on this computer."
+msgstr "L'accoppiamento non è stato confermato su questo computer."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "The iPhone declined the pairing request."
+msgstr "L'iPhone ha rifiutato la richiesta di accoppiamento."
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid ""
+"The iPhone refused the connection before pairing started{0}. Delete every "
+"entry for this computer on the iPhone (Settings -> Bluetooth, there can be "
+"two), run landlinectl --bt-unpair {1}, then try again."
+msgstr ""
+"L'iPhone ha rifiutato la connessione prima che l'accoppiamento iniziasse{0}. "
+"Elimina ogni voce per questo computer sull'iPhone (Impostazioni -> "
+"Bluetooth, possono essere due), esegui landlinectl --bt-unpair {1}, poi riprova."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Pairing did not complete. Confirm the prompt on the iPhone."
+msgstr ""
+"L'accoppiamento non è stato completato. Conferma la richiesta sull'iPhone."
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Pairing failed: {}"
+msgstr "Accoppiamento non riuscito: {}"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Paired with {}."
+msgstr "Accoppiato con {}."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "No Bluetooth adapter is present."
+msgstr "Nessun adattatore Bluetooth è presente."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "BlueZ refused to start scanning."
+msgstr "BlueZ ha rifiutato di avviare la scansione."
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid ""
+"BlueZ is holding a discovery session that never ended, so scanning cannot "
+"start. Restart the Bluetooth service (sudo systemctl restart bluetooth) and "
+"try again."
+msgstr ""
+"BlueZ mantiene una sessione di rilevamento mai terminata, quindi la "
+"scansione non può iniziare. Riavvia il servizio Bluetooth (sudo systemctl "
+"restart bluetooth) e riprova."
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Device {} is not known to BlueZ."
+msgstr "Il dispositivo {} non è noto a BlueZ."
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Could not remove the bond: {}"
+msgstr "Impossibile rimuovere l'associazione: {}"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid ""
+"Removed the bond. Also delete this computer from the iPhone's Bluetooth "
+"settings before pairing again — a stale record there will block a clean "
+"retry."
+msgstr ""
+"Associazione rimossa. Elimina anche questo computer dalle impostazioni "
+"Bluetooth dell'iPhone prima di accoppiare di nuovo: una voce obsoleta lì "
+"impedirà un nuovo tentativo pulito."
+
+#. TRANSLATORS: the feature name Tether shows for this profile.
+#: src/core/src/bluetooth/profile_supervisor.cpp src/daemon/main.cpp
+#: src/gtk/devices_view.cpp src/gtk/main.cpp src/gtk/messages_view.cpp
+#: src/gtk/settings_view.cpp src/tui/devices.cpp src/tui/messages.cpp
+#: src/tui/settings.cpp
+msgid "Messages"
+msgstr "Messaggi"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp src/gtk/devices_view.cpp
+#: src/gtk/main.cpp src/gtk/settings_view.cpp src/tui/contacts.cpp
+#: src/tui/devices.cpp src/tui/settings.cpp
+msgid "Contacts"
+msgstr "Contatti"
+
+#. TRANSLATORS: these two are toggle names in the iPhone's own Settings app.
+#. Use Apple's wording for the target language, not a literal translation.
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Show Message Notifications"
+msgstr "Mostra notifiche messaggi"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Sync Contacts"
+msgstr "Sincronizza contatti"
+
+#. TRANSLATORS: {} is an iPhone Settings toggle name.
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"Enable \"{}\" for this computer in the iPhone's Settings > Bluetooth > (i). "
+"This is a permission, not a pairing problem."
+msgstr ""
+"Attiva \"{}\" per questo computer in Impostazioni > Bluetooth > (i) "
+"sull'iPhone. È un permesso, non un problema di accoppiamento."
+
+#. TRANSLATORS: {0} is Messages or Contacts, {1} is the profile name (map or pbap).
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"{0} is unavailable because another computer is using the iPhone's {1} "
+"session. Disconnect it there, then this will connect on its own."
+msgstr ""
+"{0} non è disponibile perché un altro computer sta usando la sessione {1} "
+"dell'iPhone. Disconnettilo lì e questo si connetterà da solo."
+
+#. TRANSLATORS: {} is Messages or Contacts.
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"{} cannot connect because the kernel has L2CAP ERTM disabled "
+"(bluetooth.disable_ertm). Run landlinectl --bt-setup; nothing is wrong on the "
+"iPhone."
+msgstr ""
+"{} non riesce a connettersi perché il kernel ha disattivato L2CAP ERTM "
+"(bluetooth.disable_ertm). Esegui landlinectl --bt-setup; sull'iPhone non c'è "
+"nulla di sbagliato."
+
+#. TRANSLATORS: {0} is Messages or Contacts, {1} is an iPhone Settings toggle name.
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"{0} could not be fetched from the iPhone. Usually another computer holds the "
+"phone's Bluetooth session, or \"{1}\" is off in Settings > Bluetooth > (i). "
+"Check both; re-pairing is not the fix."
+msgstr ""
+"Non è stato possibile recuperare {0} dall'iPhone. Di solito un altro "
+"computer occupa la sessione Bluetooth del telefono, oppure \"{1}\" è "
+"disattivato in Impostazioni > Bluetooth > (i). Controlla entrambi; "
+"riaccoppiare non è la soluzione."
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid "{} is unreachable; waiting for the iPhone to come back."
+msgstr "{} non è raggiungibile; in attesa che l'iPhone torni."
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"{} needs BlueZ's OBEX daemon, which is not installed on this computer. "
+"Install it (bluez-obex on Arch, bluez-obexd on Debian and Ubuntu). Nothing "
+"needs changing on the iPhone."
+msgstr ""
+"{} richiede il daemon OBEX di BlueZ, che non è installato su questo "
+"computer. Installalo (bluez-obex su Arch, bluez-obexd su Debian e Ubuntu). "
+"Non serve cambiare nulla sull'iPhone."
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid "{} could not be opened."
+msgstr "Non è stato possibile aprire {}."
+
+#: src/core/src/bluetooth/profile_supervisor.cpp src/gtk/calls_view.cpp
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "Waiting for the iPhone."
+msgstr "In attesa dell'iPhone."
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Messages and contacts"
+msgstr "Messaggi e contatti"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid "{} released while this computer is locked or idle."
+msgstr "Rilasciato mentre questo computer è bloccato o inattivo: {}."
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid "{} released on this computer."
+msgstr "Rilasciato su questo computer: {}."
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Messages and contacts are connected."
+msgstr "Messaggi e contatti sono connessi."
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Opening messages and contacts..."
+msgstr "Apertura di messaggi e contatti..."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "The iPhone has not connected Hands-Free to this computer."
+msgstr "L'iPhone non ha collegato il vivavoce a questo computer."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Connecting to the iPhone's Hands-Free service."
+msgstr "Connessione al servizio vivavoce dell'iPhone."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid ""
+"PipeWire is handling Hands-Free, so the call audio can play on this computer."
+msgstr ""
+"Il vivavoce è gestito da PipeWire, quindi l'audio delle chiamate può essere "
+"riprodotto su questo computer."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Calls are controlled here; the audio plays on the iPhone."
+msgstr "Le chiamate si controllano qui; l'audio viene riprodotto sull'iPhone."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "This computer is not carrying the call audio; it plays on the iPhone."
+msgstr ""
+"Questo computer non trasporta l'audio della chiamata; viene riprodotto "
+"sull'iPhone."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Not a dialable number."
+msgstr "Non è un numero componibile."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "No call named."
+msgstr "Nessuna chiamata indicata."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "That call is no longer active."
+msgstr "Quella chiamata non è più attiva."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Unknown call action."
+msgstr "Azione di chiamata sconosciuta."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Not a DTMF sequence."
+msgstr "Non è una sequenza DTMF."
+
+#: src/core/src/net.cpp
+msgid "A Bluetooth scan is already running."
+msgstr "Una scansione Bluetooth è già in corso."
+
+#: src/core/src/net.cpp
+msgid "Bluetooth scan finished."
+msgstr "Scansione Bluetooth completata."
+
+#: src/core/src/net.cpp
+msgid "Another pairing attempt is already in progress."
+msgstr "Un altro tentativo di accoppiamento è già in corso."
+
+#: src/core/src/net.cpp src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Bluetooth is unavailable on this machine."
+msgstr "Bluetooth non è disponibile su questa macchina."
+
+#: src/core/src/net.cpp
+msgid "Not an AirPods device."
+msgstr "Non è un dispositivo AirPods."
+
+#: src/core/src/net.cpp
+msgid "Unknown listening mode."
+msgstr "Modalità di ascolto sconosciuta."
+
+#: src/core/src/net.cpp src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "No AirPods are connected."
+msgstr "Nessun AirPods connesso."
+
+#: src/core/src/net.cpp
+msgid "Notification mirroring is already active; nothing to do."
+msgstr "Il mirroring delle notifiche è già attivo, non c'è nulla da fare."
+
+#. TRANSLATORS: "Show Message Notifications" and the Settings path are
+#. the iPhone's own wording; use Apple's for the target language.
+#: src/core/src/net.cpp
+msgid ""
+"Asked the iPhone to re-offer notification access. Watch the connection "
+"status. If it does not go active within a minute or two, toggle Show Message "
+"Notifications off and on in Settings > Bluetooth > (i) -- it can need re-"
+"granting even when it already looks enabled."
+msgstr ""
+"È stato chiesto all'iPhone di offrire di nuovo l'accesso alle notifiche. "
+"Controlla lo stato della connessione. Se non diventa attivo entro un minuto "
+"o due, disattiva e riattiva \"Mostra notifiche messaggi\" in Impostazioni > "
+"Bluetooth > (i): a volte va concesso di nuovo anche se sembra già abilitato."
+
+#: src/core/src/net.cpp
+#, c++-format
+msgid "Sent {}"
+msgstr "{} inviato"
+
+#: src/core/src/net.cpp
+#, c++-format
+msgid "Send failed: {}"
+msgstr "Invio non riuscito: {}"
+
+#: src/core/src/net.cpp
+msgid "unknown error"
+msgstr "errore sconosciuto"
+
+#: src/core/src/net.cpp src/gtk/devices_view.cpp src/gtk/messages_view.cpp
+#: src/tui/devices.cpp src/tui/messages.cpp
+msgid "Could not reach the Landline daemon."
+msgstr "Impossibile raggiungere il daemon di Landline."
+
+#. TRANSLATORS: {0} is the device name, {1} is a shortened key fingerprint.
+#: src/core/src/net.cpp
+#, c++-format
+msgid "{0} ({1}) wants to pair with this device."
+msgstr "{0} ({1}) vuole accoppiarsi con questo dispositivo."
+
+#: src/core/src/net.cpp
+msgid "Pairing Request"
+msgstr "Richiesta di accoppiamento"
+
+#: src/core/src/net.cpp
+msgid "Accept"
+msgstr "Accetta"
+
+#: src/core/src/net.cpp
+msgid "Reject"
+msgstr "Rifiuta"
+
+#: src/daemon/main.cpp
+msgid "Reply not sent"
+msgstr "Risposta non inviata"
+
+#: src/daemon/main.cpp
+msgid "This PC can't be discovered"
+msgstr "Questo computer non è rilevabile"
+
+#: src/daemon/main.cpp
+msgid ""
+"avahi-daemon isn't running, so Landline can't advertise itself on the network. "
+"Start it with: sudo systemctl enable --now avahi-daemon"
+msgstr ""
+"avahi-daemon non è in esecuzione, quindi Landline non può annunciarsi sulla "
+"rete. Avvialo con: sudo systemctl enable --now avahi-daemon"
+
+#: src/daemon/notification.cpp
+#, c++-format
+msgid "{} file arrived"
+msgid_plural "{} files arrived"
+msgstr[0] "{} file ricevuto"
+msgstr[1] "{} file ricevuti"
+
+#: src/daemon/notification.cpp
+msgid "Files arrived"
+msgstr "File ricevuti"
+
+#: src/daemon/notification.cpp
+msgid "Open Folder"
+msgstr "Apri cartella"
+
+#: src/daemon/notification.cpp
+msgid "File arrived"
+msgstr "File ricevuto"
+
+#: src/daemon/notification.cpp
+msgid "Open File"
+msgstr "Apri file"
+
+#: src/daemon/notification.cpp
+msgid "Reply"
+msgstr "Rispondi"
+
+#: src/daemon/notification.cpp
+msgid "Reply…"
+msgstr "Rispondi…"
+
+#: src/daemon/notification.cpp
+msgid "Copy Code"
+msgstr "Copia codice"
+
+#: src/daemon/notification.cpp
+#, c++-format
+msgid "Open in {}"
+msgstr "Apri in {}"
+
+#: src/daemon/notification.cpp
+#, c++-format
+msgid "Mute {}"
+msgstr "Silenzia {}"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Unknown caller"
+msgstr "Chiamante sconosciuto"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Answer"
+msgstr "Rispondi"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Audio here"
+msgstr "Porta l'audio qui"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Decline"
+msgstr "Rifiuta"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Hang up"
+msgstr "Chiudi"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp src/ui_common/ui_text.cpp
+msgid "Incoming"
+msgstr "In arrivo"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Missed"
+msgstr "Persa"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Outgoing"
+msgstr "In uscita"
+
+#. TRANSLATORS: Button that calls a recent caller back, {} is their name or number.
+#. TRANSLATORS: Spoken name of the call button beside a phone number.
+#: src/gtk/calls_view.cpp src/gtk/contacts_view.cpp src/tui/calls.cpp
+#: src/tui/contacts.cpp
+#, c++-format
+msgid "Call {}"
+msgstr "Chiama {}"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "No calls."
+msgstr "Nessuna chiamata."
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Call control is off. Turn it on with 'landlinectl --bt-calls-enable on'."
+msgstr ""
+"Il controllo delle chiamate è disattivato. Attivarlo con 'landlinectl --bt-calls-"
+"enable on'."
+
+#: src/gtk/calls_view.cpp
+msgid "Number to call"
+msgstr "Numero da chiamare"
+
+#: src/gtk/calls_view.cpp src/gtk/contacts_view.cpp src/tui/calls.cpp
+msgid "Call"
+msgstr "Chiama"
+
+#: src/gtk/calls_view.cpp
+msgid "The iPhone's carrier, signal, and battery."
+msgstr "Operatore, segnale e batteria dell'iPhone."
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Recent calls"
+msgstr "Chiamate recenti"
+
+#: src/gtk/contacts_view.cpp
+msgid "Copy"
+msgstr "Copia"
+
+#. TRANSLATORS: Spoken name of the copy button beside a phone number or email.
+#: src/gtk/contacts_view.cpp
+#, c++-format
+msgid "Copy {}"
+msgstr "Copia {}"
+
+#: src/gtk/contacts_view.cpp src/tui/main.cpp
+msgid "Copied to the clipboard."
+msgstr "Copiato negli appunti."
+
+#: src/gtk/contacts_view.cpp src/gtk/messages_view.cpp
+msgid "Message"
+msgstr "Invia messaggio"
+
+#. TRANSLATORS: Spoken name of the message button beside a phone
+#. number or email.
+#: src/gtk/contacts_view.cpp
+#, c++-format
+msgid "Message {}"
+msgstr "Invia messaggio a {}"
+
+#: src/gtk/contacts_view.cpp src/tui/contacts.cpp
+msgid "Favorite"
+msgstr "Preferito"
+
+#: src/gtk/contacts_view.cpp src/tui/contacts.cpp
+msgid "No contacts yet. Check the Bluetooth link on the Devices page."
+msgstr ""
+"Ancora nessun contatto. Controlla il collegamento Bluetooth nella pagina "
+"Dispositivi."
+
+#: src/gtk/contacts_view.cpp
+msgid "Search contacts"
+msgstr "Cerca contatti"
+
+#: src/gtk/daemon_client.cpp src/tui/main.cpp
+msgid "Daemon Offline"
+msgstr "Daemon offline"
+
+#: src/gtk/daemon_client.cpp src/gtk/messages_view.cpp src/tui/main.cpp
+#: src/tui/messages.cpp
+msgid "The Landline daemon is not running."
+msgstr "Il daemon di Landline non è in esecuzione."
+
+#: src/gtk/daemon_client.cpp src/tui/main.cpp
+msgid "Daemon Online"
+msgstr "Daemon online"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Reading battery…"
+msgstr "Lettura della batteria…"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Not connected yet."
+msgstr "Non ancora connesso."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connected."
+msgstr "Connesso."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Scanning for nearby devices..."
+msgstr "Ricerca di dispositivi nelle vicinanze..."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Off"
+msgstr "Disattivata"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Transparency"
+msgstr "Trasparenza"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Adaptive"
+msgstr "Adattiva"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Noise Cancellation"
+msgstr "Cancellazione del rumore"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Disconnect"
+msgstr "Disconnetti"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connect"
+msgstr "Connetti"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Landline is not managing the AirPods, so another program can use them."
+msgstr "Landline non sta gestendo gli AirPods, un altro programma può usarli."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "These AirPods do not report a listening mode."
+msgstr "Questi AirPods non segnalano una modalità di ascolto."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "These AirPods do not report whether they are being worn."
+msgstr "Questi AirPods non segnalano se sono indossati."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Both buds are in."
+msgstr "Entrambi gli auricolari sono indossati."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "One bud is in."
+msgstr "Un auricolare è indossato."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Neither bud is in."
+msgstr "Nessun auricolare è indossato."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "The buds are handed over with Apple's own handoff."
+msgstr "Gli AirPods vengono passati con il passaggio nativo di Apple."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"The buds are handed over by disconnecting them. For Apple's own handoff, put "
+"DeviceID = bluetooth:004C:0000:0000 under [General] in /etc/bluetooth/"
+"main.conf and restart bluetooth."
+msgstr ""
+"Gli AirPods vengono passati disconnettendoli. Per il passaggio nativo di "
+"Apple, aggiungi DeviceID = bluetooth:004C:0000:0000 in [General] in /etc/"
+"bluetooth/main.conf e riavvia bluetooth."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Full mode — messages, contacts, and notifications."
+msgstr "Modalità completa — messaggi, contatti e notifiche."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Compatibility mode — messages and contacts, no notification mirroring."
+msgstr ""
+"Modalità compatibilità — messaggi e contatti, senza mirroring delle "
+"notifiche."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "This machine cannot carry the Bluetooth features."
+msgstr "Questa macchina non può supportare le funzioni Bluetooth."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Link"
+msgstr "Collegamento"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Not paired over Bluetooth yet."
+msgstr "Non ancora accoppiato tramite Bluetooth."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Landline is not using this device. Pair it to select it."
+msgstr "Landline non sta usando questo dispositivo. Accoppialo per selezionarlo."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Bluetooth is switched off for this iPhone."
+msgstr "Bluetooth è disattivato per questo iPhone."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connected and ready."
+msgstr "Connesso e pronto."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Device is offline. Make sure it is switched on and on the same network."
+msgstr ""
+"Il dispositivo è offline. Assicurati che sia acceso e sulla stessa rete."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Found at {0}:{1}"
+msgstr "Trovato a {0}:{1}"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Sending pair request..."
+msgstr "Invio della richiesta di accoppiamento..."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pair request sent. Approve on remote device!"
+msgstr "Richiesta di accoppiamento inviata. Approvala sul dispositivo remoto!"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pairing… confirm the prompt on the iPhone."
+msgstr "Accoppiamento… conferma la richiesta sull'iPhone."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c-format
+msgid "Remove the Bluetooth pairing with %s?"
+msgstr "Rimuovere l'accoppiamento Bluetooth con %s?"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"Also delete this computer from the iPhone's Bluetooth settings before "
+"pairing again, or the phone will keep the stale bond."
+msgstr ""
+"Elimina anche questo computer dalle impostazioni Bluetooth dell'iPhone prima "
+"di accoppiare di nuovo, altrimenti il telefono manterrà l'associazione "
+"obsoleta."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Removing the pairing…"
+msgstr "Rimozione dell'accoppiamento…"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c-format
+msgid "Forget %s?"
+msgstr "Dimenticare %s?"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"Landline will stop connecting to it. Forget this computer on the other device "
+"too, then pair again to reconnect."
+msgstr ""
+"Landline smetterà di connettersi. Dimentica questo computer anche sull'altro "
+"dispositivo, poi accoppia di nuovo per riconnetterti."
+
+#: src/gtk/devices_view.cpp
+msgid "Setup commands copied to the clipboard."
+msgstr "Comandi di configurazione copiati negli appunti."
+
+#: src/gtk/devices_view.cpp src/gtk/messages_view.cpp src/tui/devices.cpp
+#: src/tui/messages.cpp
+msgid "Asking the iPhone to show its Bluetooth permissions…"
+msgstr "Richiesta all'iPhone di mostrare i suoi permessi Bluetooth…"
+
+#. TRANSLATORS: {} is a file name.
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Sending {}…"
+msgstr "Invio di {}…"
+
+#. TRANSLATORS: {0} is the current file's position, {1} the batch size.
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "({0} of {1})"
+msgstr "({0} di {1})"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Daemon unavailable."
+msgstr "Daemon non disponibile."
+
+#: src/gtk/devices_view.cpp
+msgid "Send to…"
+msgstr "Invia a…"
+
+#: src/gtk/devices_view.cpp
+msgid "_Cancel"
+msgstr "A_nnulla"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Send File"
+msgstr "Invia file"
+
+#: src/gtk/devices_view.cpp
+msgid "_Send"
+msgstr "_Invia"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Folders can't be sent — drop files instead."
+msgstr "Le cartelle non possono essere inviate — trascina dei file."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Clipboard, files, and OTP are connected."
+msgstr "Appunti, file e OTP sono connessi."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"Files and OTP are connected. This compositor does not give Landline clipboard "
+"access, so clipboard sync is off."
+msgstr ""
+"File e OTP sono connessi. Questo compositor non dà a Landline l'accesso agli "
+"appunti, quindi la sincronizzazione degli appunti è disattivata."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"avahi-daemon isn't running, so other devices can't find this PC. Start it "
+"with: sudo systemctl enable --now avahi-daemon"
+msgstr ""
+"avahi-daemon non è in esecuzione, quindi gli altri dispositivi non riescono "
+"a trovare questo computer. Avvialo con: sudo systemctl enable --now avahi-"
+"daemon"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"A device is on the network but cannot reach this PC. A firewall is running; "
+"Landline needs inbound TCP 5134. Allow it with: sudo ufw allow 5134/tcp"
+msgstr ""
+"Un dispositivo è in rete ma non riesce a raggiungere questo PC. È attivo un "
+"firewall; Landline richiede la porta TCP 5134 in ingresso. Consentila con: "
+"sudo ufw allow 5134/tcp"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "No paired device is connected. Switch it on and join the same network."
+msgstr ""
+"Nessun dispositivo accoppiato è connesso. Accendilo e collegalo alla stessa "
+"rete."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Unknown Device"
+msgstr "Dispositivo sconosciuto"
+
+#: src/gtk/devices_view.cpp
+msgid "Folders can't be sent — pick files instead."
+msgstr "Le cartelle non possono essere inviate — scegli dei file."
+
+#: src/gtk/devices_view.cpp
+msgid "No device is connected."
+msgstr "Nessun dispositivo connesso."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connected"
+msgstr "Connesso"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Offline"
+msgstr "Offline"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Nearby (Tap to Pair)"
+msgstr "Nelle vicinanze (tocca per accoppiare)"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Partially connected"
+msgstr "Parzialmente connesso"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Paired"
+msgstr "Accoppiato"
+
+#. TRANSLATORS: {0} is the name of the device being paired with.
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Waiting for approval on {0}..."
+msgstr "In attesa dell'approvazione su {0}…"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"Could not reach that device. If a firewall is running, Landline needs inbound "
+"TCP 5134 on the other machine."
+msgstr ""
+"Impossibile raggiungere quel dispositivo. Se è attivo un firewall, Landline "
+"richiede la porta TCP 5134 in ingresso sull'altra macchina."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "That device refused the connection. Is Landline running on it?"
+msgstr ""
+"Quel dispositivo ha rifiutato la connessione. Landline è in esecuzione su di "
+"esso?"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "That address could not be resolved."
+msgstr "Impossibile risolvere quell'indirizzo."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Could not connect to that device."
+msgstr "Impossibile connettersi a quel dispositivo."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pair request was rejected."
+msgstr "La richiesta di accoppiamento è stata rifiutata."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Ready"
+msgstr "Pronto"
+
+#. TRANSLATORS: {0} is how many were sent, {1} the batch size.
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Sent {0} of {1} file."
+msgid_plural "Sent {0} of {1} files."
+msgstr[0] "Inviato {0} di {1} file."
+msgstr[1] "Inviati {0} di {1} file."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Skipped {} non-file item."
+msgid_plural "Skipped {} non-file items."
+msgstr[0] "Saltato {} elemento non file."
+msgstr[1] "Saltati {} elementi non file."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Clipboard is empty."
+msgstr "Gli appunti sono vuoti."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Desktop Clipboard Sync triggered."
+msgstr "Sincronizzazione degli appunti del desktop avviata."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Messages and notifications are connected."
+msgstr "Messaggi e notifiche sono connessi."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"No iPhone found. Unlock the phone and open Settings > Bluetooth so it "
+"advertises, then scan again."
+msgstr ""
+"Nessun iPhone trovato. Sblocca il telefono e apri Impostazioni > Bluetooth "
+"in modo che si annunci, poi ripeti la ricerca."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c-format
+msgid ""
+"Does the iPhone show this code?\n"
+"\n"
+"%s"
+msgstr ""
+"L’iPhone mostra questo codice?\n"
+"\n"
+"%s"
+
+#: src/gtk/devices_view.cpp
+msgid "Connect your iPhone"
+msgstr "Connetti il tuo iPhone"
+
+#: src/gtk/devices_view.cpp
+msgid "clipboard, files, OTP"
+msgstr "appunti, file, OTP"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"1.  Open the Landline app on the iPhone\n"
+"2.  It finds this computer by itself\n"
+"3.  Approve on both ends"
+msgstr ""
+"1.  Apri l'app Landline sull'iPhone\n"
+"2.  Trova questo computer da sola\n"
+"3.  Approva su entrambi i lati"
+
+#: src/gtk/devices_view.cpp
+msgid "messages, notifications"
+msgstr "messaggi, notifiche"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"1.  Pick the iPhone under BLUETOOTH\n"
+"2.  Press Pair over Bluetooth\n"
+"3.  Grant the two toggles on the phone"
+msgstr ""
+"1.  Scegli l'iPhone sotto BLUETOOTH\n"
+"2.  Premi Accoppia tramite Bluetooth\n"
+"3.  Concedi i due permessi sul telefono"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Scan for devices"
+msgstr "Cerca dispositivi"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Manage AirPods from Landline"
+msgstr "Gestire gli AirPods da Landline"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"The AirPods channel takes one program per computer. Turning this off "
+"releases it, so another AirPods program can use it."
+msgstr ""
+"Il canale degli AirPods accetta un solo programma per computer. "
+"Disattivandolo lo si libera per un altro programma AirPods."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Listening mode"
+msgstr "Modalità di ascolto"
+
+#: src/gtk/devices_view.cpp
+msgid "In-ear detection"
+msgstr "Rilevamento nell'orecchio"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pause playback when:"
+msgstr "Metti in pausa la riproduzione quando:"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Never"
+msgstr "Mai"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "One bud is removed"
+msgstr "Un auricolare viene rimosso"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Both buds are removed"
+msgstr "Entrambi gli auricolari vengono rimossi"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"Pauses whatever is playing on this computer, and starts it again when the "
+"buds go back in. Only playback Landline paused is resumed."
+msgstr ""
+"Mette in pausa ciò che è in riproduzione su questo computer e lo riavvia "
+"quando gli auricolari vengono rimessi. Viene ripresa solo la riproduzione "
+"messa in pausa da Landline."
+
+#: src/gtk/devices_view.cpp src/gtk/main.cpp src/tui/calls.cpp
+msgid "Calls"
+msgstr "Chiamate"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Hand the AirPods to the iPhone during a call"
+msgstr "Passa gli AirPods all'iPhone durante una chiamata"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"Pauses playback and disconnects the AirPods so the iPhone can take them, "
+"then reconnects them when the call ends. Needs call control, and only "
+"applies while the buds are connected to this computer."
+msgstr ""
+"Mette in pausa la riproduzione e disconnette gli AirPods perché l'iPhone "
+"possa prenderli, poi li riconnette al termine della chiamata. Richiede il "
+"controllo delle chiamate e si applica solo mentre gli auricolari sono "
+"connessi a questo computer."
+
+#: src/gtk/devices_view.cpp
+msgid "Bluetooth needs one-time system setup"
+msgstr "Bluetooth richiede una configurazione di sistema una tantum"
+
+#: src/gtk/devices_view.cpp
+msgid "Copy commands"
+msgstr "Copia i comandi"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"Run these in a terminal. Landline does not change your Bluetooth adapter or "
+"bluetoothd on its own."
+msgstr ""
+"Eseguili in un terminale. Landline non modifica da solo il tuo adattatore "
+"Bluetooth né bluetoothd."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connect to this iPhone over Bluetooth"
+msgstr "Connetti a questo iPhone tramite Bluetooth"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"Keep the Bluetooth link to the iPhone up, reconnecting whenever it drops. "
+"Turning this off stops Landline reconnecting; a link that is already up stays "
+"up until you disconnect it."
+msgstr ""
+"Mantiene attivo il collegamento Bluetooth con l'iPhone, riconnettendosi ogni "
+"volta che cade. Disattivandolo Landline smette di riconnettersi; un "
+"collegamento già attivo resta attivo finché non lo disconnetti."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Advanced"
+msgstr "Avanzate"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Release messages"
+msgstr "Rilascia messaggi"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Release contacts"
+msgstr "Rilascia contatti"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Release notifications"
+msgstr "Rilascia notifiche"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Release messages and contacts while this computer is locked or idle"
+msgstr ""
+"Rilascia messaggi e contatti mentre questo computer è bloccato o inattivo"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"The iPhone serves messages to one computer at a time. Releasing lets another "
+"computer take them; unchecking retries, but cannot take them from a computer "
+"that still holds them. Releases last until landlined restarts."
+msgstr ""
+"L'iPhone fornisce i messaggi a un solo computer alla volta. Rilasciarli "
+"permette a un altro computer di prenderli; togliere la spunta riprova, ma "
+"non può toglierli a un computer che li tiene ancora. I rilasci durano fino "
+"al riavvio di landlined."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pair over Bluetooth"
+msgstr "Accoppia tramite Bluetooth"
+
+#: src/gtk/devices_view.cpp src/gtk/messages_view.cpp src/tui/devices.cpp
+#: src/tui/messages.cpp
+msgid "Show iPhone Permissions"
+msgstr "Mostra i permessi dell'iPhone"
+
+#: src/gtk/devices_view.cpp src/gtk/messages_view.cpp
+msgid ""
+"Re-advertise so the iPhone shows its Show Message Notifications and Sync "
+"Contacts toggles under Settings > Bluetooth > (i)."
+msgstr ""
+"Si riannuncia in modo che l'iPhone mostri le opzioni \"Mostra notifiche "
+"messaggi\" e \"Sincronizza contatti\" in Impostazioni > Bluetooth > (i)."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Unpair"
+msgstr "Disaccoppia"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pair Device"
+msgstr "Accoppia dispositivo"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Force Trust (Accept Pending)"
+msgstr "Forza fiducia (accetta in sospeso)"
+
+#: src/gtk/devices_view.cpp
+msgid "Drop files here to send"
+msgstr "Trascina qui i file da inviare"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Send Clipboard"
+msgstr "Invia appunti"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Clipboard sync requested..."
+msgstr "Sincronizzazione degli appunti richiesta..."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Forget"
+msgstr "Dimentica"
+
+#: src/gtk/main.cpp
+msgid "Expand sidebar"
+msgstr "Espandi la barra laterale"
+
+#: src/gtk/main.cpp
+msgid "Collapse sidebar"
+msgstr "Comprimi la barra laterale"
+
+#: src/gtk/main.cpp src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Settings"
+msgstr "Impostazioni"
+
+#: src/gtk/main.cpp src/tui/main.cpp
+msgid "Quit"
+msgstr "Esci"
+
+#: src/gtk/main.cpp
+msgid "Main menu"
+msgstr "Menu principale"
+
+#: src/gtk/main.cpp
+msgid "Look for devices"
+msgstr "Cerca dispositivi"
+
+#: src/gtk/main.cpp src/tui/devices.cpp
+msgid "Devices"
+msgstr "Dispositivi"
+
+#: src/gtk/main.cpp
+msgid "Toggle sidebar"
+msgstr "Attiva/disattiva la barra laterale"
+
+#: src/gtk/main.cpp
+msgid "Start hidden in the system tray"
+msgstr "Avvia nascosto nella tray di sistema"
+
+#: src/gtk/main.cpp
+msgid "Open on this tab"
+msgstr "Apri su questa scheda"
+
+#: src/gtk/main.cpp
+msgid "Open the messages tab on this conversation"
+msgstr "Apri la scheda messaggi su questa conversazione"
+
+#: src/gtk/main.cpp
+msgid "Send the given files, asking which device when several are connected"
+msgstr ""
+"Invia i file indicati, chiedendo a quale dispositivo se ne sono connessi "
+"diversi"
+
+#: src/gtk/main.cpp
+msgid "FILE…"
+msgstr "FILE…"
+
+#: src/gtk/messages_view.cpp src/gtk/tray.cpp src/tui/main.cpp
+#, c++-format
+msgid "{} unread message"
+msgid_plural "{} unread messages"
+msgstr[0] "{} messaggio non letto"
+msgstr[1] "{} messaggi non letti"
+
+#. TRANSLATORS: Read aloud before a message you sent, {} is the message.
+#: src/gtk/messages_view.cpp
+#, c++-format
+msgid "Sent: {}"
+msgstr "Inviato: {}"
+
+#. TRANSLATORS: Read aloud before a message you received, {} is the message.
+#: src/gtk/messages_view.cpp
+#, c++-format
+msgid "Received: {}"
+msgstr "Ricevuto: {}"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Bluetooth connection needed to sync messages."
+msgstr "È necessaria una connessione Bluetooth per sincronizzare i messaggi."
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Select a conversation"
+msgstr "Seleziona una conversazione"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Sending…"
+msgstr "Invio…"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Enter a recipient."
+msgstr "Inserisci un destinatario."
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Select a conversation first."
+msgstr "Seleziona prima una conversazione."
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Replying to this conversation is not available."
+msgstr "Rispondere a questa conversazione non è disponibile."
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "No answer about that message; it may still have been sent."
+msgstr ""
+"Nessuna risposta su quel messaggio; potrebbe comunque essere stato inviato."
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Could not reach the Landline daemon; the message was not sent."
+msgstr ""
+"Impossibile raggiungere il daemon di Landline; il messaggio non è stato "
+"inviato."
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Sent"
+msgstr "Inviato"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "New Message"
+msgstr "Nuovo messaggio"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+#, c-format
+msgid "Remove the conversation with %s?"
+msgstr "Rimuovere la conversazione con %s?"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid ""
+"It stays on your iPhone, and comes back here when a new message arrives."
+msgstr "Resta sull’iPhone e ricompare qui quando arriva un nuovo messaggio."
+
+#: src/gtk/messages_view.cpp
+msgid "Search conversations"
+msgstr "Cerca conversazioni"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "To:"
+msgstr "A:"
+
+#: src/gtk/messages_view.cpp
+msgid "Phone number or email"
+msgstr "Numero di telefono o email"
+
+#: src/gtk/messages_view.cpp
+msgid "Remove Conversation"
+msgstr "Rimuovi conversazione"
+
+#: src/gtk/messages_view.cpp
+msgid "Send"
+msgstr "Invia"
+
+#: src/gtk/messages_view.cpp
+msgid "Retry"
+msgstr "Riprova"
+
+#: src/gtk/notifications_view.cpp
+msgid "Stop popups from this app. Undo in Settings."
+msgstr "Interrompe gli avvisi di questa app. Si annulla nelle Impostazioni."
+
+#. TRANSLATORS: Spoken name of the button that stops desktop popups from the named app.
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+#, c++-format
+msgid "Mute {} popups"
+msgstr "Silenzia gli avvisi di {}"
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "Dismiss on the iPhone"
+msgstr "Ignora sull'iPhone"
+
+#. TRANSLATORS: Spoken name of the dismiss button on a notification from the named app.
+#: src/gtk/notifications_view.cpp
+#, c++-format
+msgid "Dismiss {} notification"
+msgstr "Ignora notifica di {}"
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "New notification"
+msgstr "Nuova notifica"
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "The iPhone would not take the dismissal."
+msgstr "L'iPhone non ha accettato la rimozione."
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "No notifications yet."
+msgstr "Ancora nessuna notifica."
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "Notification mirroring is unavailable."
+msgstr "Il mirroring delle notifiche non è disponibile."
+
+#: src/gtk/settings_view.cpp
+msgid "Unmute"
+msgstr "Riattiva"
+
+#: src/gtk/settings_view.cpp
+msgid "Popups muted"
+msgstr "Avvisi silenziati"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"No iPhone is paired over Bluetooth, so the Bluetooth settings below cannot "
+"be changed yet."
+msgstr ""
+"Nessun iPhone è associato via Bluetooth, quindi le impostazioni Bluetooth "
+"qui sotto non sono ancora modificabili."
+
+#: src/gtk/settings_view.cpp
+msgid "General"
+msgstr "Generale"
+
+#: src/gtk/settings_view.cpp
+msgid "Keep running in the tray when the window is closed"
+msgstr "Continua nell'area di notifica alla chiusura della finestra"
+
+#: src/gtk/settings_view.cpp
+msgid "Closing the window hides it instead of quitting Landline."
+msgstr "Chiudere la finestra la nasconde invece di uscire da Landline."
+
+#: src/gtk/settings_view.cpp
+msgid "Symbolic"
+msgstr "Simbolica"
+
+#: src/gtk/settings_view.cpp
+msgid "Color"
+msgstr "A colori"
+
+#: src/gtk/settings_view.cpp
+msgid "Tray icon"
+msgstr "Icona nell'area di notifica"
+
+#: src/gtk/settings_view.cpp
+msgid ""
+"Symbolic follows the panel's color. Takes effect the next time Landline starts."
+msgstr ""
+"Quella simbolica assume il colore del pannello. Ha effetto al prossimo avvio "
+"di Landline."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "iPhone notifications"
+msgstr "Notifiche dell'iPhone"
+
+#: src/gtk/settings_view.cpp
+msgid "Alerts your iPhone forwards to this computer over Bluetooth."
+msgstr "Avvisi che l'iPhone inoltra a questo computer via Bluetooth."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Mirror iPhone notifications"
+msgstr "Rispecchia le notifiche dell'iPhone"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Disabled when pairing cannot support LE."
+msgstr "Disattivata quando l'associazione non supporta LE."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Include the notification text"
+msgstr "Includi il testo della notifica"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Title and message content are shown, not just which app sent it."
+msgstr "Vengono mostrati titolo e testo, non solo l'app che li ha inviati."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Desktop popups"
+msgstr "Avvisi del desktop"
+
+#: src/gtk/settings_view.cpp
+msgid "What Landline shows in your notification area."
+msgstr "Ciò che Landline mostra nella tua area di notifica."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Show desktop popups"
+msgstr "Mostra gli avvisi del desktop"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Off silences iPhone alerts, new messages and arriving files."
+msgstr ""
+"Disattivato silenzia gli avvisi dell'iPhone, i nuovi messaggi e i file in "
+"arrivo."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Show message previews"
+msgstr "Mostra anteprima dei messaggi"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Off shows only the sender."
+msgstr "Se disattivato mostra solo il mittente."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Security"
+msgstr "Sicurezza"
+
+#: src/gtk/settings_view.cpp
+msgid "What Landline does when the iPhone leaves."
+msgstr "Cosa fa Landline quando l'iPhone se ne va."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Lock the session when the iPhone goes out of range"
+msgstr "Blocca la sessione quando l'iPhone esce dalla portata"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Locks about half a minute after the link times out. Switching Bluetooth off "
+"on the iPhone does not lock, and neither does suspending this machine."
+msgstr ""
+"Blocca circa mezzo minuto dopo la scadenza del collegamento. Disattivare il "
+"Bluetooth sull'iPhone non blocca, e nemmeno sospendere questa macchina."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Share the clipboard automatically"
+msgstr "Condividi gli appunti automaticamente"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Off sends it only from Send Clipboard or landlinectl share."
+msgstr "Se disattivato, li invia solo con Invia appunti o landlinectl share."
+
+#: src/gtk/settings_view.cpp
+msgid "SMS and iMessage conversations synced over Bluetooth."
+msgstr "Conversazioni SMS e iMessage sincronizzate via Bluetooth."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Encrypted"
+msgstr "Cifrata"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Unencrypted"
+msgstr "Non cifrata"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Do not keep"
+msgstr "Non conservare"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Keep message history"
+msgstr "Conserva la cronologia dei messaggi"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Encrypted uses a key from your desktop keyring. Do not keep deletes what is "
+"stored."
+msgstr ""
+"Cifrata usa una chiave del portachiavi. Non conservare elimina ciò che è "
+"memorizzato."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Hide messages from unknown senders"
+msgstr "Nascondi i messaggi da mittenti sconosciuti"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Threads from numbers not in your contacts are hidden. Codes still pop up and "
+"autofill."
+msgstr ""
+"Le conversazioni con numeri non presenti nei contatti vengono nascoste. I "
+"codici compaiono comunque e vengono compilati automaticamente."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Paused: no key from the desktop keyring. Unlock it, or choose Unencrypted."
+msgstr ""
+"In pausa: nessuna chiave dal portachiavi. Sbloccalo, oppure scegli Non "
+"cifrata."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Sort contacts by last name"
+msgstr "Ordina i contatti per cognome"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Contacts with only one name, and businesses, sort by the name they have."
+msgstr ""
+"I contatti con un solo nome e le aziende sono ordinati in base al nome che "
+"hanno."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Experimental"
+msgstr "Sperimentale"
+
+#: src/gtk/settings_view.cpp
+msgid "Unfinished features. These can stop working at any time."
+msgstr ""
+"Funzioni incompiute. Possono smettere di funzionare in qualsiasi momento."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Call control over Bluetooth"
+msgstr "Controllo chiamate via Bluetooth"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Answer and place calls from the Calls tab."
+msgstr "Rispondi ed effettua chiamate dalla scheda Chiamate."
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Play the iPhone's audio on this computer"
+msgstr "Riproduci l'audio dell'iPhone su questo computer"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Music and sounds from the iPhone play here. Off sends them back to the "
+"iPhone. Calls are not affected."
+msgstr ""
+"Musica e suoni dell'iPhone vengono riprodotti qui. Disattivato li rimanda "
+"all'iPhone. Le chiamate non sono interessate."
+
+#: src/gtk/tray.cpp src/gtk/ui_util.cpp src/tui/main.cpp
+msgid "connected"
+msgstr "connesso"
+
+#: src/gtk/tray.cpp src/gtk/ui_util.cpp src/tui/main.cpp
+msgid "not connected"
+msgstr "non connesso"
+
+#. TRANSLATORS: {} is a transport name, "Wi-Fi" or "Bluetooth", or a device name.
+#. TRANSLATORS: {} is a transport name, "Wi-Fi" or "Bluetooth".
+#: src/gtk/tray.cpp src/gtk/ui_util.cpp src/tui/main.cpp
+#, c++-format
+msgid "{}: {}"
+msgstr "{}: {}"
+
+#: src/gtk/tray.cpp src/tui/main.cpp
+msgid "Daemon: not running"
+msgstr "Daemon: non in esecuzione"
+
+#: src/gtk/ui_util.cpp src/tui/main.cpp
+msgid "Waiting for the Landline daemon."
+msgstr "In attesa del daemon di Landline."
+
+#: src/tui/devices.cpp
+msgid "Overview"
+msgstr "Panoramica"
+
+#: src/tui/devices.cpp
+msgid "Select a device first."
+msgstr "Seleziona prima un dispositivo."
+
+#: src/tui/devices.cpp
+msgid "Modes: off, transparency, adaptive, anc"
+msgstr "Modalità: off, transparency, adaptive, anc"
+
+#: src/tui/devices.cpp
+#, c++-format
+msgid "Found {}. Select it under BLUETOOTH to pair."
+msgstr "Trovato {}. Selezionalo sotto BLUETOOTH per associarlo."
+
+#: src/tui/devices.cpp
+msgid "Usage: :send FILE…"
+msgstr "Uso: :send FILE…"
+
+#: src/tui/main.cpp
+msgid "-- INSERT --"
+msgstr "-- INSERISCI --"
+
+#: src/tui/main.cpp
+msgid "Move down / up"
+msgstr "Giù / su"
+
+#: src/tui/main.cpp
+msgid "First / last"
+msgstr "Primo / ultimo"
+
+#: src/tui/main.cpp
+msgid "Half a page down / up"
+msgstr "Mezza pagina giù / su"
+
+#: src/tui/main.cpp
+msgid "Focus the list / the detail pane"
+msgstr "Attiva l'elenco / il pannello dei dettagli"
+
+#: src/tui/main.cpp
+msgid "Open, or run the highlighted action"
+msgstr "Apri o esegui l'azione evidenziata"
+
+#: src/tui/main.cpp
+msgid "Toggle the highlighted setting"
+msgstr "Attiva o disattiva l'impostazione evidenziata"
+
+#: src/tui/main.cpp
+msgid "Switch tab"
+msgstr "Cambia scheda"
+
+#: src/tui/main.cpp
+msgid "Filter the list"
+msgstr "Filtra l'elenco"
+
+#: src/tui/main.cpp
+msgid "Clear the filter, leave insert mode"
+msgstr "Cancella il filtro, esci dalla modalità inserimento"
+
+#: src/tui/main.cpp
+msgid "Write in the open conversation"
+msgstr "Scrivi nella conversazione aperta"
+
+#: src/tui/main.cpp
+msgid "Send / new line (insert mode)"
+msgstr "Invia / nuova riga (modalità inserimento)"
+
+#: src/tui/main.cpp
+msgid "New message, or dial on Calls"
+msgstr "Nuovo messaggio, o componi in Chiamate"
+
+#: src/tui/main.cpp
+msgid "Dismiss, forget, unpair, hang up, or remove a conversation"
+msgstr "Ignora, dimentica, dissocia, riaggancia o rimuovi una conversazione"
+
+#: src/tui/main.cpp
+msgid "Copy the highlighted address or text"
+msgstr "Copia l'indirizzo o il testo evidenziato"
+
+#: src/tui/main.cpp
+msgid "Refresh, or scan for devices"
+msgstr "Aggiorna o cerca dispositivi"
+
+#: src/tui/main.cpp
+msgid "Send files to the selected device"
+msgstr "Invia file al dispositivo selezionato"
+
+#: src/tui/main.cpp
+msgid "Send the clipboard"
+msgstr "Invia gli appunti"
+
+#: src/tui/main.cpp
+msgid "Place a call"
+msgstr "Fai una chiamata"
+
+#: src/tui/main.cpp
+msgid "Message someone"
+msgstr "Scrivi a qualcuno"
+
+#: src/tui/main.cpp
+msgid "Keys"
+msgstr "Tasti"
+
+#: src/tui/main.cpp
+msgid "Terminal too small"
+msgstr "Terminale troppo piccolo"
+
+#: src/tui/main.cpp
+msgid "Press i to write a message"
+msgstr "Premi i per scrivere un messaggio"
+
+#: src/tui/main.cpp
+#, c++-format
+msgid "Not a command: {}"
+msgstr "Comando sconosciuto: {}"
+
+#: src/tui/main.cpp
+msgid "Type :q and press Enter to quit"
+msgstr "Digita :q e premi Invio per uscire"
+
+#: src/tui/main.cpp
+msgid ""
+"Usage: tether-tui [--devices|--messages|--notifications|--contacts|--calls|--"
+"settings] [--thread KEY]"
+msgstr ""
+"Uso: tether-tui [--devices|--messages|--notifications|--contacts|--calls|--"
+"settings] [--thread CHIAVE]"
+
+#: src/tui/main.cpp
+msgid "tether-tui needs a terminal."
+msgstr "tether-tui richiede un terminale."
+
+#: src/tui/settings.cpp
+msgid "Muted apps"
+msgstr "App silenziate"
+
+#: src/tui/settings.cpp
+#, c++-format
+msgid "Unmute {}"
+msgstr "Riattiva {}"
+
+#: src/tui/settings.cpp
+#, c++-format
+msgid "Settings: {}"
+msgstr "Impostazioni: {}"
+
+#. TRANSLATORS: strftime clock time on today's conversations, e.g. "%I:%M %p" for 12-hour.
+#: src/ui_common/message_format.cpp src/ui_common/ui_text.cpp
+#, no-c-format
+msgid "%H:%M"
+msgstr "%H:%M"
+
+#: src/ui_common/message_format.cpp
+msgid "Yesterday"
+msgstr "Ieri"
+
+#. TRANSLATORS: strftime short date for older conversations; reorder to the local
+#. convention, e.g. "%-d %b".
+#: src/ui_common/message_format.cpp
+#, no-c-format
+msgid "%b %-d"
+msgstr "%-d %b"
+
+#: src/ui_common/message_format.cpp
+msgid "Today"
+msgstr "Oggi"
+
+#. TRANSLATORS: strftime date heading above older messages, e.g. "%A %-d %B".
+#: src/ui_common/message_format.cpp
+#, no-c-format
+msgid "%A, %b %-d"
+msgstr "%A %-d %b"
+
+#. TRANSLATORS: Left earbud, read aloud by screen readers before its battery level.
+#: src/ui_common/ui_text.cpp
+msgid "Left earbud"
+msgstr "Auricolare sinistro"
+
+#. TRANSLATORS: Left earbud, abbreviated to fit the device row. One or two letters.
+#: src/ui_common/ui_text.cpp
+msgid "L"
+msgstr "S"
+
+#. TRANSLATORS: Right earbud, read aloud by screen readers before its battery level.
+#: src/ui_common/ui_text.cpp
+msgid "Right earbud"
+msgstr "Auricolare destro"
+
+#. TRANSLATORS: Right earbud, abbreviated to fit the device row. One or two letters.
+#: src/ui_common/ui_text.cpp
+msgid "R"
+msgstr "D"
+
+#: src/ui_common/ui_text.cpp
+msgid "Call waiting"
+msgstr "Avviso di chiamata"
+
+#: src/ui_common/ui_text.cpp
+msgid "Dialing"
+msgstr "Composizione"
+
+#: src/ui_common/ui_text.cpp
+msgid "Ringing"
+msgstr "Squilla"
+
+#: src/ui_common/ui_text.cpp
+msgid "On call"
+msgstr "In chiamata"
+
+#: src/ui_common/ui_text.cpp
+msgid "On hold"
+msgstr "In attesa"
+
+#: src/ui_common/ui_text.cpp
+msgid "Ended"
+msgstr "Terminata"
+
+#: src/ui_common/ui_text.cpp
+msgid "No service"
+msgstr "Nessun servizio"
+
+#. TRANSLATORS: Cellular signal strength read aloud, {} is 0 to 5.
+#: src/ui_common/ui_text.cpp
+#, c++-format
+msgid "signal {} of 5"
+msgstr "segnale {} su 5"
+
+#. TRANSLATORS: The iPhone's battery level read aloud, {} is like "80%".
+#: src/ui_common/ui_text.cpp
+#, c++-format
+msgid "battery {}"
+msgstr "batteria {}"
+
+#: src/ui_common/ui_text.cpp
+msgid "%b %d, %H:%M"
+msgstr "%d %b, %H:%M"
+
+#: src/gtk/tether-gtk.desktop.in
+msgid "Device Synchronization"
+msgstr "Sincronizzazione dispositivi"
+
+#: src/gtk/tether-gtk.desktop.in
+msgid "Pair devices and synchronize clipboard across the network"
+msgstr "Accoppia dispositivi e sincronizza gli appunti sulla rete"
+
+#: src/gtk/tether-gtk.desktop.in
+msgid "iPhone;iOS;SMS;Messages;Clipboard;Files;Notifications;Calls;AirPods;"
+msgstr "iPhone;iOS;SMS;Messaggi;Appunti;File;Notifiche;Chiamate;AirPods;"
+
+#~ msgid ""
+#~ "Connected. BlueZ is not exposing an LE bearer, so notifications are "
+#~ "unavailable."
+#~ msgstr ""
+#~ "Connesso. BlueZ non espone un bearer LE, quindi le notifiche non sono "
+#~ "disponibili."
+
+#~ msgid ""
+#~ "Delete this computer on the iPhone (Forget This Device) and pair again."
+#~ msgstr ""
+#~ "Elimina questo computer sull'iPhone (Dimentica questo dispositivo) e "
+#~ "accoppia di nuovo."
+
+#, c++-format
+#~ msgid " signal {0}/5 battery {1}/5"
+#~ msgstr " segnale {0}/5 batteria {1}/5"
+
+#~ msgid ""
+#~ "Where messages and contacts are stored on this computer. Encrypted keeps "
+#~ "them with a key in your desktop keyring. Do not keep deletes what is "
+#~ "already stored and retains nothing further."
+#~ msgstr ""
+#~ "Dove messaggi e contatti vengono memorizzati su questo computer. Cifrata "
+#~ "li conserva con una chiave nel portachiavi del desktop. Non conservare "
+#~ "elimina quanto già memorizzato e non conserva altro."
+
+#~ msgid ""
+#~ "Turned off automatically when pairing produces no LE bond; turn it back "
+#~ "on after re-pairing."
+#~ msgstr ""
+#~ "Viene disattivata automaticamente quando l'associazione non produce un "
+#~ "legame LE; riattivala dopo aver associato di nuovo."
+
+#~ msgid ""
+#~ "Ask for each alert's title and message, not just which app sent it. The "
+#~ "iPhone's own Show Message Notifications toggle still has to be on."
+#~ msgstr ""
+#~ "Chiedi titolo e messaggio di ogni avviso, non solo l'app che l'ha "
+#~ "inviato. L'opzione «Mostra notifiche messaggi» dell'iPhone deve restare "
+#~ "attiva."
+
+#~ msgid ""
+#~ "Answer and place calls from the Calls tab. Needs hfp_hf in bluez5.roles "
+#~ "and PipeWire's telephony D-Bus service, neither of which Tether installs."
+#~ msgstr ""
+#~ "Rispondi ed effettua chiamate dalla scheda Chiamate. Richiede hfp_hf in "
+#~ "bluez5.roles e il servizio D-Bus di telefonia di PipeWire, nessuno dei "
+#~ "quali viene installato da Tether."
+
+#~ msgid ""
+#~ "Turn call control on or off. Needs the hfp_hf role and telephony service "
+#~ "in WirePlumber; see docs/BLUETOOTH.md."
+#~ msgstr ""
+#~ "Attivare o disattivare il controllo delle chiamate. Richiede il ruolo "
+#~ "hfp_hf e il servizio di telefonia in WirePlumber; vedere docs/"
+#~ "BLUETOOTH.md."
+
+#~ msgid ""
+#~ "Play the call through this computer's speakers and microphone. Handing it "
+#~ "back applies to the next call."
+#~ msgstr ""
+#~ "Riprodurre la chiamata con gli altoparlanti e il microfono di questo "
+#~ "computer. La restituzione vale dalla chiamata successiva."
+
+#~ msgid ""
+#~ "New calls will stay on the iPhone. A call already playing here does not "
+#~ "move back."
+#~ msgstr ""
+#~ "Le nuove chiamate resteranno sull'iPhone. Una chiamata già in corso qui "
+#~ "non torna indietro."
+
+#~ msgid "Move audio to iPhone"
+#~ msgstr "Sposta l'audio sull'iPhone"
+
+#, fuzzy
+#~ msgid "Tether version"
+#~ msgstr "Mostra la versione di tether."
+
+#, fuzzy
+#~ msgid "on"
+#~ msgstr "Associazione"

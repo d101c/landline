@@ -1,0 +1,254 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # one deb per release only because of libavcodec soname
+          # debian bookworm is out of reach (gcc 12).
+          - image: ubuntu:24.04
+            generator: DEB
+            name: deb-ubuntu24.04
+            runner: ubuntu-latest
+          - image: ubuntu:24.04
+            generator: DEB
+            name: deb-ubuntu24.04-arm64
+            runner: ubuntu-24.04-arm
+          - image: ubuntu:26.04
+            generator: DEB
+            name: deb-ubuntu26.04
+            runner: ubuntu-latest
+          - image: ubuntu:26.04
+            generator: DEB
+            name: deb-ubuntu26.04-arm64
+            runner: ubuntu-24.04-arm
+          - image: debian:trixie
+            generator: DEB
+            name: deb-debian13
+            runner: ubuntu-latest
+          - image: debian:trixie
+            generator: DEB
+            name: deb-debian13-arm64
+            runner: ubuntu-24.04-arm
+          - image: fedora:latest
+            generator: RPM
+            name: rpm
+            runner: ubuntu-latest
+          - image: fedora:latest
+            generator: RPM
+            name: rpm-arm64
+            runner: ubuntu-24.04-arm
+          # archlinux has no arm64 image.
+          - image: archlinux:base-devel
+            generator: TGZ
+            name: tgz
+            runner: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    steps:
+      - name: bootstrap git
+        run: |
+          . /etc/os-release
+          case ${ID_LIKE:-$ID} in
+            *arch*)        pacman -Sy --noconfirm --needed git ;;
+            *fedora*)      dnf install -y git ;;
+            *debian*|*ubuntu*) apt-get update && apt-get install -y --no-install-recommends git ca-certificates ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: dependencies
+        run: ./scripts/ci-deps.sh
+
+      - name: build
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+
+      - name: unit tests
+        run: ctest --test-dir build/release --output-on-failure
+
+      - name: package
+        run: |
+          cd build/release && cpack -G ${{ matrix.generator }}
+          . /etc/os-release
+          for f in *.deb; do [ -e "$f" ] || continue; mv "$f" "${f%.deb}~${ID}${VERSION_ID}.deb"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            build/release/*.deb
+            build/release/*.rpm
+            build/release/*.tar.gz
+          if-no-files-found: error
+
+  appimage:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    # oldest glibc tether supports
+    container: ubuntu:24.04
+    steps:
+      - name: bootstrap git
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates curl file
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: dependencies
+        run: |
+          ./scripts/ci-deps.sh
+          apt-get install -y --no-install-recommends bluez patchelf librsvg2-common desktop-file-utils dpkg-dev
+
+      - name: build
+        run: ./packaging/appimage/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage-${{ matrix.runner }}
+          path: build/appimage/*.AppImage
+          if-no-files-found: error
+
+  flatpak:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder ca-certificates
+
+      - name: build
+        run: ./packaging/flatpak/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-${{ matrix.runner }}
+          path: build/flatpak/*.flatpak
+          if-no-files-found: error
+
+      - name: archive repo
+        run: tar -C build/flatpak -cf "build/flatpak/flatpak-repo-$(uname -m).tar" repo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-repo-${{ matrix.runner }}
+          path: build/flatpak/flatpak-repo-*.tar
+          if-no-files-found: error
+
+  flatpak-repo:
+    needs: [flatpak]
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak ostree gnupg
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: flatpak-repo-*
+          path: dist
+          merge-multiple: true
+
+      - name: merge and sign
+        env:
+          FLATPAK_GPG_KEY: ${{ secrets.FLATPAK_GPG_KEY }}
+        run: |
+          repos=()
+          for tar in dist/flatpak-repo-*.tar; do
+            dir=${tar%.tar}
+            mkdir "$dir"
+            tar -xf "$tar" -C "$dir"
+            repos+=("$dir/repo")
+          done
+          ./packaging/flatpak/publish-repo.sh https://zackb.github.io/tether site "${repos[@]}"
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  copr:
+    needs: [package]
+    if: github.ref_type == 'tag'
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: build in COPR
+        env:
+          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          dnf install -y copr-cli
+          mkdir -p ~/.config
+          printf '%s\n' "$COPR_CONFIG" > ~/.config/copr
+          copr-cli buildscm zackb/tether --clone-url "https://github.com/$GITHUB_REPOSITORY.git" \
+            --commit "$TAG" --method make_srpm --nowait
+
+  release:
+    needs: [package, appimage, flatpak]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          rm -f dist/flatpak-repo-*.tar
+          ls -l dist
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+              --title "Release $TAG" --generate-notes
+          fi

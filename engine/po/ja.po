@@ -1,0 +1,3474 @@
+# Japanese translation of Tether.
+# DRAFT — machine-assisted, not reviewed by a native speaker. Corrections welcome:
+# https://github.com/zackb/tether
+# Copyright (C) 2026 the Tether authors
+# This file is distributed under the same license as the tether package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: landlinectl\n"
+"Report-Msgid-Bugs-To: zack@bartel.com\n"
+"POT-Creation-Date: 2026-11-15 11:58-0800\n"
+"PO-Revision-Date: 2026-08-23\n"
+"Last-Translator: Tether project\n"
+"Language-Team: Japanese\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: src/cli/main.cpp
+msgid "yes"
+msgstr "はい"
+
+#: src/cli/main.cpp
+msgid "no"
+msgstr "いいえ"
+
+#: src/cli/main.cpp
+msgid "Show this help message."
+msgstr "このヘルプを表示します。"
+
+#: src/cli/main.cpp
+msgid "Print the landlinectl version."
+msgstr "landlinectl のバージョンを表示します。"
+
+#: src/cli/main.cpp
+msgid "Retrieve the current Wayland clipboard text."
+msgstr "Wayland のクリップボードの現在のテキストを取得します。"
+
+#: src/cli/main.cpp
+msgid "Take string input and copy it to the local Wayland clipboard."
+msgstr ""
+"入力からテキストを読み取り、ローカルの Wayland クリップボードにコピーします。"
+
+#: src/cli/main.cpp
+msgid "Send the current Wayland clipboard to connected devices."
+msgstr "現在の Wayland クリップボードを接続中のデバイスに送信します。"
+
+#: src/cli/main.cpp
+msgid "Send a file through landlinectl."
+msgstr "landlinectl 経由でファイルを送信します。"
+
+#: src/cli/main.cpp
+msgid "With --send-file, send to one connected device (name or fingerprint)."
+msgstr ""
+"--send-file と併用し、接続中の 1 台のデバイスに送信します (名前またはフィン"
+"ガープリント)。"
+
+#: src/cli/main.cpp
+msgid "Start the browser Native Messaging Host proxy loop."
+msgstr "ブラウザの Native Messaging Host プロキシループを開始します。"
+
+#: src/cli/main.cpp
+msgid "Scan the local network for landlined instances via mDNS."
+msgstr "mDNS でローカルネットワーク上の landlined を検索します。"
+
+#: src/cli/main.cpp
+msgid "Connect over TCP to daemon ip instead of UNIX Socket."
+msgstr "UNIX ソケットではなく TCP でデーモンの ip に接続します。"
+
+#: src/cli/main.cpp
+msgid "Connect over TCP port (default 5134)."
+msgstr "接続に使う TCP ポート (デフォルト 5134)。"
+
+#: src/cli/main.cpp
+msgid "Discovery scan duration in milliseconds (default 3000)."
+msgstr "検索の実行時間 (ミリ秒、デフォルト 3000)。"
+
+#: src/cli/main.cpp
+msgid "List all paired connection devices."
+msgstr "ペアリング済みのデバイスをすべて一覧表示します。"
+
+#: src/cli/main.cpp
+msgid "Show the one-time system setup Bluetooth still needs."
+msgstr "Bluetooth にまだ必要な一度きりのシステム設定を表示します。"
+
+#: src/cli/main.cpp
+msgid "Show Bluetooth adapter capability and delivery mode."
+msgstr "Bluetooth アダプタの機能と配信モードを表示します。"
+
+#: src/cli/main.cpp
+msgid "List Bluetooth devices known to BlueZ."
+msgstr "BlueZ が認識している Bluetooth デバイスを一覧表示します。"
+
+#: src/cli/main.cpp
+msgid "Show Bluetooth link and profile connection state."
+msgstr "Bluetooth リンクとプロファイルの接続状態を表示します。"
+
+#: src/cli/main.cpp
+msgid "Show AirPods and case battery."
+msgstr "AirPods とケースのバッテリーを表示します。"
+
+#: src/cli/main.cpp
+msgid "Manage AirPods from Landline at all: on or off."
+msgstr "AirPods を Landline で管理するかどうか: on または off。"
+
+#: src/cli/main.cpp
+msgid "Set the AirPods listening mode: off, anc, transparency, adaptive."
+msgstr ""
+"AirPods のリスニングモードを設定します: off, anc, transparency, adaptive。"
+
+#: src/cli/main.cpp
+msgid ""
+"Pause local playback when an AirPod is removed: never, one-removed, both-"
+"removed."
+msgstr ""
+"AirPod を外したときにローカル再生を一時停止します: never, one-removed, both-"
+"removed。"
+
+#: src/cli/main.cpp
+msgid "Hand the AirPods to the iPhone during a call: on or off."
+msgstr "通話中に AirPods を iPhone へ渡します: on または off。"
+
+#: src/cli/main.cpp
+msgid "Lock the session when the iPhone goes out of range: on or off."
+msgstr "iPhone が範囲外になったらセッションをロックします: on または off。"
+
+#: src/cli/main.cpp
+msgid ""
+"Release messages and contacts while this computer is locked or idle: on or "
+"off."
+msgstr ""
+"このコンピュータがロック中またはアイドル状態の間、メッセージと連絡先を解放し"
+"ます: on または off。"
+
+#: src/cli/main.cpp
+msgid ""
+"Release a profile for another computer until claimed: map, pbap, ancs, or "
+"all."
+msgstr ""
+"再取得するまで、プロファイルを他のコンピュータのために解放します: map、pbap、"
+"ancs、all。"
+
+#: src/cli/main.cpp
+msgid "Take back a released profile: map, pbap, ancs, or all."
+msgstr "解放したプロファイルを再取得します: map、pbap、ancs、all。"
+
+#: src/cli/main.cpp
+msgid "List iPhone message conversations."
+msgstr "iPhone のメッセージの会話を一覧表示します。"
+
+#: src/cli/main.cpp
+msgid "Show messages in one conversation."
+msgstr "1 つの会話のメッセージを表示します。"
+
+#: src/cli/main.cpp
+msgid "Reply in one conversation."
+msgstr "1 つの会話で返信します。"
+
+#: src/cli/main.cpp
+msgid "List iPhone contacts, or search them by name or number."
+msgstr "iPhone の連絡先を一覧表示、または名前や番号で検索します。"
+
+#: src/cli/main.cpp
+msgid "List contacts by first or last name."
+msgstr "連絡先を名または姓で並べ替えます。"
+
+#: src/cli/main.cpp
+msgid "Pair with an iPhone over Bluetooth."
+msgstr "Bluetooth で iPhone とペアリングします。"
+
+#: src/cli/main.cpp
+msgid ""
+"Ask the iPhone to authenticate directly instead of connecting first. Landline "
+"falls back to this on its own; use it to skip straight there."
+msgstr ""
+"最初に接続するのではなく、iPhone に直接認証を要求します。Landline は自動的にこ"
+"れにフォールバックします。すぐにこの方法を使う場合に指定します。"
+
+#: src/cli/main.cpp
+msgid "Remove a Bluetooth bond."
+msgstr "Bluetooth のボンドを削除します。"
+
+#: src/cli/main.cpp
+msgid ""
+"Re-advertise for ANCS so the iPhone shows its permission toggles again, "
+"without removing the bond."
+msgstr ""
+"ANCS のためにアドバタイズし直し、ボンドを削除せずに iPhone が許可設定を再表示"
+"するようにします。"
+
+#: src/cli/main.cpp
+msgid "Connect to the iPhone over Bluetooth, or stop."
+msgstr "Bluetooth で iPhone に接続する、または停止します。"
+
+#: src/cli/main.cpp
+msgid "Turn notification mirroring on or off."
+msgstr "通知のミラーリングをオンまたはオフにします。"
+
+#: src/cli/main.cpp
+msgid "Mirror notification titles and bodies, not just the app."
+msgstr "アプリ名だけでなく、通知のタイトルと本文もミラーリングします。"
+
+#: src/cli/main.cpp
+msgid ""
+"Stop desktop popups from an iPhone app, by name or bundle id. It still lists "
+"in --bt-notifications."
+msgstr ""
+"iPhone アプリのデスクトップのポップアップを止めます（名前またはバンドル ID で"
+"指定）。--bt-notifications には引き続き表示されます。"
+
+#: src/cli/main.cpp
+msgid "Show desktop popups from a muted iPhone app again."
+msgstr ""
+"ミュートした iPhone アプリのデスクトップのポップアップを再び表示します。"
+
+#: src/cli/main.cpp
+msgid ""
+"How message history and contacts are kept on disk. Encrypted uses a key from "
+"the desktop keyring; none deletes what is stored and keeps nothing further."
+msgstr ""
+"メッセージ履歴と連絡先をディスクにどう保持するか。encrypted はデスクトップの"
+"キーリングにある鍵を使います。none は保存済みのものを削除し、以後何も保持しま"
+"せん。"
+
+#: src/cli/main.cpp
+msgid "Choose which Bluetooth controller to use."
+msgstr "使用する Bluetooth アダプタを選択します。"
+
+#: src/cli/main.cpp
+msgid "List mirrored iPhone notifications."
+msgstr "ミラーリングされた iPhone の通知を一覧表示します。"
+
+#: src/cli/main.cpp
+msgid "List calls on the iPhone."
+msgstr "iPhone の通話を一覧表示します。"
+
+#: src/cli/main.cpp
+msgid "Place a call from the iPhone."
+msgstr "iPhone から発信します。"
+
+#: src/cli/main.cpp
+msgid "Answer the ringing call."
+msgstr "着信中の通話に応答します。"
+
+#: src/cli/main.cpp
+msgid "Hang up every call."
+msgstr "すべての通話を終了します。"
+
+#: src/cli/main.cpp
+msgid ""
+"Turn call control on or off. Calls run over Bluetooth Hands-Free; the audio "
+"stays on the iPhone."
+msgstr ""
+"通話操作をオンまたはオフにします。通話は Bluetooth ハンズフリー経由で、音声"
+"は iPhone に残ります。"
+
+#: src/cli/main.cpp
+msgid ""
+"Play call audio on this computer, or leave it on the iPhone. Needs PipeWire "
+"to be the stack holding Hands-Free; off applies from the next call."
+msgstr ""
+"通話音声をこのコンピューターで再生するか、iPhone に残します。ハンズフリーを "
+"PipeWire が処理している必要があります。off は次の通話から適用されます。"
+
+#: src/cli/main.cpp
+msgid ""
+"Play the iPhone's music and sounds on this computer, or keep them on the "
+"iPhone. auto leaves it to the iPhone and the audio server. Without an "
+"argument, show where it plays."
+msgstr ""
+"iPhone の音楽やサウンドをこのコンピューターで再生するか、iPhone に残します。"
+"auto は iPhone とオーディオサーバーに任せます。引数なしでは、再生先を表示しま"
+"す。"
+
+#: src/cli/main.cpp
+msgid "Print a redacted Bluetooth report for a bug report."
+msgstr "バグ報告用に情報を伏せた Bluetooth レポートを出力します。"
+
+#: src/cli/main.cpp
+msgid ""
+"Install the browser and mail extension's native messaging manifests for this "
+"user. Needed only for portable builds; the distro packages install them "
+"system-wide."
+msgstr ""
+"ブラウザーおよびメール拡張機能のネイティブメッセージングマニフェストをこの"
+"ユーザー用にインストールします。ポータブルビルドでのみ必要です。ディストリ"
+"ビューションのパッケージはシステム全体にインストールします。"
+
+#: src/cli/main.cpp
+msgid ""
+"Write the landline-btclass@.service unit, which sets the Bluetooth adapter "
+"class iOS requires. Needs root, and never enables it. Needed only for "
+"portable builds; the distro packages install it."
+msgstr ""
+"iOS が要求する Bluetooth アダプターのクラスを設定する tether-"
+"btclass@.service ユニットを書き出します。root が必要で、有効化は行いません。"
+"ポータブルビルドでのみ必要です。ディストリビューションのパッケージは自分でイ"
+"ンストールします。"
+
+#: src/cli/main.cpp
+msgid ""
+"Write the landlined systemd user service for this user, and print how to "
+"enable it. Needed only for portable builds; the distro packages install it."
+msgstr ""
+"このユーザー向けの landlined systemd ユーザーサービスを書き込み、有効化の方法を"
+"表示します。ポータブルビルドでのみ必要です。ディストリビューションのパッケー"
+"ジは自分でインストールします。"
+
+#: src/cli/main.cpp
+msgid "Remove the landlined systemd user service this user installed."
+msgstr ""
+"このユーザーがインストールした landlined の systemd ユーザーサービスを削除しま"
+"す。"
+
+#: src/cli/main.cpp
+msgid "Show what the daemon is doing: devices, links, and recent transfers."
+msgstr "デーモンの動作状況を表示します: デバイス、接続、最近の転送。"
+
+#: src/cli/main.cpp
+msgid "List Wi-Fi pairing requests waiting to be accepted."
+msgstr "承認待ちの Wi-Fi ペアリングリクエストを一覧表示します。"
+
+#: src/cli/main.cpp
+msgid "Accept a pending pairing request locally."
+msgstr "保留中のペアリング要求をローカルで承認します。"
+
+#: src/cli/main.cpp
+msgid "Remove a Wi-Fi pairing and drop its session."
+msgstr "Wi-Fi のペアリングを削除し、そのセッションを終了します。"
+
+#: src/cli/main.cpp
+msgid "Send a pair_request over TCP to the daemon."
+msgstr "TCP でデーモンに pair_request を送信します。"
+
+#: src/cli/main.cpp
+msgid "landlinectl - command-line client of the engine"
+msgstr ""
+
+#: src/cli/main.cpp
+msgid "Options:"
+msgstr "オプション:"
+
+#: src/cli/main.cpp
+msgid "Commands:"
+msgstr "コマンド:"
+
+#: src/cli/main.cpp
+msgid "Any --bt-<name> flag, as a subcommand."
+msgstr "任意の --bt-<name> フラグをサブコマンドとして。"
+
+#: src/cli/main.cpp
+msgid "Examples:"
+msgstr "例:"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Installed %s\n"
+msgstr "%s をインストールしました\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"The Flatpak cannot see any browser or mail client yet. For each one you use, "
+"run its line, then run this again:\n"
+"\n"
+msgstr ""
+"Flatpak からはまだブラウザーやメールクライアントが見えません。使用しているも"
+"のごとに該当する行を実行してから、もう一度これを実行してください:\n"
+"\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"No browser or mail client profile was found for this user, so nothing was "
+"installed. Start Firefox, Thunderbird, or Chromium once and run this again.\n"
+msgstr ""
+"このユーザーのブラウザーまたはメールクライアントのプロファイルが見つからな"
+"かったため、何もインストールされませんでした。Firefox、Thunderbird、または "
+"Chromium を一度起動してから、もう一度実行してください。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Restart the browser or mail client to pick this up.\n"
+msgstr ""
+"\n"
+"反映するにはブラウザーまたはメールクライアントを再起動してください。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Writing {} needs root. Run this with sudo.\n"
+msgstr "{} の書き込みには root が必要です。sudo で実行してください。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Could not write {}.\n"
+msgstr "{} を書き込めませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"It is not enabled. Run 'systemctl daemon-reload', then 'systemctl enable --"
+"now landline-btclass@hci0' to apply it.\n"
+msgstr ""
+"\n"
+"有効にはなっていません。適用するには 'systemctl daemon-reload' を実行し、続け"
+"て 'systemctl enable --now landline-btclass@hci0' を実行してください。\n"
+
+#: src/cli/main.cpp
+msgid "Could not read Bluetooth status from the daemon.\n"
+msgstr "デーモンから Bluetooth の状態を読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Bluetooth: unavailable (is bluetoothd running?)\n"
+msgstr "Bluetooth: 利用できません (bluetoothd は動作していますか?)\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Bluetooth setup is complete. Nothing to do.\n"
+msgstr "Bluetooth の設定は完了しています。行うことはありません。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"%zu step left before the iPhone Bluetooth features work:\n"
+msgid_plural ""
+"\n"
+"%zu steps left before the iPhone Bluetooth features work:\n"
+msgstr[0] ""
+"\n"
+"iPhone の Bluetooth 機能が動作するまで、あと %zu ステップ:\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Re-run 'landlinectl --bt-setup' afterwards to confirm.\n"
+msgstr ""
+"\n"
+"その後 'landlinectl --bt-setup' をもう一度実行して確認してください。\n"
+
+#: src/cli/main.cpp
+msgid "Mode"
+msgstr "モード"
+
+#: src/cli/main.cpp
+msgid "Bearer API"
+msgstr "Bearer API"
+
+#: src/cli/main.cpp src/core/src/bluetooth/pairing.cpp
+msgid "unknown"
+msgstr "不明"
+
+#: src/cli/main.cpp
+msgid "Adapter"
+msgstr "アダプタ"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "powered={0} central={1} peripheral={2} advertising={3} class={4}"
+msgstr "電源={0} セントラル={1} ペリフェラル={2} アドバタイズ={3} クラス={4}"
+
+#: src/cli/main.cpp
+msgid "ok"
+msgstr "正常"
+
+#: src/cli/main.cpp
+msgid "wrong"
+msgstr "不正"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "secure-connections={}"
+msgstr "Secure Connections={}"
+
+#: src/cli/main.cpp
+msgid "Bond"
+msgstr "ボンド"
+
+#: src/cli/main.cpp
+msgid "BR/EDR, notifications live"
+msgstr "BR/EDR、通知は有効"
+
+#: src/cli/main.cpp src/gtk/devices_view.cpp src/gtk/main.cpp
+#: src/tui/devices.cpp src/tui/notifications.cpp
+msgid "Notifications"
+msgstr "通知"
+
+#: src/cli/main.cpp
+msgid "mirroring on"
+msgstr "ミラーリング有効"
+
+#: src/cli/main.cpp
+msgid "mirroring off (landlinectl --bt-ancs on)"
+msgstr "ミラーリング無効 (landlinectl --bt-ancs on)"
+
+#: src/cli/main.cpp
+msgid "Muted"
+msgstr "ミュート中"
+
+#: src/cli/main.cpp src/daemon/main.cpp src/gtk/main.cpp
+#: src/gtk/tether-gtk.desktop.in
+msgid "Tether"
+msgstr "Tether"
+
+#: src/cli/main.cpp
+msgid "connecting"
+msgstr "接続中"
+
+#: src/cli/main.cpp
+msgid "off (--bt-enable on)"
+msgstr "オフ (--bt-enable on)"
+
+#: src/cli/main.cpp
+msgid "History"
+msgstr "履歴"
+
+#: src/cli/main.cpp
+msgid ""
+"paused - the desktop keyring has no key to offer yet.\n"
+"Unlock it, or run 'landlinectl --bt-retention plaintext'."
+msgstr ""
+"一時停止中 - デスクトップのキーリングにまだ鍵がありません。\n"
+"ロックを解除するか、'landlinectl --bt-retention plaintext' を実行してください。"
+
+#: src/cli/main.cpp
+msgid "in use"
+msgstr "使用中"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Controller {} is not present; using the first powered one instead."
+msgstr "アダプタ {} がありません。電源の入っている最初のアダプタを使用します。"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"%zu setup step remaining. Run: landlinectl --bt-setup\n"
+msgid_plural ""
+"\n"
+"%zu setup steps remaining. Run: landlinectl --bt-setup\n"
+msgstr[0] ""
+"\n"
+"設定手順があと %zu 件残っています。実行: landlinectl --bt-setup\n"
+
+#: src/cli/main.cpp
+msgid "Could not read Bluetooth devices from the daemon.\n"
+msgstr "デーモンから Bluetooth デバイスを読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No Bluetooth devices known to BlueZ.\n"
+msgstr "BlueZ が認識している Bluetooth デバイスはありません。\n"
+
+#: src/cli/main.cpp
+msgid "Could not read the AirPods battery from the daemon.\n"
+msgstr "デーモンから AirPods のバッテリーを読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+msgid "AirPods management is off.\n"
+msgstr "AirPods の管理はオフです。\n"
+
+#: src/cli/main.cpp
+msgid "No AirPods connected.\n"
+msgstr "AirPods は接続されていません。\n"
+
+#: src/cli/main.cpp
+msgid "Left"
+msgstr "左"
+
+#: src/cli/main.cpp
+msgid "Right"
+msgstr "右"
+
+#. TRANSLATORS: The AirPods charging case, on the device row beside the two earbuds.
+#: src/cli/main.cpp src/ui_common/ui_text.cpp
+msgid "Case"
+msgstr "ケース"
+
+#: src/cli/main.cpp
+msgid "Worn"
+msgstr "装着"
+
+#: src/cli/main.cpp
+msgid ""
+"This computer does not present itself as Apple hardware, so a call hands the "
+"buds over by disconnecting them. See DeviceID in /etc/bluetooth/main.conf."
+msgstr ""
+"このコンピューターは Apple のハードウェアとして名乗っていないため、通話時は "
+"AirPods を切断して渡します。/etc/bluetooth/main.conf の DeviceID を参照してく"
+"ださい。"
+
+#: src/cli/main.cpp
+msgid "Could not reach the daemon.\n"
+msgstr "デーモンに接続できませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Listening mode set to %s.\n"
+msgstr "リスニングモードを %s に設定しました。\n"
+
+#: src/cli/main.cpp
+msgid "The listening mode could not be set."
+msgstr "リスニングモードを設定できませんでした。"
+
+#: src/cli/main.cpp
+msgid "Use never, one-removed or both-removed.\n"
+msgstr "never、one-removed、both-removed のいずれかを指定してください。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Pause on removal set to %s.\n"
+msgstr "取り外し時の一時停止を %s に設定しました。\n"
+
+#: src/cli/main.cpp
+msgid "Use on or off.\n"
+msgstr "on または off を指定してください。\n"
+
+#: src/cli/main.cpp
+msgid "Landline is managing the AirPods."
+msgstr "Landline が AirPods を管理しています。"
+
+#: src/cli/main.cpp
+msgid "Landline has released the AirPods channel for another program."
+msgstr "Landline は AirPods のチャンネルを他のプログラムのために解放しました。"
+
+#: src/cli/main.cpp
+msgid ""
+"An iPhone call will hand the AirPods to the phone and take them back after."
+msgstr "iPhone の通話で AirPods を iPhone に渡し、終了後に戻します。"
+
+#: src/cli/main.cpp
+msgid "AirPods handoff is off."
+msgstr "AirPods の受け渡しはオフです。"
+
+#: src/cli/main.cpp
+msgid "The session will lock when the iPhone goes out of range."
+msgstr "iPhone が範囲外になるとセッションをロックします。"
+
+#: src/cli/main.cpp
+msgid "Locking on the iPhone going out of range is off."
+msgstr "iPhone が範囲外になったときのロックは無効です。"
+
+#: src/cli/main.cpp
+msgid ""
+"Messages and contacts will be released while this computer is locked or idle."
+msgstr ""
+"このコンピュータがロック中またはアイドル状態の間、メッセージと連絡先は解放さ"
+"れます。"
+
+#: src/cli/main.cpp
+msgid ""
+"Messages and contacts stay connected while this computer is locked or idle."
+msgstr ""
+"このコンピュータがロック中またはアイドル状態でも、メッセージと連絡先は接続さ"
+"れたままです。"
+
+#: src/cli/main.cpp
+msgid "Use map, pbap, ancs, or all.\n"
+msgstr "map、pbap、ancs、all のいずれかを指定してください。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Released %s on this computer.\n"
+msgstr "このコンピュータで解放しました: %s。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Claiming %s. If another computer holds it, release it there first.\n"
+msgstr ""
+"%s を再取得しています。他のコンピュータが保持している場合は、先にそちらで解放"
+"してください。\n"
+
+#: src/cli/main.cpp
+msgid "Daemon closed the connection before the operation finished.\n"
+msgstr "操作が完了する前にデーモンが接続を閉じました。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"  The iPhone should be showing this code: %s\n"
+"  Does it match? [y/N] "
+msgstr ""
+"\n"
+"  iPhone にこのコードが表示されているはずです: %s\n"
+"  一致しますか? [y/N] "
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"  Cannot confirm the pairing code: input is not a terminal.\n"
+msgstr ""
+"\n"
+"  ペアリングコードを確認できません: 入力が端末ではありません。\n"
+
+#: src/cli/main.cpp
+msgid "Could not read Bluetooth connection state from the daemon.\n"
+msgstr "デーモンから Bluetooth の接続状態を読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+msgid "Device present"
+msgstr "デバイスあり"
+
+#: src/cli/main.cpp
+msgid "BR/EDR"
+msgstr "BR/EDR"
+
+#: src/cli/main.cpp
+msgid "LE"
+msgstr "LE"
+
+#: src/cli/main.cpp
+msgid "(bearer unavailable)"
+msgstr "(bearer 利用不可)"
+
+#: src/cli/main.cpp
+msgid "Messages (MAP)"
+msgstr "メッセージ (MAP)"
+
+#: src/cli/main.cpp
+msgid "Contacts (PBAP)"
+msgstr "連絡先 (PBAP)"
+
+#: src/cli/main.cpp
+msgid "no carrier"
+msgstr "通信事業者なし"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid " signal {}/5"
+msgstr " 信号 {}/5"
+
+#: src/cli/main.cpp src/ui_common/ui_text.cpp
+msgid "roaming"
+msgstr "ローミング"
+
+#: src/cli/main.cpp
+msgid "Calls (HFP)"
+msgstr "通話 (HFP)"
+
+#: src/cli/main.cpp
+msgid "Battery"
+msgstr "バッテリー"
+
+#: src/cli/main.cpp
+msgid "Could not read Bluetooth diagnostics from the daemon.\n"
+msgstr "デーモンから Bluetooth の診断情報を読み取れませんでした。\n"
+
+#: src/cli/main.cpp src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "The call could not be placed."
+msgstr "発信できませんでした。"
+
+#: src/cli/main.cpp
+msgid "Could not read calls from the daemon.\n"
+msgstr "デーモンから通話を読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No calls. Check 'landlinectl --bt-connection'.\n"
+msgstr "通話はありません。'landlinectl --bt-connection' を確認してください。\n"
+
+#: src/cli/main.cpp
+msgid "withheld"
+msgstr "非通知"
+
+#: src/cli/main.cpp
+msgid "Could not read notifications from the daemon.\n"
+msgstr "デーモンから通知を読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No notifications yet. Check 'landlinectl --bt-connection'.\n"
+msgstr "まだ通知はありません。'landlinectl --bt-connection' を確認してください。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Expected an app, e.g. {} Signal\n"
+msgstr "アプリを指定してください。例: {} Signal\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid ""
+"No mirrored notification from '{}'. Use its bundle id, e.g. "
+"org.whispersystems.signal\n"
+msgstr ""
+"'{}' からのミラー通知がありません。バンドル ID を使ってください。例: "
+"org.whispersystems.signal\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "'{}' is not muted.\n"
+msgstr "'{}' はミュートされていません。\n"
+
+#: src/cli/main.cpp src/tui/notifications.cpp
+#, c++-format
+msgid "Popups from {} muted."
+msgstr "{} のポップアップをミュートしました。"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Popups from {} unmuted."
+msgstr "{} のポップアップのミュートを解除しました。"
+
+#: src/cli/main.cpp
+msgid "Could not read conversations from the daemon.\n"
+msgstr "デーモンから会話を読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No conversations yet. Check 'landlinectl --bt-connection'.\n"
+msgstr "まだ会話はありません。'landlinectl --bt-connection' を確認してください。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "({} unread)"
+msgid_plural "({} unread)"
+msgstr[0] "({} 件未読)"
+
+#: src/cli/main.cpp src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid ""
+"The running landlined is {}, but this is landlinectl {}. Stop it and it\n"
+"restarts on demand:\n"
+"    pkill landlined\n"
+msgstr ""
+"実行中の landlined は {} ですが、こちらは landlinectl {} です。停止すれば必要に応じ"
+"て自動で起動します:\n"
+"    pkill landlined\n"
+
+#: src/cli/main.cpp src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "an older build"
+msgstr "より古いビルド"
+
+#: src/cli/main.cpp
+msgid "Could not read contacts from the daemon.\n"
+msgstr "デーモンから連絡先を読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No contacts yet. Check 'landlinectl --bt-connection'.\n"
+msgstr ""
+"まだ連絡先はありません。'landlinectl --bt-connection' を確認してください。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No contacts match %s\n"
+msgstr "%s に一致する連絡先はありません\n"
+
+#: src/cli/main.cpp
+msgid "Could not read messages from the daemon.\n"
+msgstr "デーモンからメッセージを読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No messages in %s\n"
+msgstr "%s にメッセージはありません\n"
+
+#: src/cli/main.cpp
+msgid "me"
+msgstr "自分"
+
+#: src/cli/main.cpp
+msgid "them"
+msgstr "相手"
+
+#: src/cli/main.cpp
+msgid "Daemon closed the connection before the message was sent.\n"
+msgstr "メッセージが送信される前にデーモンが接続を閉じました。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Sent to %s\n"
+msgstr "%s に送信しました\n"
+
+#: src/cli/main.cpp src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "The message was not sent."
+msgstr "メッセージは送信されませんでした。"
+
+#: src/cli/main.cpp
+msgid "Could not read the daemon's state.\n"
+msgstr "デーモンの状態を読み取れませんでした。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "No connected device named {}. Run 'landlinectl status' to see them.\n"
+msgstr ""
+"{} という名前の接続中のデバイスはありません。'landlinectl status' で確認してくださ"
+"い。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "More than one device is named {}; pass its fingerprint instead.\n"
+msgstr ""
+"{} という名前のデバイスが複数あります。代わりにフィンガープリントを指定してく"
+"ださい。\n"
+
+#: src/cli/main.cpp
+msgid "Version"
+msgstr "バージョン"
+
+#: src/cli/main.cpp
+msgid "Daemon"
+msgstr "デーモン"
+
+#: src/cli/main.cpp
+msgid "running"
+msgstr "実行中"
+
+#: src/cli/main.cpp
+msgid "Clipboard"
+msgstr "クリップボード"
+
+#: src/cli/main.cpp
+msgid "syncing"
+msgstr "同期中"
+
+#: src/cli/main.cpp
+msgid "off, no Wayland session on this machine"
+msgstr "オフ、このマシンには Wayland セッションがありません"
+
+#: src/cli/main.cpp
+msgid "mDNS"
+msgstr "mDNS"
+
+#: src/cli/main.cpp
+msgid "advertising"
+msgstr "アドバタイズ中"
+
+#: src/cli/main.cpp
+msgid "unavailable"
+msgstr "利用不可"
+
+#: src/cli/main.cpp
+msgid "Firewall"
+msgstr "ファイアウォール"
+
+#: src/cli/main.cpp
+msgid "Paired devices"
+msgstr "ペアリング済みデバイス"
+
+#: src/cli/main.cpp
+msgid "Pending requests"
+msgstr "保留中のリクエスト"
+
+#: src/cli/main.cpp
+msgid "Connected now"
+msgstr "現在の接続"
+
+#: src/cli/main.cpp
+msgid "paired"
+msgstr "ペアリング済み"
+
+#: src/cli/main.cpp
+msgid "unpaired"
+msgstr "未ペアリング"
+
+#: src/cli/main.cpp
+msgid "Recently received:"
+msgstr "最近受信したファイル:"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Run 'landlinectl --pending' to see what is waiting to be accepted.\n"
+msgstr ""
+"\n"
+"承認待ちのものを見るには 'landlinectl --pending' を実行してください。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No pairing requests are waiting.\n"
+msgstr "待機中のペアリングリクエストはありません。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Accept one with: landlinectl --accept <fingerprint>\n"
+msgstr ""
+"\n"
+"次のコマンドで承認します: landlinectl --accept <fingerprint>\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"No systemd on this machine, so there is no user service to manage. Start "
+"landlined from whatever this system uses for services, or let a client start "
+"it on demand.\n"
+msgstr ""
+"このマシンには systemd がないため、管理するユーザーサービスはありません。この"
+"システムがサービスに使っているもので landlined を起動するか、クライアントが必要"
+"に応じて起動するのに任せてください。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Landline does not enable it for you. To start the daemon now and on every "
+"login:\n"
+"\n"
+"systemctl --user daemon-reload\n"
+"systemctl --user enable --now landlined.service\n"
+"\n"
+"On a server you log out of, keep the user session alive too:\n"
+"\n"
+"loginctl enable-linger $USER\n"
+msgstr ""
+"\n"
+"Landline が代わりに有効化することはありません。デーモンを今すぐ、そしてログイン"
+"のたびに起動するには:\n"
+"\n"
+"systemctl --user daemon-reload\n"
+"systemctl --user enable --now landlined.service\n"
+"\n"
+"ログアウトするサーバーでは、ユーザーセッションも維持してください:\n"
+"\n"
+"loginctl enable-linger $USER\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "No landlined user service was installed for this user.\n"
+msgstr ""
+"このユーザー向けの landlined ユーザーサービスはインストールされていません。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Removed %s\n"
+msgstr "%s を削除しました\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"\n"
+"Run 'systemctl --user daemon-reload' to forget it.\n"
+msgstr ""
+"\n"
+"'systemctl --user daemon-reload' を実行して忘れさせてください。\n"
+
+#: src/cli/main.cpp
+msgid "--port expects a number.\n"
+msgstr "--port には数値を指定してください。\n"
+
+#: src/cli/main.cpp
+msgid "--timeout expects a number in milliseconds.\n"
+msgstr "--timeout にはミリ秒単位の数値を指定してください。\n"
+
+#: src/cli/main.cpp
+msgid "Unknown action. Run landlinectl --help for options\n"
+msgstr ""
+"不明な操作です。オプションを見るには landlinectl --help を実行してください\n"
+
+#: src/cli/main.cpp
+msgid "  No landlined instances found.\n"
+msgstr "  landlined のインスタンスは見つかりませんでした。\n"
+
+#: src/cli/main.cpp
+msgid "[new]"
+msgstr "[新規]"
+
+#: src/cli/main.cpp
+msgid "[known]"
+msgstr "[既知]"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Found %zu device in %.1fs\n"
+msgid_plural "Found %zu devices in %.1fs\n"
+msgstr[0] "%2$.1fs で %1$zu 台のデバイスが見つかりました\n"
+
+#: src/cli/main.cpp
+msgid ""
+"The daemon is not running, and could not be started. Check the log in "
+"$XDG_STATE_HOME/landline, or start it with 'systemctl --user start "
+"landlined.service'.\n"
+msgstr ""
+"デーモンが実行されておらず、起動もできませんでした。$XDG_STATE_HOME/landline の"
+"ログを確認するか、'systemctl --user start landlined.service' で起動してくださ"
+"い。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "No daemon answered at {}:{}.\n"
+msgstr "{}:{} で応答するデーモンがありません。\n"
+
+#: src/cli/main.cpp
+msgid ""
+"Explicit framework connection locally rejected! Did you target explicitly "
+"invalid TLS or is daemon broken?\n"
+msgstr ""
+"明示的なフレームワーク接続がローカルで拒否されました。明らかに無効な TLS を指"
+"定したか、デーモンが壊れていませんか?\n"
+
+#: src/cli/main.cpp
+msgid "--forget expects a fingerprint.\n"
+msgstr "--forget にはフィンガープリントを指定してください。\n"
+
+#: src/cli/main.cpp
+msgid "No paired device with that fingerprint.\n"
+msgstr "そのフィンガープリントを持つペアリング済みデバイスはありません。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Transfer Failed: {}"
+msgstr "転送に失敗しました: {}"
+
+#: src/cli/main.cpp
+msgid "A number is required, e.g. --bt-call +15551234567\n"
+msgstr "番号が必要です。例: --bt-call +15551234567\n"
+
+#: src/cli/main.cpp
+msgid "Dialing."
+msgstr "発信しています。"
+
+#: src/cli/main.cpp
+msgid "Answering."
+msgstr "応答しています。"
+
+#: src/cli/main.cpp
+msgid "Call audio comes to this computer."
+msgstr "通話音声はこのコンピューターで再生されます。"
+
+#: src/cli/main.cpp
+msgid "Call audio stays on the iPhone."
+msgstr "通話音声は iPhone のままです。"
+
+#: src/cli/main.cpp
+msgid "Hanging up."
+msgstr "終了しています。"
+
+#: src/cli/main.cpp
+msgid "Expected first or last, e.g. --bt-contacts-sort last\n"
+msgstr "first または last を指定してください。例: --bt-contacts-sort last\n"
+
+#: src/cli/main.cpp
+msgid "Contacts sorted by last name."
+msgstr "連絡先を姓で並べ替えました。"
+
+#: src/cli/main.cpp
+msgid "Contacts sorted by first name."
+msgstr "連絡先を名で並べ替えました。"
+
+#: src/cli/main.cpp
+msgid "The iPhone's audio plays on this computer."
+msgstr "iPhone のオーディオはこのコンピューターで再生されます。"
+
+#: src/cli/main.cpp
+msgid "The iPhone's audio stays on the iPhone."
+msgstr "iPhone のオーディオは iPhone のままです。"
+
+#: src/cli/main.cpp
+msgid ""
+"Unavailable: the iPhone is not connected over Classic, or the audio server "
+"does not offer the a2dp_sink role."
+msgstr ""
+"利用できません: iPhone が Bluetooth Classic で接続されていないか、オーディオ"
+"サーバーが a2dp_sink ロールを提供していません。"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Remembered choice: {}"
+msgstr "記憶された選択: {}"
+
+#: src/cli/main.cpp
+msgid "Expected here, phone or auto, e.g. --bt-phone-audio here\n"
+msgstr ""
+"here、phone、auto のいずれかを指定してください。例: --bt-phone-audio here\n"
+
+#: src/cli/main.cpp
+msgid "The iPhone's audio comes to this computer."
+msgstr "iPhone のオーディオをこのコンピューターに切り替えます。"
+
+#: src/cli/main.cpp
+msgid "The iPhone's audio goes back to the iPhone."
+msgstr "iPhone のオーディオを iPhone に戻します。"
+
+#: src/cli/main.cpp
+msgid "Phone audio follows the iPhone and the audio server."
+msgstr "電話のオーディオは iPhone とオーディオサーバーに従います。"
+
+#: src/cli/main.cpp
+msgid "Expected on or off, e.g. --bt-calls-enable on\n"
+msgstr "on または off を指定してください。例: --bt-calls-enable on\n"
+
+#: src/cli/main.cpp
+msgid "Call control enabled."
+msgstr "通話操作をオンにしました。"
+
+#: src/cli/main.cpp
+msgid "Call control disabled."
+msgstr "通話操作をオフにしました。"
+
+#: src/cli/main.cpp
+msgid "A thread key is required, e.g. --bt-messages tel:+15551234567\n"
+msgstr "会話のキーが必要です。例: --bt-messages tel:+15551234567\n"
+
+#: src/cli/main.cpp
+msgid ""
+"A conversation and a message are required, e.g. --bt-send tel:+15551234567 "
+"\"hi\"\n"
+msgstr "会話とメッセージが必要です。例: --bt-send tel:+15551234567 \"やあ\"\n"
+
+#: src/cli/main.cpp
+msgid "A Bluetooth address is required, e.g. --bt-pair AA:BB:CC:DD:EE:FF\n"
+msgstr "Bluetooth アドレスが必要です。例: --bt-pair AA:BB:CC:DD:EE:FF\n"
+
+#: src/cli/main.cpp
+msgid "Expected on or off, e.g. --bt-enable off\n"
+msgstr "on または off を指定してください。例: --bt-enable off\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Bluetooth enabled.\n"
+msgstr "Bluetooth を有効にしました。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid ""
+"Bluetooth disabled. Landline will not reconnect the iPhone. A link that is\n"
+"already up stays up until you disconnect it or the phone goes out of range.\n"
+msgstr ""
+"Bluetooth を無効にしました。Landline は iPhone に再接続しません。すでに確立\n"
+"しているリンクは、切断するか iPhone が範囲外になるまで維持されます。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Expected on or off, e.g. {} on\n"
+msgstr "on または off を指定してください。例: {} on\n"
+
+#: src/cli/main.cpp
+msgid "Notification contents enabled."
+msgstr "通知の内容を有効にしました。"
+
+#: src/cli/main.cpp
+msgid "Notification contents disabled."
+msgstr "通知の内容を無効にしました。"
+
+#: src/cli/main.cpp
+msgid "Notification mirroring enabled."
+msgstr "通知のミラーリングを有効にしました。"
+
+#: src/cli/main.cpp
+msgid "Notification mirroring disabled."
+msgstr "通知のミラーリングを無効にしました。"
+
+#: src/cli/main.cpp
+msgid "Expected encrypted, plaintext or none, e.g. --bt-retention encrypted\n"
+msgstr ""
+"encrypted、plaintext、none のいずれかを指定してください。例: --bt-retention "
+"encrypted\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Deleting stored messages and contacts.\n"
+msgstr "保存されたメッセージと連絡先を削除しています。\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Retention set to %s.\n"
+msgstr "保持設定を %s にしました。\n"
+
+#: src/cli/main.cpp
+msgid "Expected a controller, e.g. --bt-adapter hci1, or --bt-adapter auto\n"
+msgstr ""
+"アダプタを指定してください。例: --bt-adapter hci1 または --bt-adapter auto\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "No Bluetooth controller matches '{}'. Available:\n"
+msgstr "「{}」に一致する Bluetooth アダプタがありません。利用可能:\n"
+
+#: src/cli/main.cpp
+#, c-format
+msgid "Controller selection is automatic: the first powered one.\n"
+msgstr ""
+"アダプタの選択は自動です。電源の入っている最初のアダプタを使用します。\n"
+
+#: src/cli/main.cpp
+#, c++-format
+msgid "Using controller {}."
+msgstr "アダプタ {} を使用します。"
+
+#: src/core/src/bluetooth/airpods.cpp
+msgid "The AirPods address could not be read."
+msgstr "AirPods のアドレスを読み取れませんでした。"
+
+#: src/core/src/bluetooth/airpods.cpp
+msgid "Bluetooth sockets are unavailable on this system."
+msgstr "このシステムでは Bluetooth ソケットを利用できません。"
+
+#: src/core/src/bluetooth/airpods.cpp
+msgid "Another program is using the AirPods channel."
+msgstr "別のプログラムが AirPods のチャンネルを使用しています。"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"Messages and contacts are connected. BlueZ reports the Bluetooth link down "
+"because this computer offers the iPhone no profile to connect to — usual on "
+"a machine with no audio stack, or one where the a2dp_sink and hfp_hf roles "
+"are turned off. Nothing is missing and nothing needs changing on the iPhone."
+msgstr ""
+"メッセージと連絡先は接続されています。このコンピュータが iPhone に接続先とな"
+"るプロファイルを提供していないため、BlueZ は Bluetooth リンクを切断中として報"
+"告します。オーディオスタックのないマシンや、a2dp_sink と hfp_hf のロールが無"
+"効なマシンでは普通のことです。不足しているものはなく、iPhone 側で変更すべき点"
+"もありません。"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"This computer is not putting the notification request on air, so the iPhone "
+"is never asked for the service. Nothing on the iPhone changes this and re-"
+"pairing will not either. Check the controller with landlinectl --bt-status; "
+"another one can be selected with landlinectl --bt-adapter."
+msgstr ""
+"このコンピューターが通知の要求を電波に乗せていないため、iPhone にサービスが要"
+"求されることがありません。iPhone 側では解決できず、ペアリングをやり直しても変"
+"わりません。landlinectl --bt-status でコントローラーを確認してください。別のもの"
+"は landlinectl --bt-adapter で選べます。"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"This computer had pinned the bond to BR/EDR, which refuses the LE link the "
+"iPhone opens to carry notifications. That is being undone now; LE should "
+"come up within a minute. Nothing on the iPhone changes this and re-pairing "
+"will not either."
+msgstr ""
+"このコンピュータがペアリングを BR/EDR に固定していたため、iPhone が通知を運ぶ"
+"ために開く LE リンクが拒否されています。現在それを解除しています。LE は 1 分"
+"以内に接続するはずです。iPhone 側で変えられることはなく、ペアリングし直しても"
+"変わりません。"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"The iPhone is not answering on LE. Its Bluetooth is wedged on its own side: "
+"turn Bluetooth off and back on on the iPhone, which clears this even when "
+"Share System Notifications is already on. Messages and contacts are "
+"unaffected."
+msgstr ""
+"iPhone が LE で応答していません。iPhone 側で Bluetooth がスタックしています。"
+"iPhone の Bluetooth をオフにしてからオンに戻してください。「システム通知を共"
+"有」がすでにオンでもこれで解消します。メッセージと連絡先には影響しません。"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"The iPhone keeps refusing the Bluetooth connection. Turn Bluetooth off and "
+"back on on the iPhone — that clears it even when the permissions are already "
+"on. Re-pairing is not the fix."
+msgstr ""
+"iPhone が Bluetooth 接続を拒否し続けています。iPhone の Bluetooth をオフにし"
+"てからオンに戻してください。許可がすでにオンでもこれで解消します。ペアリング"
+"のやり直しは解決策ではありません。"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"Notifications are connected. Still reaching the iPhone for messages and "
+"contacts..."
+msgstr ""
+"通知は接続されています。メッセージと連絡先のために iPhone へ接続中です..."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid "Connecting to the iPhone over Bluetooth..."
+msgstr "Bluetooth で iPhone に接続しています..."
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid "Connected. Notification mirroring is disabled."
+msgstr "接続しました。通知のミラーリングは無効です。"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+#, c++-format
+msgid ""
+"Connected, but this pairing has no LE keys, so notifications are "
+"unavailable. This is usually the Bluetooth adapter. Run landlinectl --bt-status "
+"or see {}"
+msgstr ""
+"接続済みですが、このペアリングには LE キーがないため通知は利用できません。通"
+"常は Bluetooth アダプタが原因です。landlinectl --bt-status を実行するか、{} を参照"
+"してください"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid ""
+"Connected. Waiting for the iPhone to open the LE link that carries "
+"notifications. If it does not, open Settings > Bluetooth > (i) on the iPhone "
+"and check Share System Notifications."
+msgstr ""
+"接続しました。通知を運ぶ LE リンクを iPhone が開くのを待っています。開かない"
+"場合は、iPhone で 設定 > Bluetooth > (i) を開き、「システム通知を共有」を確認"
+"してください。"
+
+#: src/core/src/bluetooth/bearer_supervisor.cpp
+msgid "Connected over BR/EDR and LE."
+msgstr "BR/EDR と LE で接続しました。"
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "Nothing to send."
+msgstr "送信するものがありません。"
+
+#: src/core/src/bluetooth/connection.cpp src/gtk/messages_view.cpp
+#: src/tui/messages.cpp
+msgid "Messages are not connected."
+msgstr "メッセージは接続されていません。"
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "Could not build a message for this conversation."
+msgstr "この会話用のメッセージを作成できませんでした。"
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "That message is no longer in the conversation history."
+msgstr "そのメッセージは会話履歴にもうありません。"
+
+#: src/core/src/bluetooth/connection.cpp
+msgid ""
+"The iPhone is not serving this message right now; marked read on this "
+"computer only."
+msgstr ""
+"iPhone は現在このメッセージを提供していません。このコンピュータ上でのみ既読に"
+"しました。"
+
+#: src/core/src/bluetooth/connection.cpp
+msgid ""
+"The iPhone is not offering notifications on this link. Asking it again..."
+msgstr "iPhone はこのリンクで通知を提供していません。再度要求しています..."
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "Call control is off."
+msgstr "通話操作はオフです。"
+
+#: src/core/src/bluetooth/connection.cpp
+msgid "No paired iPhone selected."
+msgstr "ペアリング済みの iPhone が選択されていません。"
+
+#: src/core/src/bluetooth/groups.cpp
+msgid "Group replies are turned off."
+msgstr "グループへの返信はオフになっています。"
+
+#: src/core/src/bluetooth/groups.cpp
+msgid ""
+"Someone who is not in this group's saved member list has posted to it, so "
+"the list is out of date. Update it in groups.json before replying."
+msgstr ""
+"このグループの保存済みメンバーリストにない相手が投稿したため、リストが古く"
+"なっています。返信する前に groups.json で更新してください。"
+
+#: src/core/src/bluetooth/groups.cpp
+#, c++-format
+msgid "The roster for this group contains an unusable address: {}"
+msgstr "このグループのメンバー一覧に使用できないアドレスが含まれています: {}"
+
+#: src/core/src/bluetooth/groups.cpp
+msgid "The roster for this group is empty."
+msgstr "このグループのメンバー一覧が空です。"
+
+#: src/core/src/bluetooth/groups.cpp
+msgid ""
+"This conversation has not been identified as a group yet, so there is nobody "
+"to reply to."
+msgstr "この会話はまだグループとして識別されていないため、返信先がありません。"
+
+#: src/core/src/bluetooth/groups.cpp
+msgid ""
+"This group has a name but no member list. Add its members before replying."
+msgstr ""
+"このグループには名前がありますがメンバー一覧がありません。返信する前にメン"
+"バーを追加してください。"
+
+#: src/core/src/bluetooth/groups.cpp
+#, c++-format
+msgid "\"{}\" is not in your contacts."
+msgstr "「{}」は連絡先にありません。"
+
+#: src/core/src/bluetooth/groups.cpp
+#, c++-format
+msgid "\"{}\" matches more than one contact address."
+msgstr "「{}」は複数の連絡先アドレスに一致します。"
+
+#: src/core/src/bluetooth/groups.cpp
+#, c++-format
+msgid "\"{0}\" resolved to an unusable address: {1}"
+msgstr "「{0}」は使用できないアドレスに解決されました: {1}"
+
+#: src/core/src/bluetooth/groups.cpp
+msgid "No recipients could be resolved for this group."
+msgstr "このグループの宛先を 1 件も解決できませんでした。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "No Bluetooth adapter found."
+msgstr "Bluetooth アダプタが見つかりません。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "Bluetooth adapter is powered off."
+msgstr "Bluetooth アダプタの電源がオフです。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "Adapter has no LE central role; ANCS is impossible."
+msgstr "アダプタに LE セントラルのロールがないため、ANCS は利用できません。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "Adapter cannot advertise as a peripheral, so ANCS cannot be solicited."
+msgstr ""
+"アダプタがペリフェラルとしてアドバタイズできないため、ANCS を要求できません。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"No LE advertising instances available; the iPhone may never show its "
+"Bluetooth permission toggles."
+msgstr ""
+"利用可能な LE アドバタイズインスタンスがありません。iPhone が Bluetooth の許"
+"可設定を表示しない可能性があります。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"Notification mirroring needs BlueZ's experimental bearer API "
+"(org.bluez.Bearer.LE1), which bluetoothd is not exposing. Set this up before "
+"pairing: a bond made without it has no LE half."
+msgstr ""
+"通知のミラーリングには BlueZ の実験的な bearer API (org.bluez.Bearer.LE1) が"
+"必要ですが、bluetoothd がこれを公開していません。ペアリングの前に設定してくだ"
+"さい。これなしで作成したボンドには LE 側がありません。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid "Bearer API support is unconfirmed until a device is bonded."
+msgstr ""
+"デバイスとボンドを作成するまで、bearer API の対応状況は未確認のままです。"
+
+#: src/core/src/bluetooth/objects.cpp
+#, c++-format
+msgid ""
+"This Bluetooth adapter is known to pair without Secure Connections, so "
+"iPhone notifications cannot work on it and re-pairing will not change that. "
+"Messages and contacts still work. See {}"
+msgstr ""
+"この Bluetooth アダプタは Secure Connections なしでペアリングすることがわかっ"
+"ているため、iPhone の通知は動作せず、再ペアリングしても変わりません。メッセー"
+"ジと連絡先は引き続き使えます。{} を参照してください"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"A device is bonded, but the bond covers BR/EDR only -- no LE keys were "
+"derived, so notification mirroring cannot work on it."
+msgstr ""
+"デバイスとボンドがありますが、対象は BR/EDR のみです。LE 鍵が導出されていない"
+"ため、通知のミラーリングは機能しません。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"This adapter cannot solicit ANCS, so notification mirroring is unavailable "
+"on it and re-pairing will not change that."
+msgstr ""
+"このアダプタは ANCS を要求できないため、通知のミラーリングは利用できません。"
+"ペアリングし直しても変わりません。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"Secure Connections is off on this controller, which is what blocks the "
+"derivation; re-pairing will not help until it is on."
+msgstr ""
+"このコントローラで Secure Connections がオフになっており、それが鍵の導出を妨"
+"げています。オンにするまでは、ペアリングをやり直しても解決しません。"
+
+#: src/core/src/bluetooth/objects.cpp
+#, c++-format
+msgid ""
+"Delete this computer on the iPhone (Forget This Device) and pair again. If "
+"it is still BR/EDR only, this adapter cannot do Secure Connections and needs "
+"replacing. See {}"
+msgstr ""
+"iPhone でこのコンピュータを削除し (このデバイスの登録を解除)、もう一度ペアリ"
+"ングしてください。それでも BR/EDR のみの場合、このアダプタは Secure "
+"Connections に対応しておらず、交換が必要です。{} を参照してください"
+
+#: src/core/src/bluetooth/objects.cpp
+#, c++-format
+msgid ""
+"If every attempt gives a BR/EDR-only bond, this controller may not support "
+"Secure Connections on BR/EDR; try another with landlinectl --bt-adapter {} and "
+"pair again."
+msgstr ""
+"何度試しても BR/EDR のみのペアリングになる場合、このコントローラは BR/EDR の "
+"Secure Connections に対応していない可能性があります。landlinectl --bt-adapter {} "
+"で別のコントローラに切り替えて、もう一度ペアリングしてください。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"The iPhone will not offer its Messages and Contacts permissions until this "
+"adapter presents itself as A/V Hands-Free (major 4, minor 8)."
+msgstr ""
+"このアダプタが A/V Hands-Free (major 4, minor 8) として提示されるまで、"
+"iPhone はメッセージと連絡先の許可を提示しません。"
+
+#: src/core/src/bluetooth/objects.cpp
+msgid ""
+"Messages and Contacts need L2CAP ERTM, which the kernel has disabled "
+"(bluetooth.disable_ertm). This turns it back on until reboot. To keep it, "
+"remove disable_ertm from the kernel command line or /etc/modprobe.d (rpm-"
+"ostree: sudo rpm-ostree kargs --delete=bluetooth.disable_ertm=1)."
+msgstr ""
+"メッセージと連絡先には L2CAP ERTM が必要ですが、カーネルで無効になっています "
+"(bluetooth.disable_ertm)。これで次の再起動まで有効に戻ります。恒久的にするに"
+"は、カーネルコマンドラインまたは /etc/modprobe.d から disable_ertm を削除して"
+"ください (rpm-ostree: sudo rpm-ostree kargs --"
+"delete=bluetooth.disable_ertm=1)。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "No Bluetooth adapter is available."
+msgstr "利用できる Bluetooth アダプタがありません。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Could not prepare the ANCS advertisement."
+msgstr "ANCS のアドバタイズを準備できませんでした。"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Could not advertise for ANCS: {}"
+msgstr "ANCS のアドバタイズを開始できませんでした: {}"
+
+#: src/core/src/bluetooth/pairing.cpp src/core/src/net.cpp
+msgid "Bluetooth is unavailable."
+msgstr "Bluetooth を利用できません。"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid ""
+"{0} wants to pair.\n"
+"\n"
+"Confirm this code matches the one on your iPhone:\n"
+"\n"
+"{1}"
+msgstr ""
+"{0} がペアリングを求めています。\n"
+"\n"
+"このコードが iPhone 上のものと一致することを確認してください:\n"
+"\n"
+"{1}"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Bluetooth Pairing"
+msgstr "Bluetooth ペアリング"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Confirm"
+msgstr "確認"
+
+#: src/core/src/bluetooth/pairing.cpp src/gtk/messages_view.cpp
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid ""
+"Device {} is not visible to BlueZ. Unlock the iPhone and open its Bluetooth "
+"settings so it is discoverable, then try again."
+msgstr ""
+"デバイス {} は BlueZ から見えません。iPhone のロックを解除し、Bluetooth 設定"
+"を開いて検出可能にしてから、もう一度お試しください。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Could not register a Bluetooth pairing agent."
+msgstr "Bluetooth ペアリングエージェントを登録できませんでした。"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid ""
+"The pairing code could not be shown for confirmation: this computer has no "
+"display, and whatever started the pairing did not answer either. Run landlinectl "
+"--bt-pair {} from a terminal and confirm the code there."
+msgstr ""
+"確認のためのペアリングコードを表示できませんでした: このコンピュータにはディ"
+"スプレイがなく、ペアリングを開始したものも応答しませんでした。端末で landlinectl "
+"--bt-pair {} を実行し、そこでコードを確認してください。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Pairing was not confirmed on this computer."
+msgstr "このコンピュータでペアリングが確認されませんでした。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "The iPhone declined the pairing request."
+msgstr "iPhone がペアリング要求を拒否しました。"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid ""
+"The iPhone refused the connection before pairing started{0}. Delete every "
+"entry for this computer on the iPhone (Settings -> Bluetooth, there can be "
+"two), run landlinectl --bt-unpair {1}, then try again."
+msgstr ""
+"ペアリングが始まる前に iPhone が接続を拒否しました{0}。iPhone 上のこのコン"
+"ピュータの項目をすべて削除し (設定 -> Bluetooth、2 つある場合があります)、"
+"landlinectl --bt-unpair {1} を実行してから、もう一度お試しください。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "Pairing did not complete. Confirm the prompt on the iPhone."
+msgstr "ペアリングが完了しませんでした。iPhone の確認画面で承認してください。"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Pairing failed: {}"
+msgstr "ペアリングに失敗しました: {}"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Paired with {}."
+msgstr "{} とペアリングしました。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "No Bluetooth adapter is present."
+msgstr "Bluetooth アダプタがありません。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid "BlueZ refused to start scanning."
+msgstr "BlueZ がスキャンの開始を拒否しました。"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid ""
+"BlueZ is holding a discovery session that never ended, so scanning cannot "
+"start. Restart the Bluetooth service (sudo systemctl restart bluetooth) and "
+"try again."
+msgstr ""
+"終了しなかった検出セッションを BlueZ が保持しているため、スキャンを開始できま"
+"せん。Bluetooth サービスを再起動し (sudo systemctl restart bluetooth)、もう一"
+"度お試しください。"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Device {} is not known to BlueZ."
+msgstr "デバイス {} は BlueZ に認識されていません。"
+
+#: src/core/src/bluetooth/pairing.cpp
+#, c++-format
+msgid "Could not remove the bond: {}"
+msgstr "ボンドを削除できませんでした: {}"
+
+#: src/core/src/bluetooth/pairing.cpp
+msgid ""
+"Removed the bond. Also delete this computer from the iPhone's Bluetooth "
+"settings before pairing again — a stale record there will block a clean "
+"retry."
+msgstr ""
+"ボンドを削除しました。もう一度ペアリングする前に、iPhone の Bluetooth 設定か"
+"らもこのコンピュータを削除してください — 古い記録が残っていると、やり直しがう"
+"まくいきません。"
+
+#. TRANSLATORS: the feature name Tether shows for this profile.
+#: src/core/src/bluetooth/profile_supervisor.cpp src/daemon/main.cpp
+#: src/gtk/devices_view.cpp src/gtk/main.cpp src/gtk/messages_view.cpp
+#: src/gtk/settings_view.cpp src/tui/devices.cpp src/tui/messages.cpp
+#: src/tui/settings.cpp
+msgid "Messages"
+msgstr "メッセージ"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp src/gtk/devices_view.cpp
+#: src/gtk/main.cpp src/gtk/settings_view.cpp src/tui/contacts.cpp
+#: src/tui/devices.cpp src/tui/settings.cpp
+msgid "Contacts"
+msgstr "連絡先"
+
+#. TRANSLATORS: these two are toggle names in the iPhone's own Settings app.
+#. Use Apple's wording for the target language, not a literal translation.
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Show Message Notifications"
+msgstr "メッセージ通知を表示"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Sync Contacts"
+msgstr "連絡先を同期"
+
+#. TRANSLATORS: {} is an iPhone Settings toggle name.
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"Enable \"{}\" for this computer in the iPhone's Settings > Bluetooth > (i). "
+"This is a permission, not a pairing problem."
+msgstr ""
+"iPhone の 設定 > Bluetooth > (i) で、このコンピュータに対して「{}」をオンにし"
+"てください。これは許可の問題であり、ペアリングの問題ではありません。"
+
+#. TRANSLATORS: {0} is Messages or Contacts, {1} is the profile name (map or pbap).
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"{0} is unavailable because another computer is using the iPhone's {1} "
+"session. Disconnect it there, then this will connect on its own."
+msgstr ""
+"別のコンピュータが iPhone の {1} セッションを使用しているため、{0} は利用でき"
+"ません。そちらで切断すれば、こちらは自動的に接続します。"
+
+#. TRANSLATORS: {} is Messages or Contacts.
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"{} cannot connect because the kernel has L2CAP ERTM disabled "
+"(bluetooth.disable_ertm). Run landlinectl --bt-setup; nothing is wrong on the "
+"iPhone."
+msgstr ""
+"カーネルで L2CAP ERTM が無効になっているため (bluetooth.disable_ertm)、{}に接"
+"続できません。landlinectl --bt-setup を実行してください。iPhone 側に問題はありませ"
+"ん。"
+
+#. TRANSLATORS: {0} is Messages or Contacts, {1} is an iPhone Settings toggle name.
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"{0} could not be fetched from the iPhone. Usually another computer holds the "
+"phone's Bluetooth session, or \"{1}\" is off in Settings > Bluetooth > (i). "
+"Check both; re-pairing is not the fix."
+msgstr ""
+"iPhone から {0} を取得できませんでした。通常は別のコンピュータが iPhone の "
+"Bluetooth セッションを保持しているか、設定 > Bluetooth > (i) で「{1}」がオフ"
+"になっています。両方を確認してください。ペアリングのやり直しは解決策ではあり"
+"ません。"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid "{} is unreachable; waiting for the iPhone to come back."
+msgstr "{} に到達できません。iPhone が戻るのを待っています。"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid ""
+"{} needs BlueZ's OBEX daemon, which is not installed on this computer. "
+"Install it (bluez-obex on Arch, bluez-obexd on Debian and Ubuntu). Nothing "
+"needs changing on the iPhone."
+msgstr ""
+"{} には BlueZ の OBEX デーモンが必要ですが、このコンピュータにインストールさ"
+"れていません。インストールしてください (Arch では bluez-obex、Debian と "
+"Ubuntu では bluez-obexd)。iPhone 側で変更すべき点はありません。"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid "{} could not be opened."
+msgstr "{} を開けませんでした。"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp src/gtk/calls_view.cpp
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "Waiting for the iPhone."
+msgstr "iPhone を待っています。"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Messages and contacts"
+msgstr "メッセージと連絡先"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid "{} released while this computer is locked or idle."
+msgstr "このコンピュータのロック中またはアイドル中は解放されています: {}。"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+#, c++-format
+msgid "{} released on this computer."
+msgstr "このコンピュータで解放されています: {}。"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Messages and contacts are connected."
+msgstr "メッセージと連絡先が接続されています。"
+
+#: src/core/src/bluetooth/profile_supervisor.cpp
+msgid "Opening messages and contacts..."
+msgstr "メッセージと連絡先を開いています..."
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "The iPhone has not connected Hands-Free to this computer."
+msgstr "iPhone がこのコンピューターにハンズフリーを接続していません。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Connecting to the iPhone's Hands-Free service."
+msgstr "iPhone のハンズフリーサービスに接続しています。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid ""
+"PipeWire is handling Hands-Free, so the call audio can play on this computer."
+msgstr ""
+"ハンズフリーを PipeWire が処理しているため、通話音声をこのコンピューターで再"
+"生できます。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Calls are controlled here; the audio plays on the iPhone."
+msgstr "通話はここで操作し、音声は iPhone で再生されます。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "This computer is not carrying the call audio; it plays on the iPhone."
+msgstr ""
+"このコンピューターは通話音声を伝送していません。音声は iPhone で再生されま"
+"す。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Not a dialable number."
+msgstr "発信できる番号ではありません。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "No call named."
+msgstr "通話が指定されていません。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "That call is no longer active."
+msgstr "その通話はもう有効ではありません。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Unknown call action."
+msgstr "不明な通話操作です。"
+
+#: src/core/src/bluetooth/telephony.cpp
+msgid "Not a DTMF sequence."
+msgstr "DTMF シーケンスではありません。"
+
+#: src/core/src/net.cpp
+msgid "A Bluetooth scan is already running."
+msgstr "Bluetooth スキャンはすでに実行中です。"
+
+#: src/core/src/net.cpp
+msgid "Bluetooth scan finished."
+msgstr "Bluetooth スキャンが完了しました。"
+
+#: src/core/src/net.cpp
+msgid "Another pairing attempt is already in progress."
+msgstr "別のペアリングがすでに進行中です。"
+
+#: src/core/src/net.cpp src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Bluetooth is unavailable on this machine."
+msgstr "このマシンでは Bluetooth を利用できません。"
+
+#: src/core/src/net.cpp
+msgid "Not an AirPods device."
+msgstr "AirPods ではありません。"
+
+#: src/core/src/net.cpp
+msgid "Unknown listening mode."
+msgstr "不明なリスニングモードです。"
+
+#: src/core/src/net.cpp src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "No AirPods are connected."
+msgstr "AirPods が接続されていません。"
+
+#: src/core/src/net.cpp
+msgid "Notification mirroring is already active; nothing to do."
+msgstr "通知のミラーリングはすでに有効です。操作は不要です。"
+
+#. TRANSLATORS: "Show Message Notifications" and the Settings path are
+#. the iPhone's own wording; use Apple's for the target language.
+#: src/core/src/net.cpp
+msgid ""
+"Asked the iPhone to re-offer notification access. Watch the connection "
+"status. If it does not go active within a minute or two, toggle Show Message "
+"Notifications off and on in Settings > Bluetooth > (i) -- it can need re-"
+"granting even when it already looks enabled."
+msgstr ""
+"iPhone に通知アクセスの再提供を要求しました。接続状態を確認してください。1〜"
+"2 分たっても有効にならない場合は、設定 > Bluetooth > (i) で「メッセージ通知を"
+"表示」をオフにしてからオンに戻してください。有効に見えても再許可が必要なこと"
+"があります。"
+
+#: src/core/src/net.cpp
+#, c++-format
+msgid "Sent {}"
+msgstr "{} を送信しました"
+
+#: src/core/src/net.cpp
+#, c++-format
+msgid "Send failed: {}"
+msgstr "送信に失敗しました: {}"
+
+#: src/core/src/net.cpp
+msgid "unknown error"
+msgstr "不明なエラー"
+
+#: src/core/src/net.cpp src/gtk/devices_view.cpp src/gtk/messages_view.cpp
+#: src/tui/devices.cpp src/tui/messages.cpp
+msgid "Could not reach the Landline daemon."
+msgstr "Landline デーモンに接続できませんでした。"
+
+#. TRANSLATORS: {0} is the device name, {1} is a shortened key fingerprint.
+#: src/core/src/net.cpp
+#, c++-format
+msgid "{0} ({1}) wants to pair with this device."
+msgstr "{0} ({1}) がこのデバイスとのペアリングを求めています。"
+
+#: src/core/src/net.cpp
+msgid "Pairing Request"
+msgstr "ペアリング要求"
+
+#: src/core/src/net.cpp
+msgid "Accept"
+msgstr "承認"
+
+#: src/core/src/net.cpp
+msgid "Reject"
+msgstr "拒否"
+
+#: src/daemon/main.cpp
+msgid "Reply not sent"
+msgstr "返信を送信できませんでした"
+
+#: src/daemon/main.cpp
+msgid "This PC can't be discovered"
+msgstr "このパソコンを検出できません"
+
+#: src/daemon/main.cpp
+msgid ""
+"avahi-daemon isn't running, so Landline can't advertise itself on the network. "
+"Start it with: sudo systemctl enable --now avahi-daemon"
+msgstr ""
+"avahi-daemon が実行されていないため、Landline はネットワーク上で自身を通知でき"
+"ません。次のコマンドで起動してください: sudo systemctl enable --now avahi-"
+"daemon"
+
+#: src/daemon/notification.cpp
+#, c++-format
+msgid "{} file arrived"
+msgid_plural "{} files arrived"
+msgstr[0] "{} 個のファイルを受信しました"
+
+#: src/daemon/notification.cpp
+msgid "Files arrived"
+msgstr "ファイルを受信しました"
+
+#: src/daemon/notification.cpp
+msgid "Open Folder"
+msgstr "フォルダを開く"
+
+#: src/daemon/notification.cpp
+msgid "File arrived"
+msgstr "ファイルが届きました"
+
+#: src/daemon/notification.cpp
+msgid "Open File"
+msgstr "ファイルを開く"
+
+#: src/daemon/notification.cpp
+msgid "Reply"
+msgstr "返信"
+
+#: src/daemon/notification.cpp
+msgid "Reply…"
+msgstr "返信…"
+
+#: src/daemon/notification.cpp
+msgid "Copy Code"
+msgstr "コードをコピー"
+
+#: src/daemon/notification.cpp
+#, c++-format
+msgid "Open in {}"
+msgstr "{} で開く"
+
+#: src/daemon/notification.cpp
+#, c++-format
+msgid "Mute {}"
+msgstr "{} をミュート"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Unknown caller"
+msgstr "不明な発信者"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Answer"
+msgstr "応答"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Audio here"
+msgstr "音声をここに移す"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Decline"
+msgstr "拒否"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Hang up"
+msgstr "終了"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp src/ui_common/ui_text.cpp
+msgid "Incoming"
+msgstr "着信"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Missed"
+msgstr "不在着信"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Outgoing"
+msgstr "発信"
+
+#. TRANSLATORS: Button that calls a recent caller back, {} is their name or number.
+#. TRANSLATORS: Spoken name of the call button beside a phone number.
+#: src/gtk/calls_view.cpp src/gtk/contacts_view.cpp src/tui/calls.cpp
+#: src/tui/contacts.cpp
+#, c++-format
+msgid "Call {}"
+msgstr "{}に発信"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "No calls."
+msgstr "通話はありません。"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Call control is off. Turn it on with 'landlinectl --bt-calls-enable on'."
+msgstr ""
+"通話操作はオフです。'landlinectl --bt-calls-enable on' でオンにしてください。"
+
+#: src/gtk/calls_view.cpp
+msgid "Number to call"
+msgstr "発信先の番号"
+
+#: src/gtk/calls_view.cpp src/gtk/contacts_view.cpp src/tui/calls.cpp
+msgid "Call"
+msgstr "発信"
+
+#: src/gtk/calls_view.cpp
+msgid "The iPhone's carrier, signal, and battery."
+msgstr "iPhone の通信事業者、電波、バッテリー。"
+
+#: src/gtk/calls_view.cpp src/tui/calls.cpp
+msgid "Recent calls"
+msgstr "最近の通話"
+
+#: src/gtk/contacts_view.cpp
+msgid "Copy"
+msgstr "コピー"
+
+#. TRANSLATORS: Spoken name of the copy button beside a phone number or email.
+#: src/gtk/contacts_view.cpp
+#, c++-format
+msgid "Copy {}"
+msgstr "{} をコピー"
+
+#: src/gtk/contacts_view.cpp src/tui/main.cpp
+msgid "Copied to the clipboard."
+msgstr "クリップボードにコピーしました。"
+
+#: src/gtk/contacts_view.cpp src/gtk/messages_view.cpp
+msgid "Message"
+msgstr "メッセージを送信"
+
+#. TRANSLATORS: Spoken name of the message button beside a phone
+#. number or email.
+#: src/gtk/contacts_view.cpp
+#, c++-format
+msgid "Message {}"
+msgstr "{} にメッセージ"
+
+#: src/gtk/contacts_view.cpp src/tui/contacts.cpp
+msgid "Favorite"
+msgstr "よく使う項目"
+
+#: src/gtk/contacts_view.cpp src/tui/contacts.cpp
+msgid "No contacts yet. Check the Bluetooth link on the Devices page."
+msgstr ""
+"まだ連絡先はありません。デバイスページで Bluetooth 接続を確認してください。"
+
+#: src/gtk/contacts_view.cpp
+msgid "Search contacts"
+msgstr "連絡先を検索"
+
+#: src/gtk/daemon_client.cpp src/tui/main.cpp
+msgid "Daemon Offline"
+msgstr "デーモンはオフライン"
+
+#: src/gtk/daemon_client.cpp src/gtk/messages_view.cpp src/tui/main.cpp
+#: src/tui/messages.cpp
+msgid "The Landline daemon is not running."
+msgstr "Landline デーモンが動作していません。"
+
+#: src/gtk/daemon_client.cpp src/tui/main.cpp
+msgid "Daemon Online"
+msgstr "デーモンはオンライン"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Reading battery…"
+msgstr "バッテリーを読み取り中…"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Not connected yet."
+msgstr "まだ接続していません。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connected."
+msgstr "接続しました。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Scanning for nearby devices..."
+msgstr "近くのデバイスを検索しています..."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Off"
+msgstr "オフ"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Transparency"
+msgstr "外部音取り込み"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Adaptive"
+msgstr "アダプティブ"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Noise Cancellation"
+msgstr "ノイズキャンセリング"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Disconnect"
+msgstr "切断"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connect"
+msgstr "接続"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Landline is not managing the AirPods, so another program can use them."
+msgstr "Landline は AirPods を管理していないため、別のプログラムが使用できます。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "These AirPods do not report a listening mode."
+msgstr "この AirPods はリスニングモードを報告しません。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "These AirPods do not report whether they are being worn."
+msgstr "この AirPods は装着状態を報告しません。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Both buds are in."
+msgstr "両方のイヤホンを装着しています。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "One bud is in."
+msgstr "片方のイヤホンを装着しています。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Neither bud is in."
+msgstr "イヤホンを装着していません。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "The buds are handed over with Apple's own handoff."
+msgstr "AirPods は Apple 本来のハンドオフで渡されます。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"The buds are handed over by disconnecting them. For Apple's own handoff, put "
+"DeviceID = bluetooth:004C:0000:0000 under [General] in /etc/bluetooth/"
+"main.conf and restart bluetooth."
+msgstr ""
+"AirPods は切断して渡されます。Apple 本来のハンドオフを使うには、/etc/"
+"bluetooth/main.conf の [General] に DeviceID = bluetooth:004C:0000:0000 を追"
+"加し、bluetooth を再起動してください。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Full mode — messages, contacts, and notifications."
+msgstr "フルモード — メッセージ、連絡先、通知。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Compatibility mode — messages and contacts, no notification mirroring."
+msgstr "互換モード — メッセージと連絡先のみ、通知のミラーリングなし。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "This machine cannot carry the Bluetooth features."
+msgstr "このマシンでは Bluetooth 機能を利用できません。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Link"
+msgstr "リンク"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Not paired over Bluetooth yet."
+msgstr "まだ Bluetooth でペアリングしていません。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Landline is not using this device. Pair it to select it."
+msgstr ""
+"Landline はこのデバイスを使用していません。選択するにはペアリングしてください。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Bluetooth is switched off for this iPhone."
+msgstr "この iPhone では Bluetooth がオフになっています。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connected and ready."
+msgstr "接続済みで使用できます。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Device is offline. Make sure it is switched on and on the same network."
+msgstr ""
+"デバイスはオフラインです。電源が入っていて同じネットワーク上にあることを確認"
+"してください。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Found at {0}:{1}"
+msgstr "{0}:{1} で見つかりました"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Sending pair request..."
+msgstr "ペアリング要求を送信しています..."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pair request sent. Approve on remote device!"
+msgstr "ペアリング要求を送信しました。リモートデバイスで承認してください。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pairing… confirm the prompt on the iPhone."
+msgstr "ペアリング中… iPhone の確認画面で承認してください。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c-format
+msgid "Remove the Bluetooth pairing with %s?"
+msgstr "%s との Bluetooth ペアリングを解除しますか?"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"Also delete this computer from the iPhone's Bluetooth settings before "
+"pairing again, or the phone will keep the stale bond."
+msgstr ""
+"もう一度ペアリングする前に、iPhone の Bluetooth 設定からもこのコンピュータを"
+"削除してください。そうしないと古いボンドが残ります。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Removing the pairing…"
+msgstr "ペアリングを解除しています…"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c-format
+msgid "Forget %s?"
+msgstr "%s を削除しますか？"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"Landline will stop connecting to it. Forget this computer on the other device "
+"too, then pair again to reconnect."
+msgstr ""
+"Landline はこのデバイスへの接続を停止します。もう一方のデバイスでもこのパソコン"
+"を削除し、再接続するにはもう一度ペアリングしてください。"
+
+#: src/gtk/devices_view.cpp
+msgid "Setup commands copied to the clipboard."
+msgstr "設定用コマンドをクリップボードにコピーしました。"
+
+#: src/gtk/devices_view.cpp src/gtk/messages_view.cpp src/tui/devices.cpp
+#: src/tui/messages.cpp
+msgid "Asking the iPhone to show its Bluetooth permissions…"
+msgstr "iPhone に Bluetooth の許可設定を表示するよう要求しています…"
+
+#. TRANSLATORS: {} is a file name.
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Sending {}…"
+msgstr "{} を送信しています…"
+
+#. TRANSLATORS: {0} is the current file's position, {1} the batch size.
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "({0} of {1})"
+msgstr "({1} 件中 {0} 件)"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Daemon unavailable."
+msgstr "デーモンを利用できません。"
+
+#: src/gtk/devices_view.cpp
+msgid "Send to…"
+msgstr "送信先…"
+
+#: src/gtk/devices_view.cpp
+msgid "_Cancel"
+msgstr "キャンセル(_C)"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Send File"
+msgstr "ファイルを送信"
+
+#: src/gtk/devices_view.cpp
+msgid "_Send"
+msgstr "送信(_S)"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Folders can't be sent — drop files instead."
+msgstr "フォルダは送信できません。ファイルをドロップしてください。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Clipboard, files, and OTP are connected."
+msgstr "クリップボード、ファイル、OTP が接続されています。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"Files and OTP are connected. This compositor does not give Landline clipboard "
+"access, so clipboard sync is off."
+msgstr ""
+"ファイルと OTP は接続されています。このコンポジターは Landline にクリップボード"
+"へのアクセスを許可しないため、クリップボード同期はオフです。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"avahi-daemon isn't running, so other devices can't find this PC. Start it "
+"with: sudo systemctl enable --now avahi-daemon"
+msgstr ""
+"avahi-daemon が実行されていないため、他のデバイスはこのパソコンを見つけられま"
+"せん。次のコマンドで起動してください: sudo systemctl enable --now avahi-"
+"daemon"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"A device is on the network but cannot reach this PC. A firewall is running; "
+"Landline needs inbound TCP 5134. Allow it with: sudo ufw allow 5134/tcp"
+msgstr ""
+"デバイスはネットワーク上にありますが、この PC に到達できません。ファイア"
+"ウォールが有効です。Landline は受信 TCP 5134 が必要です。次のコマンドで許可して"
+"ください: sudo ufw allow 5134/tcp"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "No paired device is connected. Switch it on and join the same network."
+msgstr ""
+"ペアリング済みのデバイスが接続されていません。電源を入れて同じネットワークに"
+"接続してください。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Unknown Device"
+msgstr "不明なデバイス"
+
+#: src/gtk/devices_view.cpp
+msgid "Folders can't be sent — pick files instead."
+msgstr "フォルダは送信できません。ファイルを選択してください。"
+
+#: src/gtk/devices_view.cpp
+msgid "No device is connected."
+msgstr "接続中のデバイスはありません。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connected"
+msgstr "接続済み"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Offline"
+msgstr "オフライン"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Nearby (Tap to Pair)"
+msgstr "近くにあります (タップしてペアリング)"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Partially connected"
+msgstr "部分的に接続"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Paired"
+msgstr "ペアリング済み"
+
+#. TRANSLATORS: {0} is the name of the device being paired with.
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Waiting for approval on {0}..."
+msgstr "{0} での承認を待っています…"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"Could not reach that device. If a firewall is running, Landline needs inbound "
+"TCP 5134 on the other machine."
+msgstr ""
+"そのデバイスに到達できませんでした。ファイアウォールが有効な場合、相手のマシ"
+"ンで受信 TCP 5134 が必要です。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "That device refused the connection. Is Landline running on it?"
+msgstr "そのデバイスは接続を拒否しました。Landline は動作していますか?"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "That address could not be resolved."
+msgstr "そのアドレスを解決できませんでした。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Could not connect to that device."
+msgstr "そのデバイスに接続できませんでした。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pair request was rejected."
+msgstr "ペアリング要求は拒否されました。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Ready"
+msgstr "準備完了"
+
+#. TRANSLATORS: {0} is how many were sent, {1} the batch size.
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Sent {0} of {1} file."
+msgid_plural "Sent {0} of {1} files."
+msgstr[0] "{1} 件中 {0} 件のファイルを送信しました。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c++-format
+msgid "Skipped {} non-file item."
+msgid_plural "Skipped {} non-file items."
+msgstr[0] "ファイルでない項目を {} 件スキップしました。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Clipboard is empty."
+msgstr "クリップボードは空です。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Desktop Clipboard Sync triggered."
+msgstr "デスクトップのクリップボード同期を実行しました。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Messages and notifications are connected."
+msgstr "メッセージと通知が接続されています。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"No iPhone found. Unlock the phone and open Settings > Bluetooth so it "
+"advertises, then scan again."
+msgstr ""
+"iPhone が見つかりません。iPhone のロックを解除し、設定 > Bluetooth を開いてア"
+"ドバタイズさせてから、もう一度検索してください。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+#, c-format
+msgid ""
+"Does the iPhone show this code?\n"
+"\n"
+"%s"
+msgstr ""
+"iPhone にこのコードが表示されていますか?\n"
+"\n"
+"%s"
+
+#: src/gtk/devices_view.cpp
+msgid "Connect your iPhone"
+msgstr "iPhone を接続"
+
+#: src/gtk/devices_view.cpp
+msgid "clipboard, files, OTP"
+msgstr "クリップボード、ファイル、OTP"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"1.  Open the Landline app on the iPhone\n"
+"2.  It finds this computer by itself\n"
+"3.  Approve on both ends"
+msgstr ""
+"1.  iPhone で Landline アプリを開く\n"
+"2.  アプリが自動でこのコンピュータを見つける\n"
+"3.  両方で承認する"
+
+#: src/gtk/devices_view.cpp
+msgid "messages, notifications"
+msgstr "メッセージ、通知"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"1.  Pick the iPhone under BLUETOOTH\n"
+"2.  Press Pair over Bluetooth\n"
+"3.  Grant the two toggles on the phone"
+msgstr ""
+"1.  BLUETOOTH の下で iPhone を選ぶ\n"
+"2.  「Bluetooth でペアリング」を押す\n"
+"3.  iPhone で 2 つの許可を与える"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Scan for devices"
+msgstr "デバイスを検索"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Manage AirPods from Landline"
+msgstr "AirPods を Landline で管理する"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"The AirPods channel takes one program per computer. Turning this off "
+"releases it, so another AirPods program can use it."
+msgstr ""
+"AirPods のチャンネルは 1 台につき 1 つのプログラムしか使えません。オフにする"
+"と解放され、別の AirPods プログラムが使用できます。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Listening mode"
+msgstr "リスニングモード"
+
+#: src/gtk/devices_view.cpp
+msgid "In-ear detection"
+msgstr "装着検出"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pause playback when:"
+msgstr "再生を一時停止する条件:"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Never"
+msgstr "しない"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "One bud is removed"
+msgstr "片方を外したとき"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Both buds are removed"
+msgstr "両方を外したとき"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"Pauses whatever is playing on this computer, and starts it again when the "
+"buds go back in. Only playback Landline paused is resumed."
+msgstr ""
+"このコンピュータで再生中のものを一時停止し、イヤホンを装着し直すと再開しま"
+"す。Landline が一時停止した再生のみを再開します。"
+
+#: src/gtk/devices_view.cpp src/gtk/main.cpp src/tui/calls.cpp
+msgid "Calls"
+msgstr "通話"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Hand the AirPods to the iPhone during a call"
+msgstr "通話中に AirPods を iPhone へ渡す"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"Pauses playback and disconnects the AirPods so the iPhone can take them, "
+"then reconnects them when the call ends. Needs call control, and only "
+"applies while the buds are connected to this computer."
+msgstr ""
+"再生を一時停止して AirPods を切断し、iPhone が使えるようにします。通話が終わ"
+"ると再接続します。通話制御が必要で、イヤホンがこのコンピュータに接続されてい"
+"る間だけ適用されます。"
+
+#: src/gtk/devices_view.cpp
+msgid "Bluetooth needs one-time system setup"
+msgstr "Bluetooth には一度きりのシステム設定が必要です"
+
+#: src/gtk/devices_view.cpp
+msgid "Copy commands"
+msgstr "コマンドをコピー"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"Run these in a terminal. Landline does not change your Bluetooth adapter or "
+"bluetoothd on its own."
+msgstr ""
+"これらをターミナルで実行してください。Landline が独自に Bluetooth アダプタや "
+"bluetoothd を変更することはありません。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Connect to this iPhone over Bluetooth"
+msgstr "Bluetooth でこの iPhone に接続"
+
+#: src/gtk/devices_view.cpp
+msgid ""
+"Keep the Bluetooth link to the iPhone up, reconnecting whenever it drops. "
+"Turning this off stops Landline reconnecting; a link that is already up stays "
+"up until you disconnect it."
+msgstr ""
+"iPhone との Bluetooth リンクを維持し、切断されるたびに再接続します。オフにす"
+"ると Landline は再接続しなくなります。すでに確立しているリンクは、切断するまで"
+"維持されます。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Advanced"
+msgstr "詳細設定"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Release messages"
+msgstr "メッセージを解放"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Release contacts"
+msgstr "連絡先を解放"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Release notifications"
+msgstr "通知を解放"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Release messages and contacts while this computer is locked or idle"
+msgstr "このコンピュータのロック中またはアイドル中はメッセージと連絡先を解放"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid ""
+"The iPhone serves messages to one computer at a time. Releasing lets another "
+"computer take them; unchecking retries, but cannot take them from a computer "
+"that still holds them. Releases last until landlined restarts."
+msgstr ""
+"iPhone はメッセージを一度に 1 台のコンピュータにしか提供しません。解放すると"
+"他のコンピュータが取得できます。チェックを外すと再試行しますが、まだ保持して"
+"いるコンピュータから取り戻すことはできません。解放は landlined を再起動するまで"
+"続きます。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pair over Bluetooth"
+msgstr "Bluetooth でペアリング"
+
+#: src/gtk/devices_view.cpp src/gtk/messages_view.cpp src/tui/devices.cpp
+#: src/tui/messages.cpp
+msgid "Show iPhone Permissions"
+msgstr "iPhone の許可設定を表示"
+
+#: src/gtk/devices_view.cpp src/gtk/messages_view.cpp
+msgid ""
+"Re-advertise so the iPhone shows its Show Message Notifications and Sync "
+"Contacts toggles under Settings > Bluetooth > (i)."
+msgstr ""
+"アドバタイズし直し、iPhone の 設定 > Bluetooth > (i) に「メッセージ通知を表"
+"示」と「連絡先を同期」が表示されるようにします。"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Unpair"
+msgstr "ペアリングを解除"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Pair Device"
+msgstr "デバイスとペアリング"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Force Trust (Accept Pending)"
+msgstr "強制的に信頼 (保留中を承認)"
+
+#: src/gtk/devices_view.cpp
+msgid "Drop files here to send"
+msgstr "送信するファイルをここにドロップ"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Send Clipboard"
+msgstr "クリップボードを送信"
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Clipboard sync requested..."
+msgstr "クリップボードの同期を要求しました..."
+
+#: src/gtk/devices_view.cpp src/tui/devices.cpp
+msgid "Forget"
+msgstr "削除"
+
+#: src/gtk/main.cpp
+msgid "Expand sidebar"
+msgstr "サイドバーを展開"
+
+#: src/gtk/main.cpp
+msgid "Collapse sidebar"
+msgstr "サイドバーを折りたたむ"
+
+#: src/gtk/main.cpp src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Settings"
+msgstr "設定"
+
+#: src/gtk/main.cpp src/tui/main.cpp
+msgid "Quit"
+msgstr "終了"
+
+#: src/gtk/main.cpp
+msgid "Main menu"
+msgstr "メインメニュー"
+
+#: src/gtk/main.cpp
+msgid "Look for devices"
+msgstr "デバイスを探す"
+
+#: src/gtk/main.cpp src/tui/devices.cpp
+msgid "Devices"
+msgstr "デバイス"
+
+#: src/gtk/main.cpp
+msgid "Toggle sidebar"
+msgstr "サイドバーを切り替え"
+
+#: src/gtk/main.cpp
+msgid "Start hidden in the system tray"
+msgstr "システムトレイに隠して起動"
+
+#: src/gtk/main.cpp
+msgid "Open on this tab"
+msgstr "このタブで開く"
+
+#: src/gtk/main.cpp
+msgid "Open the messages tab on this conversation"
+msgstr "この会話でメッセージタブを開く"
+
+#: src/gtk/main.cpp
+msgid "Send the given files, asking which device when several are connected"
+msgstr ""
+"指定したファイルを送信します。複数のデバイスが接続中の場合は送信先を尋ねます"
+
+#: src/gtk/main.cpp
+msgid "FILE…"
+msgstr "ファイル…"
+
+#: src/gtk/messages_view.cpp src/gtk/tray.cpp src/tui/main.cpp
+#, c++-format
+msgid "{} unread message"
+msgid_plural "{} unread messages"
+msgstr[0] "未読メッセージ {} 件"
+
+#. TRANSLATORS: Read aloud before a message you sent, {} is the message.
+#: src/gtk/messages_view.cpp
+#, c++-format
+msgid "Sent: {}"
+msgstr "送信: {}"
+
+#. TRANSLATORS: Read aloud before a message you received, {} is the message.
+#: src/gtk/messages_view.cpp
+#, c++-format
+msgid "Received: {}"
+msgstr "受信: {}"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Bluetooth connection needed to sync messages."
+msgstr "メッセージの同期にはBluetooth接続が必要です。"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Select a conversation"
+msgstr "会話を選択"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Sending…"
+msgstr "送信中…"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Enter a recipient."
+msgstr "宛先を入力してください。"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Select a conversation first."
+msgstr "先に会話を選択してください。"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Replying to this conversation is not available."
+msgstr "この会話への返信は利用できません。"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "No answer about that message; it may still have been sent."
+msgstr ""
+"そのメッセージについて応答がありません。送信されている可能性はあります。"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Could not reach the Landline daemon; the message was not sent."
+msgstr ""
+"Landline デーモンに接続できませんでした。メッセージは送信されていません。"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "Sent"
+msgstr "送信済み"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "New Message"
+msgstr "新規メッセージ"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+#, c-format
+msgid "Remove the conversation with %s?"
+msgstr "%s とのスレッドを一覧から外しますか？"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid ""
+"It stays on your iPhone, and comes back here when a new message arrives."
+msgstr "iPhone には残り、新しいメッセージが届くとここに再び表示されます。"
+
+#: src/gtk/messages_view.cpp
+msgid "Search conversations"
+msgstr "会話を検索"
+
+#: src/gtk/messages_view.cpp src/tui/messages.cpp
+msgid "To:"
+msgstr "宛先:"
+
+#: src/gtk/messages_view.cpp
+msgid "Phone number or email"
+msgstr "電話番号またはメールアドレス"
+
+#: src/gtk/messages_view.cpp
+msgid "Remove Conversation"
+msgstr "スレッドを一覧から外す"
+
+#: src/gtk/messages_view.cpp
+msgid "Send"
+msgstr "送信"
+
+#: src/gtk/messages_view.cpp
+msgid "Retry"
+msgstr "再試行"
+
+#: src/gtk/notifications_view.cpp
+msgid "Stop popups from this app. Undo in Settings."
+msgstr "このアプリのポップアップを止めます。設定で元に戻せます。"
+
+#. TRANSLATORS: Spoken name of the button that stops desktop popups from the named app.
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+#, c++-format
+msgid "Mute {} popups"
+msgstr "{} のポップアップをミュート"
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "Dismiss on the iPhone"
+msgstr "iPhone で消去"
+
+#. TRANSLATORS: Spoken name of the dismiss button on a notification from the named app.
+#: src/gtk/notifications_view.cpp
+#, c++-format
+msgid "Dismiss {} notification"
+msgstr "{} の通知を消去"
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "New notification"
+msgstr "新しい通知"
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "The iPhone would not take the dismissal."
+msgstr "iPhone が消去を受け付けませんでした。"
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "No notifications yet."
+msgstr "まだ通知はありません。"
+
+#: src/gtk/notifications_view.cpp src/tui/notifications.cpp
+msgid "Notification mirroring is unavailable."
+msgstr "通知のミラーリングは利用できません。"
+
+#: src/gtk/settings_view.cpp
+msgid "Unmute"
+msgstr "ミュート解除"
+
+#: src/gtk/settings_view.cpp
+msgid "Popups muted"
+msgstr "ポップアップをミュート中"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"No iPhone is paired over Bluetooth, so the Bluetooth settings below cannot "
+"be changed yet."
+msgstr ""
+"Bluetooth でペアリングされた iPhone がないため、以下の Bluetooth 設定はまだ変"
+"更できません。"
+
+#: src/gtk/settings_view.cpp
+msgid "General"
+msgstr "全般"
+
+#: src/gtk/settings_view.cpp
+msgid "Keep running in the tray when the window is closed"
+msgstr "ウィンドウを閉じてもトレイで実行を続ける"
+
+#: src/gtk/settings_view.cpp
+msgid "Closing the window hides it instead of quitting Landline."
+msgstr "ウィンドウを閉じると、Landline を終了せずに非表示にします。"
+
+#: src/gtk/settings_view.cpp
+msgid "Symbolic"
+msgstr "シンボリック"
+
+#: src/gtk/settings_view.cpp
+msgid "Color"
+msgstr "カラー"
+
+#: src/gtk/settings_view.cpp
+msgid "Tray icon"
+msgstr "トレイアイコン"
+
+#: src/gtk/settings_view.cpp
+msgid ""
+"Symbolic follows the panel's color. Takes effect the next time Landline starts."
+msgstr ""
+"シンボリックはパネルの色に従います。次回の Landline 起動時に反映されます。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "iPhone notifications"
+msgstr "iPhone の通知"
+
+#: src/gtk/settings_view.cpp
+msgid "Alerts your iPhone forwards to this computer over Bluetooth."
+msgstr "iPhone が Bluetooth 経由でこのコンピューターに転送する通知です。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Mirror iPhone notifications"
+msgstr "iPhone の通知をミラーリング"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Disabled when pairing cannot support LE."
+msgstr "ペアリングが LE に対応しない場合は無効になります。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Include the notification text"
+msgstr "通知の本文を含める"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Title and message content are shown, not just which app sent it."
+msgstr "送信元アプリだけでなく、タイトルと本文も表示されます。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Desktop popups"
+msgstr "デスクトップのポップアップ"
+
+#: src/gtk/settings_view.cpp
+msgid "What Landline shows in your notification area."
+msgstr "Landline が通知領域に表示する内容です。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Show desktop popups"
+msgstr "デスクトップのポップアップを表示"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Off silences iPhone alerts, new messages and arriving files."
+msgstr ""
+"オフにすると iPhone の通知、新着メッセージ、受信ファイルがすべて表示されませ"
+"ん。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Show message previews"
+msgstr "メッセージのプレビューを表示"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Off shows only the sender."
+msgstr "オフにすると送信者のみ表示します。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Security"
+msgstr "セキュリティ"
+
+#: src/gtk/settings_view.cpp
+msgid "What Landline does when the iPhone leaves."
+msgstr "iPhone が離れたときに Landline が行うこと。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Lock the session when the iPhone goes out of range"
+msgstr "iPhone が範囲外になったらセッションをロックする"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Locks about half a minute after the link times out. Switching Bluetooth off "
+"on the iPhone does not lock, and neither does suspending this machine."
+msgstr ""
+"リンクがタイムアウトしてから約 30 秒後にロックします。iPhone 側で Bluetooth "
+"を切ってもロックせず、このマシンをサスペンドしてもロックしません。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Share the clipboard automatically"
+msgstr "クリップボードを自動的に共有"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Off sends it only from Send Clipboard or landlinectl share."
+msgstr ""
+"オフにすると「クリップボードを送信」または landlinectl share でのみ送信します。"
+
+#: src/gtk/settings_view.cpp
+msgid "SMS and iMessage conversations synced over Bluetooth."
+msgstr "Bluetooth 経由で同期される SMS と iMessage の会話です。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Encrypted"
+msgstr "暗号化する"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Unencrypted"
+msgstr "暗号化しない"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Do not keep"
+msgstr "保持しない"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Keep message history"
+msgstr "メッセージ履歴を保持"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Encrypted uses a key from your desktop keyring. Do not keep deletes what is "
+"stored."
+msgstr ""
+"暗号化するはデスクトップのキーリングの鍵を使います。保持しないは保存済みのも"
+"のを削除します。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Hide messages from unknown senders"
+msgstr "不明な差出人からのメッセージを非表示"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Threads from numbers not in your contacts are hidden. Codes still pop up and "
+"autofill."
+msgstr ""
+"連絡先にない番号とのスレッドは非表示になります。コードは引き続き通知され、自"
+"動入力されます。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Paused: no key from the desktop keyring. Unlock it, or choose Unencrypted."
+msgstr ""
+"一時停止中: デスクトップのキーリングから鍵を取得できません。ロックを解除する"
+"か、暗号化しないを選んでください。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Sort contacts by last name"
+msgstr "連絡先を姓で並べ替える"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Contacts with only one name, and businesses, sort by the name they have."
+msgstr "名前が 1 つだけの連絡先や会社は、その名前で並べ替えられます。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Experimental"
+msgstr "実験的機能"
+
+#: src/gtk/settings_view.cpp
+msgid "Unfinished features. These can stop working at any time."
+msgstr "未完成の機能です。いつ動作しなくなってもおかしくありません。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Call control over Bluetooth"
+msgstr "Bluetooth 経由の通話操作"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Answer and place calls from the Calls tab."
+msgstr "「通話」タブから通話の応答と発信ができます。"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid "Play the iPhone's audio on this computer"
+msgstr "iPhone のオーディオをこのコンピューターで再生"
+
+#: src/gtk/settings_view.cpp src/tui/settings.cpp
+msgid ""
+"Music and sounds from the iPhone play here. Off sends them back to the "
+"iPhone. Calls are not affected."
+msgstr ""
+"iPhone の音楽やサウンドをここで再生します。オフにすると iPhone に戻ります。通"
+"話には影響しません。"
+
+#: src/gtk/tray.cpp src/gtk/ui_util.cpp src/tui/main.cpp
+msgid "connected"
+msgstr "接続済み"
+
+#: src/gtk/tray.cpp src/gtk/ui_util.cpp src/tui/main.cpp
+msgid "not connected"
+msgstr "未接続"
+
+#. TRANSLATORS: {} is a transport name, "Wi-Fi" or "Bluetooth", or a device name.
+#. TRANSLATORS: {} is a transport name, "Wi-Fi" or "Bluetooth".
+#: src/gtk/tray.cpp src/gtk/ui_util.cpp src/tui/main.cpp
+#, c++-format
+msgid "{}: {}"
+msgstr "{}: {}"
+
+#: src/gtk/tray.cpp src/tui/main.cpp
+msgid "Daemon: not running"
+msgstr "デーモン: 動作していません"
+
+#: src/gtk/ui_util.cpp src/tui/main.cpp
+msgid "Waiting for the Landline daemon."
+msgstr "Landline デーモンを待っています。"
+
+#: src/tui/devices.cpp
+msgid "Overview"
+msgstr "概要"
+
+#: src/tui/devices.cpp
+msgid "Select a device first."
+msgstr "先にデバイスを選択してください。"
+
+#: src/tui/devices.cpp
+msgid "Modes: off, transparency, adaptive, anc"
+msgstr "モード: off、transparency、adaptive、anc"
+
+#: src/tui/devices.cpp
+#, c++-format
+msgid "Found {}. Select it under BLUETOOTH to pair."
+msgstr "{} が見つかりました。BLUETOOTH の下で選択してペアリングしてください。"
+
+#: src/tui/devices.cpp
+msgid "Usage: :send FILE…"
+msgstr "使い方: :send ファイル…"
+
+#: src/tui/main.cpp
+msgid "-- INSERT --"
+msgstr "-- 挿入 --"
+
+#: src/tui/main.cpp
+msgid "Move down / up"
+msgstr "下へ / 上へ"
+
+#: src/tui/main.cpp
+msgid "First / last"
+msgstr "先頭 / 末尾"
+
+#: src/tui/main.cpp
+msgid "Half a page down / up"
+msgstr "半ページ下へ / 上へ"
+
+#: src/tui/main.cpp
+msgid "Focus the list / the detail pane"
+msgstr "リスト / 詳細ペインにフォーカス"
+
+#: src/tui/main.cpp
+msgid "Open, or run the highlighted action"
+msgstr "開く、または強調表示された操作を実行"
+
+#: src/tui/main.cpp
+msgid "Toggle the highlighted setting"
+msgstr "強調表示された設定を切り替え"
+
+#: src/tui/main.cpp
+msgid "Switch tab"
+msgstr "タブを切り替え"
+
+#: src/tui/main.cpp
+msgid "Filter the list"
+msgstr "リストを絞り込む"
+
+#: src/tui/main.cpp
+msgid "Clear the filter, leave insert mode"
+msgstr "絞り込みを解除、挿入モードを終了"
+
+#: src/tui/main.cpp
+msgid "Write in the open conversation"
+msgstr "開いている会話に入力"
+
+#: src/tui/main.cpp
+msgid "Send / new line (insert mode)"
+msgstr "送信 / 改行（挿入モード）"
+
+#: src/tui/main.cpp
+msgid "New message, or dial on Calls"
+msgstr "新規メッセージ、通話タブでは発信"
+
+#: src/tui/main.cpp
+msgid "Dismiss, forget, unpair, hang up, or remove a conversation"
+msgstr "消去、削除、ペアリング解除、終話、またはスレッドを一覧から外す"
+
+#: src/tui/main.cpp
+msgid "Copy the highlighted address or text"
+msgstr "強調表示されたアドレスまたはテキストをコピー"
+
+#: src/tui/main.cpp
+msgid "Refresh, or scan for devices"
+msgstr "更新、またはデバイスを検索"
+
+#: src/tui/main.cpp
+msgid "Send files to the selected device"
+msgstr "選択したデバイスにファイルを送信"
+
+#: src/tui/main.cpp
+msgid "Send the clipboard"
+msgstr "クリップボードを送信"
+
+#: src/tui/main.cpp
+msgid "Place a call"
+msgstr "電話をかける"
+
+#: src/tui/main.cpp
+msgid "Message someone"
+msgstr "メッセージを送る"
+
+#: src/tui/main.cpp
+msgid "Keys"
+msgstr "キー"
+
+#: src/tui/main.cpp
+msgid "Terminal too small"
+msgstr "端末が小さすぎます"
+
+#: src/tui/main.cpp
+msgid "Press i to write a message"
+msgstr "i を押してメッセージを入力"
+
+#: src/tui/main.cpp
+#, c++-format
+msgid "Not a command: {}"
+msgstr "コマンドではありません: {}"
+
+#: src/tui/main.cpp
+msgid "Type :q and press Enter to quit"
+msgstr ":q と入力して Enter で終了"
+
+#: src/tui/main.cpp
+msgid ""
+"Usage: tether-tui [--devices|--messages|--notifications|--contacts|--calls|--"
+"settings] [--thread KEY]"
+msgstr ""
+"使い方: tether-tui [--devices|--messages|--notifications|--contacts|--"
+"calls|--settings] [--thread キー]"
+
+#: src/tui/main.cpp
+msgid "tether-tui needs a terminal."
+msgstr "tether-tui には端末が必要です。"
+
+#: src/tui/settings.cpp
+msgid "Muted apps"
+msgstr "ミュート中のアプリ"
+
+#: src/tui/settings.cpp
+#, c++-format
+msgid "Unmute {}"
+msgstr "{} のミュートを解除"
+
+#: src/tui/settings.cpp
+#, c++-format
+msgid "Settings: {}"
+msgstr "設定: {}"
+
+#. TRANSLATORS: strftime clock time on today's conversations, e.g. "%I:%M %p" for 12-hour.
+#: src/ui_common/message_format.cpp src/ui_common/ui_text.cpp
+#, no-c-format
+msgid "%H:%M"
+msgstr "%H:%M"
+
+#: src/ui_common/message_format.cpp
+msgid "Yesterday"
+msgstr "昨日"
+
+#. TRANSLATORS: strftime short date for older conversations; reorder to the local
+#. convention, e.g. "%-d %b".
+#: src/ui_common/message_format.cpp
+#, no-c-format
+msgid "%b %-d"
+msgstr "%-m月%-d日"
+
+#: src/ui_common/message_format.cpp
+msgid "Today"
+msgstr "今日"
+
+#. TRANSLATORS: strftime date heading above older messages, e.g. "%A %-d %B".
+#: src/ui_common/message_format.cpp
+#, no-c-format
+msgid "%A, %b %-d"
+msgstr "%-m月%-d日(%a)"
+
+#. TRANSLATORS: Left earbud, read aloud by screen readers before its battery level.
+#: src/ui_common/ui_text.cpp
+msgid "Left earbud"
+msgstr "左イヤホン"
+
+#. TRANSLATORS: Left earbud, abbreviated to fit the device row. One or two letters.
+#: src/ui_common/ui_text.cpp
+msgid "L"
+msgstr "左"
+
+#. TRANSLATORS: Right earbud, read aloud by screen readers before its battery level.
+#: src/ui_common/ui_text.cpp
+msgid "Right earbud"
+msgstr "右イヤホン"
+
+#. TRANSLATORS: Right earbud, abbreviated to fit the device row. One or two letters.
+#: src/ui_common/ui_text.cpp
+msgid "R"
+msgstr "右"
+
+#: src/ui_common/ui_text.cpp
+msgid "Call waiting"
+msgstr "キャッチホン"
+
+#: src/ui_common/ui_text.cpp
+msgid "Dialing"
+msgstr "発信中"
+
+#: src/ui_common/ui_text.cpp
+msgid "Ringing"
+msgstr "呼び出し中"
+
+#: src/ui_common/ui_text.cpp
+msgid "On call"
+msgstr "通話中"
+
+#: src/ui_common/ui_text.cpp
+msgid "On hold"
+msgstr "保留中"
+
+#: src/ui_common/ui_text.cpp
+msgid "Ended"
+msgstr "終了"
+
+#: src/ui_common/ui_text.cpp
+msgid "No service"
+msgstr "圏外"
+
+#. TRANSLATORS: Cellular signal strength read aloud, {} is 0 to 5.
+#: src/ui_common/ui_text.cpp
+#, c++-format
+msgid "signal {} of 5"
+msgstr "電波 {}/5"
+
+#. TRANSLATORS: The iPhone's battery level read aloud, {} is like "80%".
+#: src/ui_common/ui_text.cpp
+#, c++-format
+msgid "battery {}"
+msgstr "バッテリー {}"
+
+#: src/ui_common/ui_text.cpp
+msgid "%b %d, %H:%M"
+msgstr "%m月%d日 %H:%M"
+
+#: src/gtk/tether-gtk.desktop.in
+msgid "Device Synchronization"
+msgstr "デバイスの同期"
+
+#: src/gtk/tether-gtk.desktop.in
+msgid "Pair devices and synchronize clipboard across the network"
+msgstr "デバイスをペアリングし、ネットワーク越しにクリップボードを同期します"
+
+#: src/gtk/tether-gtk.desktop.in
+msgid "iPhone;iOS;SMS;Messages;Clipboard;Files;Notifications;Calls;AirPods;"
+msgstr "iPhone;iOS;SMS;メッセージ;クリップボード;ファイル;通知;通話;AirPods;"
+
+#~ msgid ""
+#~ "Connected. BlueZ is not exposing an LE bearer, so notifications are "
+#~ "unavailable."
+#~ msgstr ""
+#~ "接続しました。BlueZ が LE bearer を公開していないため、通知は利用できませ"
+#~ "ん。"
+
+#~ msgid ""
+#~ "Delete this computer on the iPhone (Forget This Device) and pair again."
+#~ msgstr ""
+#~ "iPhone でこのコンピュータを削除し (このデバイスの登録を解除)、もう一度ペア"
+#~ "リングしてください。"
+
+#, c++-format
+#~ msgid " signal {0}/5 battery {1}/5"
+#~ msgstr " 信号 {0}/5 バッテリー {1}/5"
+
+#~ msgid ""
+#~ "Where messages and contacts are stored on this computer. Encrypted keeps "
+#~ "them with a key in your desktop keyring. Do not keep deletes what is "
+#~ "already stored and retains nothing further."
+#~ msgstr ""
+#~ "このコンピューターでメッセージと連絡先を保存する方法。「暗号化する」はデス"
+#~ "クトップのキーリングにある鍵で保存します。「保持しない」は保存済みのものを"
+#~ "削除し、以後何も保持しません。"
+
+#~ msgid ""
+#~ "Turned off automatically when pairing produces no LE bond; turn it back "
+#~ "on after re-pairing."
+#~ msgstr ""
+#~ "ペアリングで LE ボンドが作られなかった場合は自動的にオフになります。再ペア"
+#~ "リング後にもう一度オンにしてください。"
+
+#~ msgid ""
+#~ "Ask for each alert's title and message, not just which app sent it. The "
+#~ "iPhone's own Show Message Notifications toggle still has to be on."
+#~ msgstr ""
+#~ "送信元アプリだけでなく、各通知のタイトルと本文も取得します。iPhone 側の"
+#~ "「メッセージ通知を表示」もオンにしておく必要があります。"
+
+#~ msgid ""
+#~ "Answer and place calls from the Calls tab. Needs hfp_hf in bluez5.roles "
+#~ "and PipeWire's telephony D-Bus service, neither of which Tether installs."
+#~ msgstr ""
+#~ "「通話」タブから通話の応答と発信ができます。bluez5.roles の hfp_hf と "
+#~ "PipeWire のテレフォニー D-Bus サービスが必要ですが、どちらも Tether はイン"
+#~ "ストールしません。"
+
+#~ msgid ""
+#~ "Turn call control on or off. Needs the hfp_hf role and telephony service "
+#~ "in WirePlumber; see docs/BLUETOOTH.md."
+#~ msgstr ""
+#~ "通話操作をオンまたはオフにします。WirePlumber の hfp_hf ロールとテレフォ"
+#~ "ニーサービスが必要です。docs/BLUETOOTH.md を参照してください。"
+
+#~ msgid ""
+#~ "Play the call through this computer's speakers and microphone. Handing it "
+#~ "back applies to the next call."
+#~ msgstr ""
+#~ "このコンピューターのスピーカーとマイクで通話します。戻す操作は次の通話から"
+#~ "有効です。"
+
+#~ msgid ""
+#~ "New calls will stay on the iPhone. A call already playing here does not "
+#~ "move back."
+#~ msgstr ""
+#~ "新しい通話は iPhone に残ります。すでにここで再生中の通話は戻りません。"
+
+#~ msgid "Move audio to iPhone"
+#~ msgstr "音声を iPhone に移す"
+
+#, fuzzy
+#~ msgid "Tether version"
+#~ msgstr "tether のバージョンを表示します。"
+
+#, fuzzy
+#~ msgid "on"
+#~ msgstr "ボンド"

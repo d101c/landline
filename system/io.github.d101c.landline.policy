@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Managed by landline-setup. "landline-setup revert" removes this file. -->
+<policyconfig>
+  <vendor>Landline</vendor>
+  <vendor_url>https://github.com/d101c/landline</vendor_url>
+  <action id="io.github.d101c.landline.setup">
+    <description>Change Bluetooth settings so this computer can link to an iPhone</description>
+    <message>Change Bluetooth settings so this computer can link to an iPhone</message>
+    <icon_name>bluetooth-active-symbolic</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/landline/landline-setup</annotate>
+  </action>
+</policyconfig>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="440" viewBox="0 0 200 220" font-family="sans-serif">
+  <!-- iPhone, the "Bluetooth Pairing Request" alert over Settings › Bluetooth.
+       A template: {{l1}} to {{l3}} (the sentence, with the name of this computer)
+       and {{code}} are filled in by lib/illustrations.js; {{L_…}} are the words of
+       the iPhone, in its language. -->
+  <rect x="10" y="6" width="180" height="260" rx="27" fill="#1c1c1e" stroke="#77777c" stroke-width="3"/>
+  <rect x="79" y="15" width="42" height="11" rx="5.5" fill="#000000"/>
+  <g opacity="0.350">
+    <text x="22" y="44" font-size="15" font-weight="bold" fill="#ffffff">{{L_bluetooth}}</text>
+    <rect x="20" y="194" width="160" height="60" rx="7" fill="#2c2c2e"/>
+  </g>
+  <rect x="24" y="54" width="152" height="134" rx="13" fill="#2c2c2e" stroke="#48484a" stroke-width="0.800"/>
+  <text x="100" y="73" font-size="8.600" font-weight="bold" text-anchor="middle" fill="#ffffff">{{L_pairingRequest}}</text>
+  <text font-size="7.200" text-anchor="middle" fill="#ebebf5">
+    <tspan x="100" y="87">{{l1}}</tspan>
+    <tspan x="100" y="97">{{l2}}</tspan>
+    <tspan x="100" y="107">{{l3}}</tspan>
+  </text>
+  <text x="100" y="138" font-size="23" font-weight="bold" letter-spacing="2" text-anchor="middle" fill="#ffffff">{{code}}</text>
+  <path d="M24 154H176M100 154V188" stroke="#48484a" stroke-width="0.800"/>
+  <text x="62" y="174.500" font-size="10" text-anchor="middle" fill="#0a84ff">{{L_cancel}}</text>
+  <rect x="106" y="159" width="64" height="24" rx="9" fill="#f2b45c" fill-opacity="0.180" stroke="#f2b45c" stroke-width="2"/>
+  <text x="138" y="174.500" font-size="10" font-weight="bold" text-anchor="middle" fill="#0a84ff">{{L_pair}}</text>
+</svg>

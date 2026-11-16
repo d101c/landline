@@ -1,0 +1,7 @@
+{
+  "uuid": "pilote@test",
+  "name": "Pilote",
+  "description": "Pilote d'essai pour tools/shell-test/run.sh",
+  "shell-version": ["50", "51"],
+  "version": 1
+}

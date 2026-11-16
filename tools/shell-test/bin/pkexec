@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Faux pkexec pour le Shell d'essai : aucune élévation de droits, aucun mot de
+# passe. Il lance la commande telle quelle, ou refuse comme le ferait polkit
+# quand l'utilisateur annule (code 126) si le fichier $FAUX_PKEXEC_REFUSE existe.
+# Tant que le fichier $FAUX_PKEXEC_HOLD existe, il attend : c'est le temps que
+# l'utilisateur passerait devant la fenêtre de mot de passe.
+echo "pkexec $*" >> "${FAUX_PKEXEC_LOG:-/dev/null}"
+while [ -n "${FAUX_PKEXEC_HOLD:-}" ] && [ -e "$FAUX_PKEXEC_HOLD" ]; do sleep 0.1; done
+[ -n "${FAUX_PKEXEC_REFUSE:-}" ] && [ -e "$FAUX_PKEXEC_REFUSE" ] && exit 126
+exec "$@"

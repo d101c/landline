@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Faux systemctl pour le Shell d'essai : note l'appel, ne démarre rien.
+# « restart » demande au faux moteur de se relancer (scénario « relance », écrit
+# dans le tube de scénarios de inner.sh) et réussit, sauf si le fichier
+# $FAUX_SYSTEMCTL_REFUSE existe. Tout le reste échoue, comme si l'unité manquait.
+echo "systemctl $*" >> "${FAUX_SYSTEMCTL_LOG:-/dev/null}"
+case " $* " in
+*" restart "*)
+    [ -n "${FAUX_SYSTEMCTL_REFUSE:-}" ] && [ -e "$FAUX_SYSTEMCTL_REFUSE" ] && exit 1
+    tube="${XDG_RUNTIME_DIR:-/nonexistent}/scenario"
+    [ -p "$tube" ] && timeout 2 bash -c 'echo relance > "$0"' "$tube" && exit 0
+    ;;
+esac
+exit 1

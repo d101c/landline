@@ -1,0 +1,48 @@
+Landline 0.1 — notes for the reviewer
+
+Architecture, in brief
+- extension.js wires three things: a client of a local Unix socket (lib/engineClient.js), a state model with no GLib or Shell import (lib/model.js and lib/model/, unit-tested outside the Shell), and the views (lib/indicator.js, lib/cards.js, lib/setup.js, lib/notifications.js).
+- The model receives the engine's JSON events and the user's actions, and view() returns what the top bar, the card and the setup dialog must show. It sets no timer: extension.js keeps a single timeout for its next deadline.
+- prefs.js is a plain Adw window bound to the GSettings schema. It imports only lib/setupHelper.js, which imports lib/subprocess.js and lib/names.js (Gio and GLib, no Shell library).
+- Nothing is created before enable(). disable() removes every source, ends the subprocesses still running (see below for the one exception), closes the socket, disconnects the settings and destroys the indicator, every setup dialog not yet destroyed (including one fading out) and the notification sources.
+- No synchronous file or process call in the Shell process: file attributes are read with query_info_async, drawings with load_contents_async, subprocesses are awaited.
+- No network request, no telemetry, no bundled binary or script: the zip contains only GJS, CSS, SVG, the schema and the licence.
+
+Why an external engine
+Linking an iPhone means acting as a Bluetooth accessory: pairing with a dual (Classic + LE) bond, ANCS over GATT for notifications, MAP and PBAP through obexd for messages and contacts, hands-free for calls, and keeping those links alive across sleep and range losses. That is a long-running C++ service (derived from Tether by Zack Bartel, MIT) and cannot reasonably live in the Shell process. It is installed separately, as a systemd user service (landline-engine.service). The extension is a front end to it, in the same way other extensions are front ends to syncthing or ddcutil. Without the engine the extension shows "Engine not running" with a "Try Again" button and does nothing else. Installation instructions: https://github.com/d101c/landline#install-the-engine
+
+Every subprocess the extension starts
+1. systemctl --user start landline-engine.service — extension.js, _startEngine(). Once each time the socket stops answering, before saying the engine is not running.
+2. systemctl --user restart landline-engine.service — extension.js, _restartEngine(). Only on a click on "Fix It".
+3. <setup helper> status — lib/setupHelper.js, SetupHelper.status(). Read-only, no privilege: prints one JSON line saying whether the Bluetooth settings an iPhone needs are in place. Run at enable(), after an "apply", and every two seconds only while the setup dialog is showing the commands to run by hand. The helper is /usr/local/libexec/landline/landline-setup, or the copy a local install leaves in ~/.local/lib/landline/. It is installed with the engine; it is not in the zip. If neither exists nothing is run.
+4. pkexec /usr/local/libexec/landline/landline-setup apply — lib/setupHelper.js, runAsRoot(), from the setup dialog on a click on "Continue". See below.
+5. pkexec /usr/local/libexec/landline/landline-setup revert — the same function, from prefs.js, on a click on "Undo" in the settings window. The row is only shown when that file passes the same check as for 4 (owned by root, not writable by group or others, executable). Declared in the description, like 4.
+All go through one function, run() in lib/subprocess.js: Gio.Subprocess with an argument vector (no shell, no string built from user input), awaited with wait_async / communicate_utf8_async, never a synchronous wait.
+
+What disable() does to a subprocess still running
+run() is given a Gio.Cancellable that disable() cancels (for 5, the settings window cancels it when it closes). Cancelling ends the wait and calls Gio.Subprocess.force_exit(), which sends SIGKILL:
+- 1 and 2: the systemctl client is ended. The start or restart job it had already handed to systemd is systemd's and is not undone.
+- 3: the helper's read-only status command is ended.
+- 4 and 5: while the password window is up, pkexec (setuid, real uid still the user's) can be signalled: it is ended, and the helper is never started, so nothing is changed. Once the password has been accepted the helper runs as root and a signal from the user cannot reach it (force_exit() then does nothing): it is left to finish (it writes a few configuration files, reloads systemd and udev and may restart bluetooth.service) rather than stopped half-way. The extension no longer waits for it and ignores its result.
+After disable() no new subprocess is started: run() starts nothing once its cancellable is cancelled.
+
+Not subprocesses, but worth knowing
+- Gio.AppInfo.launch_default_for_uri() — lib/notifications.js, on a click on the "Reply in app" action of a WhatsApp, Telegram or Signal notification. The URI (lib/replyLinks.js) is https://web.whatsapp.com/send?phone=…, tg://resolve?phone=… or sgnl://signal.me/#p/…, with the sender's number.
+- libnm (gi://NM, imported on demand in lib/hotspot.js) — activates or deactivates the Bluetooth connection profile NetworkManager already holds for the paired iPhone, on a click on "Use iPhone's Internet Connection". Nothing is created or deleted.
+- Gio.Settings on org.gnome.desktop.notifications (lib/quiet.js) — read only, to follow Do Not Disturb.
+
+Where privilege is raised, and why never on a user-writable path
+Two system settings may be missing: BlueZ's experimental mode (needed before BlueZ 5.88) and L2CAP ERTM (disabled on some systems). Both need root. The extension never writes them itself and never elevates anything from its own directory or from the home directory:
+- pkexec is only ever given the fixed path /usr/local/libexec/landline/landline-setup (a constant in lib/names.js; no environment variable, no setting, no argument changes it), and only after rootHelper() in lib/setupHelper.js has checked that the file is owned by uid 0, is not writable by group or others, and is executable.
+- That file is put there by the engine's installer (the helper copies itself to the root-owned directory the first time the user runs it with sudo, together with a polkit action for the password dialog's message), never by the extension.
+- When the root-owned copy is absent, no password is asked from the Shell at all: the dialog shows the command to run in a terminal, with a "Copy Commands" button, and continues by itself once the settings are in place.
+- On a system where both settings are already right (the common case with a recent BlueZ), this step does not exist.
+
+What shexli reports (0.2.1)
+- EGO-A-005, clipboard: true and intended. extension.js _copyCommands() writes the commands above to the clipboard on a click on "Copy Commands". It is the only clipboard access; nothing is ever read. Declared in the description.
+- EGO-M-004, shell-version: shexli does not know GNOME 51 yet. The metadata lists 51 only: it is the one release the extension was run on, and its menus use the open()/close() parameters of 51 ({animate: false}), which GNOME 50 does not have.
+
+Other things you may ask about
+- session-modes is not set: the extension is disabled on the lock screen.
+- The model is one class assembled from one module per subject (lib/model/*.js, each a function that extends the class it is given), so that each subject can be read on its own.
+- The four drawings of iPhone screens in illustrations/ are my own SVGs, with no Apple artwork or logo. "iPhone" is used in the texts only to name the phone.

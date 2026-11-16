@@ -1,0 +1,24 @@
+name: i18n
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+# Both gates also run under ctest in build.yml; this job re-runs them on a clean
+# checkout so a contributor who never ran the suite locally still can't merge a
+# stale template or an incomplete catalog.
+jobs:
+  catalogs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gettext
+
+      - name: pot is up to date
+        run: po/update-pot.sh --check
+
+      - name: catalogs are complete
+        run: po/check-catalogs.sh

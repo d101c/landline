@@ -1,0 +1,13 @@
+- [x]  mDNS discovery
+- [x] PKGBUILD
+- [ ] TOTP vault
+- [x] iPhone app
+    - [x] iOS sharesheet thing
+- [x] WebExtension
+- [ ] TUI
+- [ ] layershell popups for
+  - [x] device pairing request
+  - [x] file received notification
+  - [ ] TOTP code display
+- [ ] BUGS
+  - [x] infinite reconnect loop if tetherd is down

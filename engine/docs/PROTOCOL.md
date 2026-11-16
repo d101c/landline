@@ -1,0 +1,725 @@
+# Tether Communication Protocol
+
+The `tetherd` daemon communicates with its clients (the `tether` CLI, the browser extension via native messaging, and the iPhone App via TCP) using a simple, unified protocol over standard sockets.
+
+## Protocol Structure
+
+All communication happens via **newline-delimited JSON**. Every individual command or broadcast must:
+1. Be a valid JSON object.
+2. Terminate with a literal `\n` character.
+
+If a payload arrives that cannot be parsed as JSON, the daemon will gracefully ignore it. After successfully processing a message, the server currently sends an ad-hoc text response `OK\n`, though standard JSON responses may replace this over time.
+
+### `protocol_info` (Local client -> Daemon)
+
+**Payload**: `{"command":"protocol_info"}`. The daemon answers the requesting
+Unix socket with `{"command":"protocol_info","version":1,"capabilities":[...]}`
+and sends the same event to local subscribers. Version 1 supports optional
+`operation_id` correlation on Bluetooth pairing commands and exposes the
+`apple_nearby` device hint. Capability names describe usable feature groups;
+`calls` is advertised only while calls are enabled and BlueZ is running, and
+`clipboard` only when the host compositor offers clipboard access. Other
+features have separate status and permission events, so a capability is not a
+promise that a phone is connected or has granted permissions. Older clients may
+ignore this message.
+
+---
+
+### `hello` (both directions, paired only)
+
+**Description**: Feature negotiation. A paired client sends it once connected, and the daemon answers with its own. Each side uses a feature only after the other has announced it. An older daemon answers `OK`, which means no optional features.
+
+**Payload**:
+```json
+{
+  "command": "hello",
+  "features": ["clipboard_image"]
+}
+```
+
+| Feature | Meaning |
+|---|---|
+| `clipboard_image` | [Clipboard images](#clipboard-images-both-directions) |
+| `camera` | [Camera](#7-camera-iphone-as-a-webcam). Daemon only; its `hello` also carries `"port"`, the TCP port to dial for the stream. |
+
+---
+
+## 1. Clipboard Sync
+
+The clipboard capabilities allow seamless copying and pasting between the Host (Linux / Wayland) and Clients (iPhone / Browser).
+
+### `clipboard_set` (Client -> Daemon)
+
+**Description**: Sent by the client when it wants to update the Host's Wayland clipboard.
+
+**Payload**:
+```json
+{
+  "command": "clipboard_set",
+  "content": "The text you want to place directly onto the wayland clipboard."
+}
+```
+
+**Daemon Behavior**: The daemon writes the `content` out to the immediate active Wayland session by creating a `wlr_data_control_source_v1` offer.
+
+---
+
+### `open_url` (Client -> Daemon)
+
+**Description**: Sent by a paired device (iPhone Share Extension) to open a web link in the Host's default browser.
+
+**Payload**:
+```json
+{
+  "command": "open_url",
+  "content": "https://example.com/article"
+}
+```
+
+**Daemon Behavior**: Accepted only over the paired mTLS connection. The URL must parse, use `http` or `https`, and have a host; anything else is logged and ignored. Valid links are opened with the default URI handler.
+
+---
+
+### `clipboard_updated` (Daemon -> Clients)
+
+**Description**: Broadcasted from the daemon to *all connected active clients* when the Host's clipboard text natively changes (e.g., when the user highlights and presses `Ctrl-C` in a desktop app).
+
+**Payload**:
+```json
+{
+  "command": "clipboard_updated",
+  "content": "The newly detected clipboard text."
+}
+```
+
+**Daemon Behavior**: Fired asynchronously whenever the `wlr_data_control_device` `setDataOffer` informs the daemon that the primary clipboard selection has rotated. Not sent when `clipboard_auto_share` is off; then only `clipboard_send` shares the Host clipboard.
+
+---
+
+### `clipboard_send` (Local client -> Daemon)
+
+**Description**: Local socket only. Broadcasts the current Host clipboard to clients as `clipboard_updated`, and replies with `clipboard_content`. Nothing is broadcast when the clipboard is empty.
+
+### `set_clipboard_auto_share` (Local client -> Daemon)
+
+**Description**: Local socket only. `{"enabled": false}` stops pushing local copies to clients. Saved to the config and reported as `clipboard_auto_share` in `bt_status`.
+
+---
+
+### Clipboard images (both directions)
+
+Needs `clipboard_image` from both sides' [`hello`](#hello-both-directions-paired-only). A PNG travels as a [file transfer](#2-file-transfers) named `clipboard.png`. Its `file_start` carries a `"clipboard"` field:
+
+- `"set"` (Client -> Daemon): treated like `clipboard_set`. The daemon puts the PNG on the Wayland clipboard as `image/png` and relays it to other clients as `"updated"`. It is dropped unless every declared byte arrives and it starts with the PNG signature.
+- `"updated"` (Daemon -> Clients): the Host selection changed to one that offers `image/png` and no text type. Treated like `clipboard_updated`.
+- `"content"` (Daemon -> Client): the reply to `clipboard_get` when the selection is an image. Treated like `clipboard_content`.
+
+Images over 32 MB are not sent or accepted. A client without `clipboard_image` gets no images. Its `clipboard_get` returns the last copied text.
+
+---
+
+## 2. File Transfers
+
+Tether supports streaming large binary files seamlessly through JSON using Base64 chunks to adhere to extension native messaging payload restrictions.
+
+### `file_start`
+
+**Description**: Announces an incoming binary transmission.
+
+**Direction**:
+- `Client -> Daemon` when a remote device uploads into the Linux host.
+- `Daemon -> Client` when a local Unix client asks `tetherd` to push a file to a connected mobile app.
+
+**Payload**:
+```json
+{
+  "command": "file_start",
+  "filename": "image.png",
+  "size": 2048500,
+  "transfer_id": "unique_string"
+}
+```
+
+### `file_chunk`
+
+**Description**: Sends a sequential Base64 chunk of the file data.
+
+**Direction**:
+- `Client -> Daemon` for mobile-to-Linux uploads.
+- `Daemon -> Client` for Linux-to-mobile sends.
+
+**Payload**:
+```json
+{
+  "command": "file_chunk",
+  "transfer_id": "unique_string",
+  "chunk_index": 0,
+  "data": "iVBORw0KGgoAAAANSUhEUgAA..."
+}
+```
+
+### `file_end`
+
+**Description**: Marks the end of the streamed file.
+
+**Direction**:
+- `Client -> Daemon` for mobile-to-Linux uploads.
+- `Daemon -> Client` for Linux-to-mobile sends.
+
+**Payload**:
+```json
+{
+  "command": "file_end",
+  "transfer_id": "unique_string"
+}
+```
+
+**Response (Daemon -> Client):**
+```json
+{
+  "command": "file_status",
+  "transfer_id": "unique_string",
+  "status": "success"
+}
+```
+
+If the file could not be saved (for example it arrived short of the size given in `file_start`), `status` is `"error"` and the partial file is discarded.
+
+For local Unix clients, `tetherd` returns `file_status` once the stream has been forwarded to at least one connected TCP client. If no mobile client is connected, the daemon returns:
+
+```json
+{
+  "command": "error",
+  "message": "no_connected_mobile_client"
+}
+```
+
+---
+
+## 3. Device Pairing (TLS + fingerprint pinning)
+
+The `tetherd` daemon binds `[::]:5134` dual-stack (falling back to `0.0.0.0:5134` where IPv6 is unavailable) and speaks TLS 1.2. Both sides present a self-signed X.509 certificate; there is no CA in this system, so certificates are **not** validated against any trust anchor.
+
+Access control is trust-on-first-use fingerprint pinning. After the handshake the daemon takes the SHA-256 fingerprint of the peer's certificate and looks it up in `known_hosts.json`. A client whose fingerprint is not pinned may only send `pair_request` — any other command is answered with `{"command":"error","message":"unauthorized"}`.
+
+TLS still verifies the peer's `CertificateVerify` signature, so a pinned fingerprint proves the peer holds the matching private key. An attacker on the same network cannot impersonate a paired device without that key, but they can open a connection and sit at the pairing prompt.
+
+Every node is a peer. A PC, iPhone or iPad all listen and all dial, and one certificate serves both roles, so a node's fingerprint is the same whether it opened the connection or accepted it. Pairing is therefore direction-agnostic but never symmetric in authority:
+
+- The **dialling** node sends `pair_request` as soon as its handshake completes. Dialling is its own consent, so it prompts nobody locally.
+- The **receiving** node prompts its user (the desktop dialog, or `tether --accept <fingerprint>`).
+- Only the receiver's approval settles it. It replies `pair_accepted`, and **both** sides then write the other's fingerprint to their own `known_hosts.json`.
+
+A node must never pin a peer on local assertion alone — a UI must not report a device paired or connected until `pair_accepted` has crossed the wire and the trust record exists.
+
+Without a Wayland display, the receiver leaves the request pending for explicit local
+CLI approval rather than launching a desktop dialog. A helper that cannot run is not
+a rejection or acceptance. An explicit dialog rejection/timeout still rejects; a
+stale dialog result cannot undo acceptance already supplied through the CLI.
+
+### Reconnecting
+
+A node dials a peer it already trusts on its own, whenever mDNS resolves one whose `fp=` is in `known_hosts.json`.
+
+Only the node with the **lower** fingerprint dials. Every node both listens and browses, so an unconditional dial leaves each side holding two sessions with the same peer, and every broadcast goes out twice. The comparison is reciprocal, so exactly one of any two nodes dials and no negotiation is needed.
+
+The iPhone app dials on launch and is therefore reachable either way.
+
+mDNS is multicast, so it resolves nothing across a VPN such as Tailscale, or on Wi-Fi with AP isolation. When discovery returns no match, the iPhone app dials the address its last session resolved to, provided that peer's fingerprint is still in `known_hosts.json`. A handshake fingerprint that does not match the expected one means the address has moved to another machine; the session is dropped without a pairing prompt.
+
+### Bluetooth discovery
+
+When mDNS finds nothing, the iPhone app can read the daemon's addresses over the phone's existing
+Bluetooth bond. `tetherd` registers a GATT service with BlueZ:
+
+| | |
+|---|---|
+| Service | `ba7a69f7-bf0f-4c09-8c73-cf4ee9afb5b5`, pinned at handle `0xf000` |
+| Characteristic | `ba7a69f7-bf0f-4c09-8c73-cf4ee9afb5b6`, `encrypt-read`, value at `0xf002` |
+
+The value is compact UTF-8 JSON of at most 512 bytes, built fresh on every read:
+
+```json
+{"v":1,"name":"btw","port":5134,"fp":"<sha256 hex>","addrs":["192.168.1.28/24","fd12::5/64"]}
+```
+
+- `addrs` lists the up interfaces as `ip/prefix`, without loopback or IPv6 link-local, IPv4 first.
+  Entries are dropped from the end until the value fits.
+- The app dials an address on its own subnet first.
+- `fp` matches the TXT record's `fp=`. Trust is still decided by the TLS handshake, never by the
+  value read.
+- Readers ignore unknown keys. A new `v` means an incompatible change.
+- The handle is pinned because iOS reads from its cached handle table without rediscovering it,
+  and auto-allocated handles move whenever other GATT services register in a different order.
+
+### `pair_request` (Untrusted Client -> Daemon)
+
+**Description**: Emitted natively by a new client over standard TLS to gracefully present its identity and X.509 fingerprint. The Daemon immediately intercepts the payload, extracts the fingerprint natively from the `SSL*` pipe, and flags it locally as "Pending Authentication". Anything other than `pair_request` results in the TLS socket securely disconnecting.
+
+**Payload**:
+```json
+{
+  "command": "pair_request",
+  "device_name": "My iPhone"
+}
+```
+
+### `pair_pending` (Daemon -> Untrusted Client)
+
+**Description**: Emitted immediately by the Daemon natively over the pending TLS pipe confirming the Request is actively intercepting user approval on local stdout.
+
+**Payload**:
+```json
+{
+  "command": "pair_pending"
+}
+```
+
+### `pair_accepted` (Approving Node -> Requesting Node)
+
+**Description**: The approver's verdict, sent on the same TLS session once its user accepts. The requesting node pins the approver's fingerprint on receipt and the session is promoted in place — no reconnect.
+
+**Payload**:
+```json
+{
+  "command": "pair_accepted"
+}
+```
+
+Once paired (via `tether --accept <fingerprint>`, the desktop dialog, or the peer's `pair_accepted`), the fingerprint is written to `known_hosts.json`. Later connections presenting that certificate are treated as paired and may issue any command.
+
+---
+
+## 4. Local Daemon Control (UNIX Socket)
+
+The `tetherd.sock` UNIX socket is strict local IPC used by local clients (such as the GTK frontend or CLI) wanting to control the daemon's behavior without executing heavy operations directly.
+
+### `discover`
+Instructs the daemon to perform a synchronous mDNS scan (3 seconds) in a background thread for remote tether services.
+**Payload**: `{"command": "discover"}`
+**Response**: The daemon broadcasts a `discovery_result` payload asynchronously containing an array of active `devices`.
+
+### `pair_request` (Local Client -> Daemon)
+Instructs the daemon to dial a peer and hold the resulting TLS session itself, sending `pair_request` on it as described in §3. `device_name` is the peer's advertised mDNS name, used to label the trust record; it is optional and falls back to the address.
+**Payload**: `{"command": "pair_request", "host": "192.168.1.5", "port": 5134, "device_name": "workstation"}`
+**Response**: The daemon broadcasts `pair_outbound_pending` while the peer's user decides, then either `pair_accepted` (with `connected: true`) or `pair_rejected`. A dial to a peer the daemon already has a session with is a no-op.
+
+### `accept_device` (Local Client -> Daemon)
+Trusts a pending pair request by moving the target fingerprint into the daemon's internal secure `known_hosts.json`.
+**Payload**: `{"command": "accept_device", "fingerprint": "12:aa:bb:cc..."}`
+**Response**: The daemon promotes any matching live TLS session, notifies the phone and local subscribers,
+then replies with `{"command":"accept_device_result","accepted":true,"connected":true}`. `connected` is false
+when the trust record was saved for a device that is no longer connected.
+
+A pending request expires an hour after it arrives, and an explicit rejection drops it at once. A peer
+that still wants to pair re-sends `pair_request` on its next connection, so the only thing a longer
+window buys is dead requests in the device list.
+
+### `forget_device` (Local Client -> Daemon)
+Removes a fingerprint from `known_hosts.json` and closes any live session holding it.
+**Payload**: `{"command": "forget_device", "fingerprint": "12:aa:bb:cc..."}`
+**Response**: `{"command":"forget_device_result","fingerprint":"...","forgotten":true}`, also broadcast
+to local subscribers. `forgotten` is false when the fingerprint was not pinned. Both ends must forget
+a peer: a node that still trusts it will keep dialling it (see §3).
+
+### `send_file` (Local Client -> Daemon)
+Offloads an entire file transfer to the daemon. The daemon spawns a thread to read the local filesystem and pushes the chunks sequence securely.
+**Payload**: `{"command": "send_file", "path": "/absolute/path/to/my_video.mp4", "operation_id": "file-1"}`
+The `operation_id` is optional. When supplied, the asynchronous
+`file_send_complete` event echoes it, including on failure, so a local client
+can match the result to its request. Existing clients may omit it; their result
+remains `{"command": "file_send_complete", "success": true, "message": "Sent my_video.mp4"}`.
+The ID correlates results and does not authorize the request. The file must
+remain available at the path until the terminal result arrives.
+
+---
+
+## 5. OTP Vault (Extension Integration)
+
+Tether uses the local UNIX socket to coordinate OTP syncing between mail clients (Thunderbird/Betterbird) and web browsers (Firefox/Chrome). The daemon acts as an ephemeral secure vault for these codes.
+
+The daemon also fills the vault itself: incoming Bluetooth messages (MAP) and iPhone notifications (ANCS) are scanned for OTP codes, and a hit is pushed to local subscribers as `otp_available` exactly as a `new_otp` from the mail extension would be. The same code arriving twice (once over MAP, once over ANCS) is published only once.
+
+### `new_otp` (Mail Extension -> Daemon)
+**Description**: Sent by the mail extension via native messaging when an OTP code is scraped from a new email.
+**Payload**:
+```json
+{
+  "command": "new_otp",
+  "otp": "123456",
+  "source": "Your Login Code"
+}
+```
+**Response**: `{"status": "ok"}`
+
+### `request_otp` (Browser Extension -> Daemon)
+**Description**: Sent by the browser extension via native messaging when a 2FA/OTP input field is detected natively in the DOM.
+**Payload**:
+```json
+{
+  "command": "request_otp",
+  "url": "example.com"
+}
+```
+**Response**: 
+```json
+{
+  "command": "otp_available",
+  "otp": "123456"
+}
+```
+
+---
+
+## 6. Bluetooth: iPhone Messages and Notifications
+
+These commands ride the same UNIX socket and the same newline-delimited JSON. They are
+local-only: nothing here is reachable over TCP, because everything here is personal data.
+
+Two transports sit behind them, and they fail independently: MAP and PBAP are OBEX
+sessions over BR/EDR, while ANCS is a GATT client over BLE. See [BLUETOOTH.md](BLUETOOTH.md) for how they are set up.
+
+Some commands answer on the requesting socket, and some broadcast to every local
+subscriber. Anything a second client would want to see is broadcast.
+
+### Adapter and pairing
+
+#### `bt_status` (Client -> Daemon, answered directly)
+Reports adapter capability and the resolved delivery mode.
+**Payload**: `{"command": "bt_status"}`
+**Response**: `available`, `capability` (`mode` is `full` or `compatibility`, plus
+`bearer_api`, `powered`, `le_central`, `le_peripheral`, `advertising`, `class_ok`, and a
+`reasons` array naming anything missing), and an `adapters` array.
+
+#### `bt_list_devices` (Client -> Daemon, answered directly)
+**Payload**: `{"command": "bt_list_devices"}`
+**Response**: `{"command": "bt_devices", "devices": [...]}`, each entry carrying address,
+name, `paired`, `bonded`, `connected`, `le_bearer`, and whether the device advertises
+`map`, `pbap`, and `ancs`. `apple_nearby` is true when the current BlueZ
+advertisement contains Apple's Nearby payload, allowing external UIs to identify
+an unpaired iPhone candidate without guessing from its name. It is only a
+presentation hint, never proof of pairing or authorization.
+
+#### `bt_pair` / `bt_unpair` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_pair", "address": "AA:BB:CC:DD:EE:FF", "operation_id": "pair-1"}`
+`bt_unpair` accepts the same optional `operation_id`. The daemon echoes it in
+pairing progress, confirmation, and result events for client-local correlation.
+When prompted for numeric comparison, reply with
+`{"command":"bt_pair_confirm","operation_id":"pair-1","accept":true}`
+only after the user explicitly verifies the matching code. A mismatched ID
+cannot settle the active confirmation; IDs are not authorization. Legacy local
+clients may omit the ID. Pairing runs asynchronously and reports through
+`bt_pair_progress` events, then one `bt_pair_result` (or `bt_unpair_result`).
+Only one pairing transaction runs at a time; a second returns
+`{"status": "busy"}`. A successful pair selects the device and starts
+supervision.
+
+#### `bt_set_device` (Client -> Daemon)
+**Payload**: `{"command": "bt_set_device", "address": "AA:BB:CC:DD:EE:FF"}`
+Points supervision at an already-bonded phone.
+
+#### `bt_pair_progress` / `bt_pair_result` (Daemon -> Clients)
+`bt_pair_progress` carries `step` and `detail` for display during the transaction.
+`bt_pair_result` carries `success`, `status`, `message`, and `dual_bond` — the last being
+whether the bond covers LE as well as BR/EDR, which is what decides if ANCS is reachable.
+
+### Connection state
+
+#### `bt_connection` (Client -> Daemon, answered directly)
+**Payload**: `{"command": "bt_connection"}`
+Returns the same object the daemon broadcasts as `bt_connection_changed`.
+
+#### `bt_connection_changed` (Daemon -> Clients)
+Broadcast when the published state actually changes, not on a timer.
+
+```json
+{
+  "command": "bt_connection_changed",
+  "device_present": true,
+  "device_paired": true,
+  "classic_connected": true,
+  "le_available": true,
+  "le_connected": false,
+  "map_open": true,
+  "pbap_open": true,
+  "map_error": "none",
+  "pbap_error": "none",
+  "map_held": false,
+  "pbap_held": false,
+  "ancs_ready": false,
+  "ancs_held": false,
+  "link_reason": "Connected. Bringing up the LE link for notifications...",
+  "profile_reason": "Messages and contacts are connected."
+}
+```
+
+The two `*_reason` strings are written for display (permission is off or a transport that is busy). 
+`map_error` and `pbap_error` name the classification: `forbidden` means the toggle on the phone is off,
+`busy` means another computer holds the phone's single MAP session.
+`*_held` means the profile is released on this computer, by hand or because the session is locked or idle.
+
+#### `bt_hold` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_hold", "profile": "map", "held": true}`
+Releases (`held: true`) or reclaims a profile on this computer: `map`, `pbap`, `ancs`, or `all`.
+Not persisted; a daemon restart reclaims everything. Reclaiming retries the session, it cannot
+take MAP from another computer that holds it. Answered with a `bt_status` broadcast.
+
+#### `bt_set_yield_when_inactive` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_set_yield_when_inactive", "enabled": true}`
+Persisted. While the session is locked or idle, MAP and PBAP are released so another
+computer can take them. Reported as `yield_when_inactive` in `bt_status`.
+
+#### `bt_set_contacts_by_last_name` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_set_contacts_by_last_name", "enabled": true}`
+Persisted. `bt_contacts` lists favorites first, then by the family and given name from the
+vCard `N` field; a card with no family name sorts by whichever name it has. Reported as
+`contacts_by_last_name` in `bt_status`.
+
+### AirPods
+
+Battery does not come from BlueZ. It arrives over Apple's AAP protocol on an L2CAP
+channel the daemon opens itself, so it is reported separately from `bt_devices` — whose
+entries only gain an `airpods` boolean saying which device the battery belongs to.
+
+#### `bt_airpods` (Client -> Daemon, answered directly; also Daemon -> Clients)
+**Payload**: `{"command": "bt_airpods"}`
+
+```json
+{
+  "command": "bt_airpods",
+  "address": "AA:BB:CC:DD:EE:FF",
+  "name": "AirPods Pro",
+  "left": 82,
+  "right": 79,
+  "case": 45,
+  "anc": "transparency",
+  "ear": {"primary": "in_ear", "secondary": "out_of_ear"},
+  "in_ear": 1,
+  "status": "live",
+  "reason": ""
+}
+```
+
+Broadcast when the published state changes, not on a timer. A level of `-1` means the
+component is not reporting — a bud in the case, or a shut case — and is not the same as
+a flat battery. An empty `address` means no AirPods are connected.
+
+`status` is `idle`, `connecting`, `live`, `busy` or `failed`. `busy` means another
+program holds the channel, which allows only one client at a time; `reason` carries the
+sentence to show.
+
+`anc` is the listening mode: `off`, `anc`, `transparency`, `adaptive`, or null on a model
+that does not report one. It always reflects what the buds say they are doing, never what
+was last requested.
+
+`ear` is where each bud is: `in_ear`, `out_of_ear`, `in_case` or `unknown`. They are a
+primary and a secondary rather than a left and a right, and which is which moves between
+them, so `in_ear` carries the count and nothing names a side.
+
+#### `bt_airpods_pause` (Client -> Daemon)
+**Payload**: `{"command": "bt_airpods_pause", "mode": "one-removed"}`
+
+Whether removing a bud pauses local playback: `never` (the default), `one-removed` or
+`both-removed`. Persisted, and reported back as `airpods_pause` in `bt_status`.
+
+#### `bt_airpods_handoff` (Client -> Daemon)
+**Payload**: `{"command": "bt_airpods_handoff", "enabled": true}`
+
+Whether an iPhone call hands the AirPods to the phone and takes them back after. Off by
+default, needs call control, and reported as `airpods_handoff` in `bt_status`.
+
+#### `bt_airpods_mode` (Client -> Daemon, answered directly)
+**Payload**: `{"command": "bt_airpods_mode", "mode": "transparency"}`
+**Response**: `{"command": "bt_airpods_mode_result", "success": true}`, or `success` false
+with a `message`.
+
+Note the name: `bt_set_ancs` elsewhere in this file is Apple Notification Center Service,
+an unrelated feature.
+
+Success means the request reached the buds, not that they applied it. They decline a mode
+they are not configured for and report nothing, so the confirmation is the next
+`bt_airpods` broadcast carrying the mode that is actually in effect.
+
+### Messages
+
+#### `bt_list_threads` (Client -> Daemon, answered directly)
+**Payload**: `{"command": "bt_list_threads"}`
+**Response**: `{"command": "bt_threads", "threads": [...]}`. Each thread carries `thread`
+(the key), `name`, `address`, `preview`, `timestamp`, `unread`, `count`, `group`, and
+`repliable`. Group threads add `reply_status` and, when they cannot be replied to, a
+`reply_reason` written for display.
+
+Thread keys are derived from the normalized peer address — `tel:+15035550101` for a phone
+number, the lowercased address for an Apple ID — because MAP provides no conversation
+identifier. Group keys are `group:name:<slug>` or `group:members:<slugs>`.
+
+#### `set_hide_unknown_senders` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "set_hide_unknown_senders", "enabled": true}`
+Persisted. `bt_threads` leaves out one-to-one threads whose sender is not a contact and has
+never been replied to; no-op while no contacts are loaded. Messages are still stored and OTP
+codes still reach the vault. Their popup is shown only when it carries a code or comes from
+a short code or sender ID, and offers no reply. Answered with `bt_status` and `bt_threads`
+broadcasts; reported as `hide_unknown_senders` in `bt_status`.
+
+#### `bt_remove_thread` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_remove_thread", "thread": "tel:+15035550101", "before": 1792951200}`
+Local to this computer and display only: nothing is deleted from the phone or the journal.
+`bt_threads` and `bt_messages` leave out the thread's messages timestamped at or before
+`before`, and no popup is shown for them unless it carries a code. Send the thread's
+`timestamp` from `bt_threads`, so a message arriving meanwhile stays visible; anything newer
+brings the thread back. Every spelling of a number shares one entry, and repeats keep the
+later cutoff. Persisted under the retention mode, memory only under `none`. Both fields are
+required. Answered with a `bt_threads` broadcast.
+
+#### `bt_list_messages` (Client -> Daemon, answered directly)
+**Payload**: `{"command": "bt_list_messages", "thread": "tel:+15035550101"}`
+**Response**: `{"command": "bt_messages", "thread": ..., "messages": [...]}` with `handle`,
+`body`, `timestamp`, `outgoing`, `read`, and `folder` per message.
+
+#### `bt_list_contacts` (Client -> Daemon, answered directly)
+**Payload**: `{"command": "bt_list_contacts", "query": "ada", "limit": 100}`
+Both fields are optional; an empty or absent `query` matches every contact, and `limit`
+defaults to 100.
+**Response**: `{"command": "bt_contacts", "query": ..., "contacts": [...]}`. Each contact
+carries `name` and `addresses`, namespaced exactly as thread keys are
+(`tel:+15035550101`, `email:ada@example.com`), so an address can be handed straight back
+as the `thread` of a `bt_send_message`. Contacts with no usable address are omitted.
+
+Matching is a case- and accent-insensitive substring over the name and every address,
+with numbers matched in normalized form too, so `5551234567` finds a contact stored as
+`+1 (555) 123-4567`. This is the only way to read the phonebook: the cache on disk is
+encrypted and only `tetherd` holds the key.
+
+#### `bt_mark_read` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_mark_read", "handle": "...", "read": true}`
+Writes through to the phone over OBEX, so it answers asynchronously with a
+`bt_message_read` event carrying `success` and, on failure, `message`.
+
+#### `bt_send_message` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_send_message", "thread": "tel:+15035550101", "body": "on my way", "operation_id": "send-1"}`
+Builds a bMessage and pushes it to the phone's outbox. Answers asynchronously with
+`bt_send_result` (`thread`, `success`, and `message` when it failed). The optional
+`operation_id` is echoed in that result, including on failure; legacy clients
+may omit it. It correlates a local client's send with the result and does not
+authorize the request.
+
+Recipients are validated before they are interpolated into the bMessage: an address
+containing CR, LF, or a vCard delimiter is rejected rather than escaped, because such an
+address could otherwise add a recipient and deliver the message to someone else. Body lines
+beginning with a bMessage structural token are byte-stuffed.
+
+A successful send also broadcasts a `bt_message` event. That is the only record the send
+happened — the iPhone's MAP sent folder stays empty and no outgoing notification arrives.
+
+#### `bt_message` (Daemon -> Clients)
+Broadcast once per newly observed message, incoming or locally sent.
+
+### Notifications
+
+#### `bt_list_notifications` (Client -> Daemon, answered directly)
+**Payload**: `{"command": "bt_list_notifications"}`
+**Response**: `{"command": "bt_notifications", "notifications": [...]}` with `uid`,
+`app_id`, `app_name`, `title`, `subtitle`, `body`, `category`, `timestamp`, and which
+actions the notification offers.
+
+There is no destination URL or deep link. ANCS
+[`GetNotificationAttributes`](https://developer.apple.com/library/archive/documentation/CoreBluetooth/Reference/AppleNotificationCenterServiceSpecification/Specification/Specification.html)
+defines only app identifier, title, subtitle, message, message size, date, and
+positive/negative action labels, and actions run only on the iPhone. A client can open the
+app by `app_id`, but not a specific conversation or post. A URL is usable only if it
+appears in full in `title`, `subtitle` or `body`, and iOS may truncate those.
+
+`app_name` is the app's display name, resolved over ANCS `GetAppAttributes` and cached
+per bundle id for the session. The first notification from an app carries a name derived
+from its bundle id (`com.burbn.instagram` -> `Instagram`) and is corrected in place once
+the phone answers.
+
+Titles, subtitles and bodies are present when notification content mirroring is enabled,
+which is the default -- the iPhone's own *Settings > Bluetooth > (i) > Show Message
+Notifications* toggle is the consent gate. With it off, only `app_id` and `app_name` are
+populated. Messages notifications (`com.apple.MobileSMS`) are retained but never raise a
+desktop popup, since MAP already delivers those with working read state. Notifications
+already on the phone when mirroring starts are listed too, but never raise a popup.
+
+Since 0.2.24 `bt_status` also carries `version`, the daemon's own `TETHER_VERSION`. A
+client that finds the field absent, or holding a version other than its own, is talking to
+a `tetherd` left running across a package upgrade.
+
+#### `bt_set_ancs_content` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_set_ancs_content", "enabled": true}`
+Turns notification content mirroring on or off. Persists to
+`ancs_content_enabled` in `$XDG_CONFIG_HOME/tether/bluetooth.json`, applies to the running ANCS
+client without a restart, and answers with a fresh `bt_status`. `bt_status` carries
+`ancs_enabled` and `ancs_content_enabled` so a client can render the current state.
+
+#### `bt_set_retention` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_set_retention", "retention": "encrypted"}`
+One of `encrypted` (the default), `plaintext`, or `none`. Persists to `retention` in
+`$XDG_CONFIG_HOME/tether/bluetooth.json` and answers with a fresh `bt_status`.
+
+Changing the mode moves what is already stored to the path the new mode uses; `none`
+deletes the message journal and the contact cache outright. `bt_status` carries
+`retention` alongside `retention_ready`, which is false when the mode is `encrypted` and
+the wallet has no key to offer yet — the link stays up in that state, but nothing is
+retained or replayed. See `BLUETOOTH.md` for the on-disk format.
+
+#### `bt_notification_action` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_notification_action", "uid": 42, "action": "positive"}`
+ANCS offers positive and negative actions only — there is no free-text reply on a mirrored
+notification. Answers with `bt_notification_action_result`.
+
+#### `bt_mute_app` (Client -> Daemon, broadcast)
+**Payload**: `{"command": "bt_mute_app", "app_id": "org.whispersystems.signal", "app_name": "Signal", "muted": true}`
+Stops or restores desktop popups for one iPhone app, keyed on its ANCS bundle id. Muted apps
+are still listed in `bt_notifications` and still feed OTP. `app_name` is the label to show;
+when empty the daemon derives one from the bundle id. Persisted, and answered with a
+`bt_status` broadcast whose `muted_apps` is an array of `{"app_id", "app_name"}`.
+
+### Diagnostics
+
+#### `bt_diagnostics` (Client -> Daemon, answered directly)
+**Payload**: `{"command": "bt_diagnostics"}`
+Returns a report intended to be pasted into a bug report: version, auth strategy, the
+Bluetooth settings in effect, the current capability and connection state, and an ordered
+timeline of recent link and pairing transitions stamped in milliseconds.
+
+The daemon redacts before answering. Bluetooth addresses, phone numbers, email addresses,
+and home and runtime directories become numbered placeholders — `<address-1>` recurs for
+one device, so a reader can still follow which device a line refers to without learning
+which device it is. Message bodies, contact names, and notification content are dropped
+outright rather than redacted, and message and notification events never enter the timeline
+in the first place.
+
+---
+
+## 7. Camera (iPhone as a webcam)
+
+The phone streams its camera to the daemon, which publishes it as a PipeWire
+`Video/Source` node (`media.role` `Camera`) named after the phone. The stream uses its
+own TLS connection, not the main session, so video never delays other messages.
+
+1. The phone opens a new connection to the daemon's address and the `port` from its
+   `hello`, with the same client certificate. The phone must only accept the daemon's pinned
+   fingerprint here.
+2. Its first line is `camera_start`. The daemon answers nothing; an unpaired session gets
+   the usual `unauthorized` error, and a daemon without camera support closes the connection.
+3. Everything after that line is binary frames until the connection closes. The node then
+   stays and shows black, so apps keep it selected for the next stream. A new `camera_start`
+   replaces any stream already running. The daemon sends nothing on success, so any line it
+   sends on this connection is an `error`.
+
+```json
+{"command": "camera_start", "codec": "h264", "width": 1920, "height": 1080, "fps": 30}
+```
+
+Each frame, big-endian:
+
+| Bytes | Field |
+|---|---|
+| 4 | length of everything after this field (at most 4 MiB) |
+| 1 | flags; bit 0 set on keyframes |
+| 8 | presentation time, microseconds |
+| rest | one H.264 access unit, Annex B (start codes); keyframes carry SPS and PPS |
+
+The sender sends a keyframe at least every 2 seconds, so a viewer that joins mid-stream
+shows video within that time. The daemon reads the frame size from the stream.

@@ -1,0 +1,124 @@
+/* Landline, light style of the Shell: same rules, with the colors that
+   assumed a dark background turned around. */
+@import url("stylesheet.css");
+
+.landline-sub {
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.landline-avatar {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.landline-avatar-accent {
+  background-color: #f2b45c;
+}
+
+.landline-top-glyph {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.landline-top-glyph-on {
+  color: #b3690a;
+}
+
+.landline-top-state {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.landline-battery-label.landline-battery-low {
+  color: #c0392b;
+}
+
+.landline-switch-row {
+  background-color: rgba(0, 0, 0, 0.07);
+}
+
+.landline-switch-state {
+  color: #26a269;
+}
+
+.landline-error {
+  color: #c01c28;
+}
+
+.landline-decline .landline-action-icon {
+  color: #c01c28;
+}
+
+.landline-code,
+.landline-new {
+  color: #b3690a;
+}
+
+.landline-dot-on {
+  background-color: #e09a35;
+}
+
+.landline-dot-off {
+  border-color: #6f6f6f;
+}
+
+.landline-dot-warn {
+  background-color: #3d3d3d;
+}
+
+#panel .panel-button.landline-dim {
+  color: #6f6f6f;
+}
+
+#panel .panel-button.landline-call {
+  color: #ffffff;
+}
+
+#panel .panel-button.landline-neutral {
+  box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
+}
+
+.landline-avatar-icon {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.landline-bubble {
+  background-color: rgba(0, 0, 0, 0.07);
+}
+
+.landline-bubble:hover,
+.landline-bubble:focus {
+  background-color: rgba(0, 0, 0, 0.11);
+}
+
+.landline-attachment,
+.landline-when,
+.landline-tour-where-text,
+.landline-tour-text,
+.landline-tour-stats {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.landline-more,
+.landline-tour-step,
+.landline-tour-daily-icon {
+  color: #b3690a;
+}
+
+.landline-tour-band {
+  border-bottom-color: rgba(0, 0, 0, 0.12);
+}
+
+.landline-tour-track {
+  background-color: rgba(0, 0, 0, 0.14);
+}
+
+.landline-tour-ok {
+  color: #26a269;
+}
+
+.landline-tour-caption .landline-avatar.landline-step-number {
+  background-color: #f2b45c;
+  color: #2a1a05;
+}
+
+.landline-tour-commands {
+  background-color: rgba(0, 0, 0, 0.07);
+}

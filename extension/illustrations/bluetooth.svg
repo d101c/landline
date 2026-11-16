@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="440" viewBox="0 0 200 220" font-family="sans-serif">
+  <!-- iPhone, Settings › Bluetooth. A template: {{host}}, {{state}}, {{hostOpacity}},
+       {{infoRing}}, {{myHeight}} and {{otherDy}} are filled in by lib/illustrations.js,
+       {{L_…}} are the words of the iPhone, in its language. -->
+  <rect x="10" y="6" width="180" height="260" rx="27" fill="#1c1c1e" stroke="#77777c" stroke-width="3"/>
+  <rect x="79" y="15" width="42" height="11" rx="5.5" fill="#000000"/>
+  <text x="22" y="44" font-size="8" fill="#0a84ff">‹ {{L_settings}}</text>
+  <text x="22" y="62" font-size="15" font-weight="bold" fill="#ffffff">{{L_bluetooth}}</text>
+  <rect x="20" y="70" width="160" height="24" rx="7" fill="#2c2c2e"/>
+  <text x="28" y="85.200" font-size="9" fill="#ffffff">{{L_bluetooth}}</text>
+  <rect x="150" y="75.500" width="22" height="13" rx="6.500" fill="#34c759"/>
+  <circle cx="165.500" cy="82" r="5" fill="#ffffff"/>
+  <text x="28" y="108" font-size="6.800" fill="#98989f">{{L_myDevices}}</text>
+  <rect x="20" y="113" width="160" height="{{myHeight}}" rx="7" fill="#2c2c2e"/>
+  <text x="28" y="128.200" font-size="9" fill="#ffffff">AirPods</text>
+  <text x="157" y="127.700" font-size="7" text-anchor="end" fill="#98989f">{{L_notConnected}}</text>
+  <circle cx="168" cy="125" r="5" fill="none" stroke="#0a84ff" stroke-width="1"/>
+  <text x="168" y="127.600" font-size="7" font-weight="bold" text-anchor="middle" fill="#0a84ff">i</text>
+  <g opacity="{{hostOpacity}}">
+    <path d="M28 137.500H180" stroke="#3a3a3c" stroke-width="0.800"/>
+    <text x="28" y="153.200" font-size="9" fill="#ffffff">{{host}}</text>
+    <text x="154" y="152.500" font-size="6.400" text-anchor="end" fill="#98989f">{{state}}</text>
+    <circle cx="168" cy="150" r="5" fill="none" stroke="#0a84ff" stroke-width="1"/>
+    <text x="168" y="152.600" font-size="7" font-weight="bold" text-anchor="middle" fill="#0a84ff">i</text>
+    <circle cx="168" cy="150" r="9.500" fill="#f2b45c" fill-opacity="0.180" stroke="#f2b45c" stroke-width="2" opacity="{{infoRing}}"/>
+  </g>
+  <g transform="translate(0,{{otherDy}})">
+    <text x="28" y="180" font-size="6.800" fill="#98989f">{{L_otherDevices}}</text>
+    <g fill="none" stroke="#98989f" stroke-width="1.300" stroke-linecap="round">
+      <path d="M167 174v2.200M167 181.800v2.200M162 179h2.200M169.800 179h2.200" opacity="0.900"/>
+      <path d="M163.500 175.500l1.500 1.500M169 181l1.500 1.500M163.500 182.500l1.500-1.500M169 177l1.500-1.500" opacity="0.450"/>
+    </g>
+    <rect x="20" y="186" width="160" height="60" rx="7" fill="#2c2c2e"/>
+    <rect x="28" y="196" width="62" height="5" rx="2.500" fill="#48484a"/>
+    <rect x="28" y="221" width="44" height="5" rx="2.500" fill="#48484a"/>
+  </g>
+</svg>

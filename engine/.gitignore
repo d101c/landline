@@ -1,0 +1,11 @@
+build
+.DS_Store
+.cache
+compile_commands.json
+**/*.o
+_CPack_Packages
+*.deb
+*.rpm
+*.tar.gz
+.idea
+packaging/container/.env

@@ -1,0 +1,692 @@
+/* Landline. Amber #f2b45c with dark text #2a1a05 is the warm color; the
+   .landline-system-accent variants at the end use the desktop accent. */
+
+/* --- the indicator in the top bar ------------------------------------- */
+
+/* A strict ceiling: whatever the name or the message, the pill never grows
+   past it and the text ends in "…". */
+.landline-pill {
+  spacing: 5px;
+  max-width: 19em;
+}
+
+.landline-glyph {
+  icon-size: 1.091em;
+}
+
+/* The dot or the count, in a slot that keeps its width. */
+.landline-slot {
+  width: 16px;
+}
+
+.landline-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+}
+
+.landline-dot-on {
+  background-color: #f2b45c;
+}
+
+.landline-dot-off {
+  border: 1px solid #b0b0b0;
+}
+
+.landline-dot-warn {
+  background-color: #ffffff;
+}
+
+.landline-count {
+  min-width: 8px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background-color: #f2b45c;
+  color: #2a1a05;
+  font-size: 0.8em;
+  font-weight: bold;
+  font-feature-settings: "tnum";
+}
+
+.landline-pill-avatar {
+  min-width: 1.7em;
+  border-radius: 99px;
+  padding: 1px 2px;
+  background-color: #2a1a05;
+  color: #f2b45c;
+  font-size: 0.75em;
+  font-weight: bold;
+}
+
+.landline-pill-strong {
+  font-weight: bold;
+  font-feature-settings: "tnum";
+  max-width: 11em;
+}
+
+.landline-pill-text {
+  font-weight: normal;
+  max-width: 12em;
+}
+
+#panel .panel-button.landline-dim {
+  color: #b0b0b0;
+}
+
+#panel .panel-button.landline-accent {
+  box-shadow: inset 0 0 0 100px #f2b45c;
+  color: #2a1a05;
+}
+
+#panel .panel-button.landline-accent:hover,
+#panel .panel-button.landline-accent:focus,
+#panel .panel-button.landline-accent:active {
+  box-shadow: inset 0 0 0 100px #f6c47d;
+  color: #2a1a05;
+}
+
+#panel .panel-button.landline-call {
+  box-shadow: inset 0 0 0 100px #2f6b3f;
+  color: #ffffff;
+}
+
+#panel .panel-button.landline-call:hover,
+#panel .panel-button.landline-call:focus,
+#panel .panel-button.landline-call:active {
+  box-shadow: inset 0 0 0 100px #3a7d4b;
+}
+
+#panel .panel-button.landline-neutral {
+  box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0.17);
+}
+
+/* --- cards ------------------------------------------------------------ */
+
+.landline-menu {
+  min-width: 0;
+}
+
+/* One fixed width for the menu and every card. */
+.landline-menu-box {
+  width: 23em;
+}
+
+.landline-card-item {
+  padding: 8px;
+}
+
+.landline-card {
+  spacing: 10px;
+}
+
+.landline-header {
+  spacing: 10px;
+}
+
+.landline-avatar {
+  width: 2.5em;
+  height: 2.5em;
+  border-radius: 99px;
+  background-color: rgba(255, 255, 255, 0.16);
+  font-size: 0.85em;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* No initials (a bare number, a short code): a plain silhouette. */
+.landline-avatar-icon {
+  icon-size: 1.25em;
+  padding: 0.625em;
+  width: 1.25em;
+  height: 1.25em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.landline-avatar-large {
+  width: 2.9em;
+  height: 2.9em;
+  font-size: 1.05em;
+}
+
+.landline-avatar-icon.landline-avatar-large {
+  icon-size: 1.45em;
+  padding: 0.725em;
+  width: 1.45em;
+  height: 1.45em;
+}
+
+.landline-avatar-icon.landline-avatar-accent {
+  color: #2a1a05;
+}
+
+.landline-avatar-accent {
+  background-color: #f2b45c;
+  color: #2a1a05;
+}
+
+.landline-title {
+  font-size: 1em;
+  font-weight: bold;
+}
+
+.landline-sub {
+  font-size: 0.85em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.landline-error {
+  color: #ff8a7a;
+}
+
+.landline-body {
+  font-size: 0.95em;
+}
+
+.landline-bubbles {
+  spacing: 4px;
+}
+
+/* A message: soft, rounded, flat under the avatar side like a real one. */
+.landline-bubble {
+  padding: 8px 12px;
+  border-radius: 14px 14px 14px 4px;
+  background-color: rgba(255, 255, 255, 0.09);
+  text-align: left;
+}
+
+.landline-bubble:hover,
+.landline-bubble:focus {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.landline-more {
+  padding-top: 3px;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: #f2b45c;
+}
+
+.landline-attachment {
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.landline-text {
+  font-size: 1em;
+}
+
+.landline-centered {
+  text-align: center;
+}
+
+.landline-chips {
+  spacing: 6px;
+}
+
+.landline-chip {
+  font-size: 0.85em;
+  padding: 5px 11px;
+  border-radius: 99px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.landline-round {
+  padding: 7px;
+  border-radius: 99px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.landline-round-icon {
+  icon-size: 1em;
+}
+
+.landline-entry {
+  border-radius: 99px;
+  padding: 3px 3px 3px 12px;
+  min-height: 2.1em;
+  font-size: 0.95em;
+}
+
+.landline-send {
+  width: 2.1em;
+  height: 2.1em;
+  border-radius: 99px;
+  background-color: #f2b45c;
+  color: #2a1a05;
+}
+
+.landline-send:hover,
+.landline-send:focus {
+  background-color: #f6c47d;
+}
+
+.landline-send-icon {
+  icon-size: 1em;
+}
+
+.landline-pair {
+  spacing: 8px;
+}
+
+.landline-action {
+  min-height: 2.6em;
+  border-radius: 12px;
+  font-weight: bold;
+}
+
+.landline-action-content {
+  spacing: 8px;
+}
+
+.landline-action-icon {
+  icon-size: 1.1em;
+}
+
+.landline-decline .landline-action-icon {
+  color: #ff8a7a;
+}
+
+.landline-answer {
+  background-color: #57c27a;
+  color: #0d2a17;
+}
+
+.landline-answer:hover,
+.landline-answer:focus {
+  background-color: #6fd08e;
+  color: #0d2a17;
+}
+
+.landline-answer:active {
+  background-color: #4bb06c;
+  color: #0d2a17;
+}
+
+/* "Answer on iPhone": the same green, as an outline: the second way. */
+.landline-answer.landline-answer-phone {
+  background-color: rgba(87, 194, 122, 0.18);
+  box-shadow: inset 0 0 0 1px #57c27a;
+  color: inherit;
+}
+
+.landline-answer.landline-answer-phone:hover,
+.landline-answer.landline-answer-phone:focus {
+  background-color: rgba(87, 194, 122, 0.3);
+  color: inherit;
+}
+
+.landline-choice {
+  min-height: 2.4em;
+  border-radius: 99px;
+  font-weight: bold;
+}
+
+.landline-choice.landline-chosen,
+.landline-primary {
+  background-color: #f2b45c;
+  color: #2a1a05;
+}
+
+.landline-choice.landline-chosen:hover,
+.landline-choice.landline-chosen:focus,
+.landline-primary:hover,
+.landline-primary:focus {
+  background-color: #f6c47d;
+  color: #2a1a05;
+}
+
+.landline-code {
+  font-size: 2.6em;
+  font-weight: bold;
+  color: #f2b45c;
+  font-feature-settings: "tnum";
+  padding: 6px 0;
+}
+
+.landline-step {
+  spacing: 10px;
+}
+
+.landline-step-number {
+  width: 1.9em;
+  height: 1.9em;
+  font-size: 0.85em;
+}
+
+/* --- the short menu ---------------------------------------------------- */
+
+.landline-top {
+  padding-bottom: 10px;
+}
+
+.landline-top-glyph {
+  icon-size: 1.1em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.landline-top-glyph-on {
+  color: #f2b45c;
+}
+
+.landline-top-state {
+  font-size: 0.85em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* "New Message…": the matches under the search field. */
+.landline-results {
+  spacing: 4px;
+}
+
+.landline-result {
+  padding: 5px 8px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.landline-row-line {
+  spacing: 8px;
+}
+
+.landline-when {
+  font-size: 0.8em;
+  color: rgba(255, 255, 255, 0.55);
+  font-feature-settings: "tnum";
+}
+
+.landline-row {
+  spacing: 10px;
+}
+
+.landline-row-name {
+  font-weight: bold;
+}
+
+.landline-new {
+  font-size: 0.8em;
+  font-weight: bold;
+  color: #f2b45c;
+}
+
+.landline-battery-label {
+  font-size: 0.85em;
+  font-weight: bold;
+  font-feature-settings: "tnum";
+}
+
+.landline-battery-label.landline-battery-low {
+  color: #ff8a7a;
+}
+
+/* In a call: the side the sound was asked to go to, before it is there. */
+.landline-choice.landline-chosen.landline-moving {
+  opacity: 0.6;
+}
+
+/* --- desktop accent instead of amber ------------------------------------ */
+
+.landline-system-accent .landline-dot-on,
+.landline-system-accent .landline-count,
+.landline-system-accent .landline-avatar-accent,
+.landline-system-accent .landline-send,
+.landline-system-accent .landline-choice.landline-chosen,
+.landline-system-accent .landline-primary,
+.landline-system-accent.landline-tour .modal-dialog-button.landline-dialog-primary,
+.landline-system-accent .landline-tour .modal-dialog-button.landline-dialog-primary {
+  background-color: -st-accent-color;
+  color: -st-accent-fg-color;
+}
+
+.landline-system-accent .landline-send:hover,
+.landline-system-accent .landline-choice.landline-chosen:hover,
+.landline-system-accent .landline-primary:hover {
+  background-color: st-lighten(-st-accent-color, 8%);
+  color: -st-accent-fg-color;
+}
+
+.landline-system-accent .landline-code,
+.landline-system-accent .landline-top-glyph-on,
+.landline-system-accent .landline-new {
+  color: st-lighten(-st-accent-color, 20%);
+}
+
+.landline-system-accent .landline-pill-avatar {
+  background-color: -st-accent-fg-color;
+  color: -st-accent-color;
+}
+
+#panel .panel-button.landline-accent.landline-system-accent {
+  box-shadow: inset 0 0 0 100px -st-accent-color;
+  color: -st-accent-fg-color;
+}
+
+#panel .panel-button.landline-accent.landline-system-accent:hover,
+#panel .panel-button.landline-accent.landline-system-accent:focus,
+#panel .panel-button.landline-accent.landline-system-accent:active {
+  box-shadow: inset 0 0 0 100px st-lighten(-st-accent-color, 8%);
+  color: -st-accent-fg-color;
+}
+
+/* --- pieces shared by the setup tour ---------------------------------------- */
+
+.landline-dialog-steps {
+  spacing: 12px;
+  padding: 6px 0;
+}
+
+.landline-code-large {
+  font-size: 3.4em;
+}
+
+.landline-switch-row {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.1);
+  spacing: 12px;
+}
+
+.landline-switch-state {
+  icon-size: 1.1em;
+  color: #57c27a;
+}
+
+.landline-tour .modal-dialog-button.landline-dialog-primary {
+  background-color: #f2b45c;
+  color: #2a1a05;
+}
+
+.landline-tour .modal-dialog-button.landline-dialog-primary:hover,
+.landline-tour .modal-dialog-button.landline-dialog-primary:focus {
+  background-color: #f6c47d;
+  color: #2a1a05;
+}
+
+/* --- the setup tour -------------------------------------------------------- */
+
+.landline-tour .modal-dialog-content-box {
+  width: 33em;
+  max-width: 33em;
+  spacing: 14px;
+}
+
+.landline-tour-band {
+  spacing: 7px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.landline-tour-step {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: #f2b45c;
+}
+
+.landline-tour-track {
+  height: 4px;
+  border-radius: 2px;
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.landline-tour-fill {
+  height: 4px;
+  border-radius: 2px;
+  background-color: #f2b45c;
+}
+
+.landline-tour-where {
+  spacing: 6px;
+}
+
+.landline-tour-where-key {
+  font-size: 0.9em;
+  font-weight: bold;
+}
+
+.landline-tour-where-text {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Same room for every step: the dialog does not jump when the step changes. */
+.landline-tour-body {
+  spacing: 12px;
+  min-height: 30.6em;
+}
+
+.landline-tour-wait {
+  opacity: 0.45;
+}
+
+.landline-tour-title {
+  font-size: 1.35em;
+  font-weight: bold;
+  text-align: center;
+}
+
+.landline-tour-text {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.landline-tour-note {
+  text-align: center;
+  font-weight: bold;
+}
+
+/* A quiet button inside a step: the help that unfolds, "Forget This iPhone…". */
+.landline-tour-link {
+  padding: 4px 14px;
+  font-size: 0.9em;
+  font-weight: bold;
+}
+
+.landline-tour-link-row {
+  spacing: 6px;
+}
+
+.landline-tour-phones {
+  spacing: 18px;
+}
+
+.landline-tour-phone {
+  spacing: 6px;
+}
+
+.landline-tour-caption {
+  spacing: 7px;
+  font-size: 0.9em;
+  font-weight: bold;
+}
+
+.landline-tour-caption .landline-avatar.landline-step-number {
+  width: 1.7em;
+  height: 1.7em;
+  background-color: #f2b45c;
+  color: #2a1a05;
+}
+
+.landline-tour-status {
+  spacing: 3px;
+}
+
+.landline-tour-status-row {
+  spacing: 8px;
+}
+
+.landline-tour-status-text {
+  font-weight: bold;
+}
+
+.landline-tour-ok {
+  icon-size: 1.1em;
+  color: #57c27a;
+}
+
+.landline-tour-checks {
+  spacing: 5px;
+}
+
+.landline-tour-checks .landline-switch-row {
+  padding: 6px 12px;
+  border-radius: 10px;
+  spacing: 10px;
+}
+
+.landline-tour-compare {
+  spacing: 22px;
+}
+
+.landline-tour-compare-side {
+  spacing: 2px;
+}
+
+.landline-tour-proof {
+  max-width: 22em;
+}
+
+.landline-tour-done {
+  icon-size: 2.2em;
+  padding: 0.9em;
+  border-radius: 99px;
+  background-color: #f2b45c;
+  color: #2a1a05;
+}
+
+.landline-tour-stats {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.landline-tour-daily-icon {
+  icon-size: 1.2em;
+  padding: 0.35em;
+  color: #f2b45c;
+}
+
+.landline-system-accent .landline-tour-fill,
+.landline-system-accent .landline-tour-done,
+.landline-system-accent .landline-tour-caption .landline-avatar.landline-step-number {
+  background-color: -st-accent-color;
+  color: -st-accent-fg-color;
+}
+
+.landline-system-accent .landline-tour-step,
+.landline-system-accent .landline-tour-daily-icon,
+.landline-system-accent .landline-more {
+  color: st-lighten(-st-accent-color, 20%);
+}
+
+/* The commands to run by hand when nothing can ask for the password. */
+.landline-tour-commands {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background-color: rgba(0, 0, 0, 0.25);
+  spacing: 6px;
+}
+
+.landline-tour-command {
+  font-family: monospace;
+  font-size: 0.85em;
+}

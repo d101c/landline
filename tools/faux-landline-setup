@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""Faux assistant système : même contrat que `landline-setup`, sans rien
+toucher au système. L'état vit dans le fichier JSON désigné par
+FAUX_SETUP_STATE (défaut : rien n'est réglé).
+
+    faux-landline-setup status    écrit {"experimental":…,"device_class":…,"ertm":…,"ready":…,
+                                     "persistent":{…},"required":{…},"bluez_version":…}
+    faux-landline-setup version   écrit « faux »
+    faux-landline-setup apply     règle ce qui est exigé
+    faux-landline-setup revert    remet tout à zéro
+
+Fichier d'état : {"experimental": bool, "ertm": bool, "device_class": bool,
+"persistent": bool ou {"experimental": bool, "ertm": bool},
+"required_experimental": bool}. La classe d'appareil n'est publiée que pour
+information : « ready » n'en dépend pas, « apply » ne la pose pas.
+"""
+import json
+import os
+import sys
+
+PATH = os.environ.get("FAUX_SETUP_STATE", "/tmp/faux-landline-setup.json")
+KEYS = ("experimental", "ertm")
+
+
+def load():
+    try:
+        with open(PATH) as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        state = {}
+    out = {k: bool(state.get(k, False)) for k in KEYS}
+    out["device_class"] = bool(state.get("device_class", False))
+    kept = state.get("persistent", False)
+    out["persistent"] = {k: bool(kept.get(k, False)) if isinstance(kept, dict) else bool(kept) for k in KEYS}
+    out["required_experimental"] = bool(state.get("required_experimental", True))
+    return out
+
+
+def save(state):
+    with open(PATH, "w") as f:
+        json.dump(state, f)
+
+
+action = sys.argv[1] if len(sys.argv) > 1 else ""
+if action == "status":
+    state = load()
+    need = state["required_experimental"]
+    print(json.dumps({
+        "experimental": state["experimental"],
+        "device_class": state["device_class"],
+        "ertm": state["ertm"],
+        "ready": state["ertm"] and (state["experimental"] or not need),
+        "persistent": {**state["persistent"], "device_class": False},
+        "required": {"experimental": need, "ertm": True},
+        "bluez_version": "5.87" if need else "5.88",
+    }))
+elif action == "version":
+    print("faux")
+elif action == "apply":
+    state = load()
+    need = state["required_experimental"]
+    save({
+        "experimental": state["experimental"] or need,
+        "ertm": True,
+        "device_class": state["device_class"],
+        "persistent": {"experimental": state["persistent"]["experimental"] or need, "ertm": True},
+        "required_experimental": need,
+    })
+elif action == "revert":
+    state = load()
+    save({"required_experimental": state["required_experimental"]})
+else:
+    sys.exit(64)

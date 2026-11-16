@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="landline">
+  <schema id="org.gnome.shell.extensions.landline" path="/org/gnome/shell/extensions/landline/">
+    <key name="quick-replies" type="as">
+      <default>["Yes, perfect", "On my way", "I'll call you back"]</default>
+      <summary>Ready-made replies</summary>
+      <description>Replies offered under an incoming message. Up to three are shown.</description>
+    </key>
+    <key name="use-accent-color" type="b">
+      <default>false</default>
+      <summary>Use the system accent color</summary>
+      <description>Color the pill with the accent color of the desktop instead of amber.</description>
+    </key>
+    <key name="call-control" type="b">
+      <default>true</default>
+      <summary>Answer and decline calls from this computer</summary>
+      <description>Turn on call control in the engine as soon as an iPhone is linked.</description>
+    </key>
+    <key name="phone-language" type="s">
+      <default>""</default>
+      <summary>Language of the iPhone</summary>
+      <description>The language the drawings of the iPhone screens are written in: "en", "fr", or empty to guess from the languages of this computer.</description>
+    </key>
+    <key name="muted" type="b">
+      <default>false</default>
+      <summary>Mute iPhone on this computer</summary>
+      <description>Nothing from the iPhone pops up on this computer until this is turned off again.</description>
+    </key>
+    <key name="follow-do-not-disturb" type="b">
+      <default>true</default>
+      <summary>Stay quiet in Do Not Disturb</summary>
+      <description>While Do Not Disturb is on, nothing from the iPhone shows in the top bar; unread messages are only counted.</description>
+    </key>
+    <key name="quiet-while-sharing" type="b">
+      <default>true</default>
+      <summary>Stay quiet while the screen is shared</summary>
+      <description>The same silence while the screen is shared or recorded.</description>
+    </key>
+    <key name="calls-through-do-not-disturb" type="b">
+      <default>false</default>
+      <summary>Let calls through in Do Not Disturb</summary>
+      <description>Show incoming calls even while Do Not Disturb is on.</description>
+    </key>
+    <key name="phone-audio-here" type="b">
+      <default>false</default>
+      <summary>Play iPhone audio on this computer</summary>
+      <description>Music and sounds of the iPhone play through this computer. Kept by the phone link service; this key mirrors it for Phone Settings.</description>
+    </key>
+    <key name="lock-on-away" type="b">
+      <default>false</default>
+      <summary>Lock this computer when I walk away with my iPhone</summary>
+      <description>Kept by the phone link service; this key mirrors it for Phone Settings.</description>
+    </key>
+    <key name="lock-away-seconds" type="i">
+      <range min="5" max="600"/>
+      <default>30</default>
+      <summary>Delay before locking</summary>
+      <description>Seconds between the moment the iPhone is noticed gone and the lock.</description>
+    </key>
+    <key name="battery-alerts" type="b">
+      <default>true</default>
+      <summary>Tell me when the iPhone battery is low</summary>
+      <description>One quiet notification at 20 % and one at 10 %.</description>
+    </key>
+    <key name="forget-request" type="b">
+      <default>false</default>
+      <summary>Forget the iPhone</summary>
+      <description>Set by Phone Settings to ask the Shell to open "Forget This iPhone…"; put back to false at once.</description>
+    </key>
+  </schema>
+</schemalist>

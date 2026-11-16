@@ -1,0 +1,295 @@
+.TH TETHER 1 "@BUILD_DATE@" "Tether @TETHER_VERSION@" "User Commands"
+.SH NAME
+tether \- Wayland companion CLI for iPhone integration
+.SH SYNOPSIS
+.B tether
+[\fIOPTIONS\fR]
+.br
+.B tether
+\fICOMMAND\fR [\fIARGUMENTS\fR]
+.SH DESCRIPTION
+.B tether
+is a command-line interface for communicating with the Tether daemon (\fBtetherd\fR).
+It allows for clipboard synchronization, file transfers, and device management between
+a Linux Wayland desktop and an iOS device.
+.PP
+Most options also have a subcommand form, so \fBtether devices\fR and
+\fBtether \-\-list-devices\fR are the same thing. See \fBCOMMANDS\fR.
+.SH OPTIONS
+.TP
+\fB\-h, \-\-help\fR
+Show help message and exit.
+.TP
+\fB\-v, \-\-version\fR
+Print the tether version and exit.
+.TP
+\fB\-g, \-\-get-clipboard\fR
+Retrieve the current Wayland clipboard text from the daemon.
+.TP
+\fB\-s, \-\-set-clipboard\fR [\fISTRING\fR]
+Copy the provided string (or stdin if omitted) to the local Wayland clipboard.
+.TP
+\fB\-f, \-\-send-file\fR \fIFILE\fR
+Send a file to the currently connected device.
+.TP
+\fB\-n, \-\-native-host\fR
+Start the browser Native Messaging Host proxy loop (used by browser extensions).
+.TP
+\fB\-d, \-\-discover\fR
+Scan the local network for tetherd instances via mDNS.
+.TP
+\fB\-\-host\fR \fIIP\fR
+Connect over TCP to the daemon at the specified IP address instead of using the local UNIX socket.
+.TP
+\fB\-\-port\fR \fINUM\fR
+Connect over TCP port (default: 5134).
+.TP
+\fB\-\-timeout\fR \fIMS\fR
+Discovery scan duration in milliseconds (default: 3000).
+.TP
+\fB\-\-list-devices\fR
+List all paired connection devices and their fingerprints.
+.TP
+\fB\-\-status\fR
+Print what the daemon is doing: version, clipboard and mDNS state, how many
+devices are paired, how many pairing requests wait, which peers are connected,
+and the files most recently received.
+.TP
+\fB\-\-pending\fR
+List the Wi\-Fi pairing requests waiting to be accepted, with the fingerprint
+\fB\-\-accept\fR takes. On a machine with no GTK app to show the prompt, this
+is how a request is seen.
+.TP
+\fB\-\-accept\fR \fIFINGERPRINT\fR
+Accept a pending pairing request locally for the specified device fingerprint.
+.TP
+\fB\-\-pair\fR
+Send a pairing request over TCP to the daemon.
+.TP
+\fB\-\-forget\fR \fIFINGERPRINT\fR
+Remove a Wi-Fi pairing and close any session it holds. The daemon reconnects to
+paired peers on its own, so a peer stays unwanted only once both ends have
+forgotten it.
+.TP
+\fB\-\-install-extension-host\fR
+Install the browser and mail extension's native messaging manifests into this
+user's Firefox, Thunderbird, and Chromium directories, pointing at a wrapper in
+\fB~/.local/bin\fR. Needed only for a portable build such as the AppImage; the
+distro packages install the manifests system\-wide.
+.TP
+\fB\-\-install-btclass-unit\fR
+Write \fBtether-btclass@.service\fR to \fB/etc/systemd/system\fR. Needs root, and
+never enables it. Needed only for a portable build such as the AppImage; the distro
+packages install the unit themselves. See \fB\-\-bt-setup\fR.
+.TP
+\fB\-\-install-service\fR
+Write \fBtetherd.service\fR into \fB~/.config/systemd/user\fR and print the
+commands that enable it. Never enables or starts anything. Needed only for a
+portable build; the distro packages install the unit system\-wide. Without
+systemd it writes nothing.
+.TP
+\fB\-\-uninstall-service\fR
+Remove the \fBtetherd.service\fR unit this user installed.
+.SH COMMANDS
+Each of these is the option named beside it, so nothing behaves differently for
+having been typed as a word. A first argument that is not one of these, or that
+starts with a dash, is left for the option parser.
+.TP
+\fBstatus\fR, \fBdevices\fR, \fBpending\fR
+\fB\-\-status\fR, \fB\-\-list-devices\fR, \fB\-\-pending\fR
+.TP
+\fBaccept\fR \fIFINGERPRINT\fR, \fBforget\fR \fIFINGERPRINT\fR, \fBpair\fR
+\fB\-\-accept\fR, \fB\-\-forget\fR, \fB\-\-pair\fR
+.TP
+\fBdiscover\fR, \fBsend\fR \fIFILE\fR, \fBcopy\fR [\fISTRING\fR], \fBpaste\fR
+\fB\-\-discover\fR, \fB\-\-send-file\fR, \fB\-\-set-clipboard\fR, \fB\-\-get-clipboard\fR
+.TP
+\fBservice\fR, \fBversion\fR, \fBhelp\fR
+\fB\-\-install-service\fR, \fB\-\-version\fR, \fB\-\-help\fR
+.TP
+\fBbt\fR \fINAME\fR [\fIARGUMENTS\fR]
+The \fB\-\-bt-\fR\fINAME\fR option, so \fBtether bt pair AA:BB:CC:DD:EE:FF\fR is
+\fBtether \-\-bt-pair AA:BB:CC:DD:EE:FF\fR.
+.SH BLUETOOTH OPTIONS
+Bluetooth carries iPhone messages (MAP), contacts (PBAP), and notification
+mirroring (ANCS). It is independent of the Wi-Fi pairing above.
+.TP
+\fB\-\-bt-setup\fR
+Show the one-time system setup Bluetooth still needs, with the command for each
+step. Nothing is applied: the steps change how the machine behaves over
+Bluetooth outside Tether, so running them is left to the user. One step enables
+\fBtether-btclass@\fR\fIADAPTER\fR\fB.service\fR, which is installed by the
+package but never enabled for you. A portable build has no unit on disk, so the
+printed command writes it out first: with \fB\-\-install-btclass-unit\fR on
+the AppImage, and as a here\-document elsewhere.
+.TP
+\fB\-\-bt-status\fR
+Show Bluetooth adapter capability and delivery mode.
+.TP
+\fB\-\-bt-devices\fR
+List Bluetooth devices known to BlueZ.
+.TP
+\fB\-\-bt-connection\fR
+Show Bluetooth link and profile connection state.
+.TP
+\fB\-\-bt-airpods\fR
+Show AirPods battery, for each bud and the case, and the current listening mode.
+.TP
+\fB\-\-bt-airpods-enable\fR \fIon\fR|\fIoff\fR
+Manage AirPods from Tether at all: battery, listening mode, in-ear pausing and handoff.
+Off by default, because the AAP channel takes one program per computer and opening it takes
+the buds away from any other AirPods program.
+.TP
+\fB\-\-bt-airpods-mode\fR \fIoff\fR|\fIanc\fR|\fItransparency\fR|\fIadaptive\fR
+Set the AirPods listening mode. The buds decline a mode they are not configured for
+without reporting an error, so check the result with \fB\-\-bt-airpods\fR.
+.TP
+\fB\-\-bt-airpods-pause\fR \fInever\fR|\fIone-removed\fR|\fIboth-removed\fR
+Pause whatever is playing on this computer when an AirPod is removed, and start it again
+when the buds go back in. Off by default. Only playback Tether paused is resumed.
+.TP
+\fB\-\-bt-airpods-handoff\fR \fIon\fR|\fIoff\fR
+Hand the AirPods to the iPhone when it has a call and take them back afterwards. Off by
+default. Requires call control (\fB\-\-bt-calls-enable on\fR).
+.TP
+\fB\-\-bt-pair\fR \fIADDRESS\fR
+Pair with an iPhone over Bluetooth.
+.TP
+\fB\-\-bt-unpair\fR \fIADDRESS\fR
+Remove a Bluetooth bond.
+.TP
+\fB\-\-bt-solicit\fR
+Re-advertise for ANCS so the iPhone shows its permission toggles again.
+.TP
+\fB\-\-bt-threads\fR
+List iPhone message conversations.
+.TP
+\fB\-\-bt-messages\fR \fITHREAD\fR
+Show messages in one conversation.
+.TP
+\fB\-\-bt-send\fR \fITHREAD\fR \fITEXT\fR
+Reply in one conversation.
+.TP
+\fB\-\-bt-contacts\fR [\fIQUERY\fR]
+List iPhone contacts, or search them by name, number or email address. Prints each
+contact's name followed by its addresses, one per line, in the same
+\fItel:\fR/\fIemail:\fR form \fB\-\-bt-send\fR takes as its conversation.
+.TP
+\fB\-\-bt-contacts-sort\fR \fIfirst\fR|\fIlast\fR
+List contacts by first or last name, as entered on the iPhone. Contacts with
+only one name, and businesses, sort by the name they have. Favorites stay first.
+.TP
+\fB\-\-bt-retention\fR \fIencrypted\fR|\fIplaintext\fR|\fInone\fR
+How message history and the contact cache are kept on disk. \fIencrypted\fR, the
+default, seals them with a key from the desktop keyring, falling back to a 0600
+key file on a host with no secret service. \fIplaintext\fR keeps the readable
+files earlier versions wrote. \fInone\fR deletes what is already stored and
+retains nothing further.
+.IP
+Losing the keyring entry loses the retained history: there is no escrow and no
+plaintext copy is left behind.
+.TP
+\fB\-\-bt-notifications\fR
+List mirrored iPhone notifications.
+.TP
+\fB\-\-bt-ancs\fR \fIon\fR|\fIoff\fR
+Turn notification mirroring on or off.
+.TP
+\fB\-\-bt-ancs-content\fR \fIon\fR|\fIoff\fR
+Mirror notification titles and bodies, not just the app.
+.TP
+\fB\-\-bt-ancs-mute\fR \fIapp\fR
+Stop desktop popups from an iPhone app, for apps that also run on this desktop.
+\fIapp\fR is the name shown in \fB\-\-bt-notifications\fR or the bundle id, such
+as \fIorg.whispersystems.signal\fR; a name only matches an app that has already
+sent a notification. Muted apps are still listed and still give up one-time
+codes. \fB\-\-bt-status\fR lists them.
+.TP
+\fB\-\-bt-ancs-unmute\fR \fIapp\fR
+Show desktop popups from a muted app again.
+.TP
+\fB\-\-bt-calls\fR
+List calls on the iPhone: what is ringing, dialing, or connected.
+.TP
+\fB\-\-bt-call\fR \fInumber\fR
+Place a call from the iPhone. A leading \fI+\fR and digits are kept; spaces, dashes,
+dots and parentheses are dropped and anything else is refused.
+.TP
+\fB\-\-bt-answer\fR
+Answer the ringing call.
+.TP
+\fB\-\-bt-hangup\fR
+End every call.
+.TP
+\fB\-\-bt-calls-enable\fR \fIon\fR|\fIoff\fR
+Turn call control on or off. Off by default. Calls run over whichever stack holds the
+hands-free profile: BlueZ's own, which needs \fBbluetoothd --experimental\fR -- the same
+flag notification mirroring requires -- and carries no audio, or PipeWire's, which carries
+the call audio as well. Neither is installed by Tether and call control is unavailable,
+not broken, when there is no stack holding the profile. See \fIdocs/BLUETOOTH.md\fR.
+.TP
+\fB\-\-bt-phone-audio\fR [\fIhere\fR|\fIphone\fR|\fIauto\fR]
+Play the iPhone's music and sounds on this computer, or send them back to the iPhone, by
+opening or closing its A2DP stream. The choice is re-applied once per connection.
+\fIauto\fR forgets it. The first choice writes a WirePlumber rule and restarts WirePlumber
+once. Needs the \fBa2dp_sink\fR role. Without an argument, shows where the audio plays.
+.TP
+\fB\-\-bt-call-audio\fR \fIon\fR|\fIoff\fR
+Play call audio on this computer, or leave it on the iPhone. Only PipeWire carries the
+voice link, so this reports a refusal when BlueZ holds the profile. \fIoff\fR gates the
+next voice link rather than moving a call already in progress.
+.TP
+\fB\-\-bt-adapter\fR \fIhciN\fR|\fIauto\fR
+Choose which Bluetooth controller to use, by \fIhciN\fR or by address. Defaults to
+\fIauto\fR, the first powered controller, which is the wrong one on a machine with
+more than one. \fB\-\-bt-status\fR marks the controller in use.
+.TP
+\fB\-\-bt-diagnostics\fR
+Print a redacted Bluetooth report for a bug report.
+.SH EXAMPLES
+Retrieve clipboard:
+.IP
+tether \-g
+.PP
+Copy text to clipboard:
+.IP
+echo "Hello from Linux" | tether \-s
+.PP
+Discover other Tether instances:
+.IP
+tether \-\-discover
+.PP
+Send a file:
+.IP
+tether \-f document.pdf
+.PP
+See what Bluetooth still needs before pairing an iPhone:
+.IP
+tether \-\-bt-setup
+.PP
+Stop Signal popups mirrored from the iPhone when Signal Desktop already shows them:
+.IP
+tether \-\-bt-ancs-mute Signal
+.PP
+The same things, as subcommands:
+.IP
+tether send document.pdf
+.IP
+tether bt setup
+.SH FILES
+.TP
+\fB/usr/lib/systemd/user/tetherd.service\fR
+Starts \fBtetherd\fR for one user. Installed by the distro packages but never
+enabled; a portable build writes its own copy to
+\fB~/.config/systemd/user\fR with \fB\-\-install-service\fR. The daemon does
+not need a Wayland session: without one it runs with clipboard sync off.
+.TP
+\fB/usr/lib/systemd/system/tether\-btclass@.service\fR
+Sets the Bluetooth adapter's Class of Device to A/V Hands\-Free, which iOS
+requires before it will offer its Messages and Contacts permissions. Installed
+by the distro packages but never enabled; a portable build writes it to
+\fB/etc/systemd/system\fR instead. See \fB\-\-bt-setup\fR.
+.SH SEE ALSO
+.BR tetherd (8),
+.BR tether-gtk (1),
+.BR systemd.unit (5)
