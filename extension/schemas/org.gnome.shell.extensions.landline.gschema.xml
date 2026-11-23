@@ -11,6 +11,15 @@
       <summary>Use the system accent color</summary>
       <description>Color the pill with the accent color of the desktop instead of amber.</description>
     </key>
+    <key name="icon-style" type="s">
+      <choices>
+        <choice value="phone"/>
+        <choice value="handset"/>
+      </choices>
+      <default>"phone"</default>
+      <summary>Icon in the top bar</summary>
+      <description>Which drawing shows the iPhone in the top bar: "phone" (a smartphone) or "handset" (the receiver of a landline phone).</description>
+    </key>
     <key name="call-control" type="b">
       <default>true</default>
       <summary>Answer and decline calls from this computer</summary>
@@ -60,12 +69,81 @@
     <key name="battery-alerts" type="b">
       <default>true</default>
       <summary>Tell me when the iPhone battery is low</summary>
-      <description>One quiet notification at 20 % and one at 10 %.</description>
+      <description>The icon of the top bar and the menu say so at 20 % and at 10 %. Nothing pops up.</description>
+    </key>
+    <key name="keep-history" type="b">
+      <default>false</default>
+      <summary>Keep earlier notifications</summary>
+      <description>Notifications that left the iPhone stay listed under "Earlier" in the menu: the last 12 hours, 200 at most, in memory only, never on disk.</description>
+    </key>
+    <key name="quiet-apps" type="as">
+      <default>[]</default>
+      <summary>Apps that never grow the pill</summary>
+      <description>Names or identifiers of iPhone apps whose notifications are only listed in the menu.</description>
+    </key>
+    <key name="show-app-icons" type="b">
+      <default>true</default>
+      <summary>Show app icons</summary>
+      <description>Show the real icon of each iPhone app next to its notifications. To get it, the identifier of the app (like net.whatsapp.WhatsApp) is sent to Apple's App Store, once per app; the icon is then kept in ~/.cache/landline/app-icons. Turned off, nothing is sent: an app installed on this computer lends its icon, the others show their initials.</description>
+    </key>
+    <key name="suggest-apps" type="b">
+      <default>true</default>
+      <summary>Suggest the official app when it is missing</summary>
+      <description>The card of a notification says once per service that its official desktop app (or web client) is not on this computer, and where to get it.</description>
+    </key>
+    <key name="suggested-apps" type="as">
+      <default>[]</default>
+      <summary>Services already suggested</summary>
+      <description>Written by the extension: the services (signal, telegram, discord, slack) whose missing app was already suggested once.</description>
+    </key>
+    <key name="skip-running-apps" type="b">
+      <default>false</default>
+      <summary>Leave the pill to desktop apps that are open</summary>
+      <description>A notification of an app whose official desktop app is open on this computer (and notifies by itself) does not grow the pill; it is still listed in the menu.</description>
+    </key>
+    <key name="phone-links" type="b">
+      <default>false</default>
+      <summary>Use Landline for phone links</summary>
+      <description>Set by Phone Settings when Landline opens tel: and callto: links; the extension then listens for them on the session bus.</description>
+    </key>
+    <key name="phone-links-offered" type="b">
+      <default>false</default>
+      <summary>Phone links offered</summary>
+      <description>Set once the top bar menu has offered "Use Landline for phone links" (only when no other app opens tel: and callto: links): it is never offered there again. The option stays in Phone Settings.</description>
+    </key>
+    <key name="phone-links-previous" type="as">
+      <default>[]</default>
+      <summary>Phone links before Landline</summary>
+      <description>Written by Phone Settings: the default handlers of tel: and callto: before Landline took them ("tel=org.example.App.desktop"), given back when the option is turned off.</description>
+    </key>
+    <key name="link-mode" type="s">
+      <choices>
+        <choice value="lean"/>
+        <choice value="full"/>
+      </choices>
+      <default>"lean"</default>
+      <summary>Connection</summary>
+      <description>"lean": stay linked for notifications, connect for messages and calls when needed. "full": keep everything connected. Kept by the phone link service; this key mirrors it for Phone Settings.</description>
+    </key>
+    <key name="link-mode-state" type="s">
+      <default>""</default>
+      <summary>Connection in force</summary>
+      <description>Written by the extension for Phone Settings, never read back: empty when the phone link service has one mode only, else the mode in force, a colon, and why it is not the one chosen ("full:phone_keeps_link").</description>
     </key>
     <key name="forget-request" type="b">
       <default>false</default>
       <summary>Forget the iPhone</summary>
       <description>Set by Phone Settings to ask the Shell to open "Forget This iPhone…"; put back to false at once.</description>
+    </key>
+    <key name="tour-request" type="b">
+      <default>false</default>
+      <summary>Link the iPhone</summary>
+      <description>Set by Phone Settings › Engine ("Link My iPhone…") to ask the Shell to open the setup tour once the engine answers; put back to false at once.</description>
+    </key>
+    <key name="steady-request" type="b">
+      <default>false</default>
+      <summary>Keep the link steady</summary>
+      <description>Set by Phone Settings ("Keep the link steady", shown only while it is not set up) to ask the Shell to open the setup step that sets it up; put back to false at once.</description>
     </key>
   </schema>
 </schemalist>

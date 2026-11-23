@@ -146,8 +146,8 @@ async function main() {
     check('call control turned on once linked', sent.filter(c => c.command === 'bt_set_calls'),
         [{command: 'bt_set_calls', enabled: true}]);
     let v = model.view();
-    check('model: linked', [v.link, v.card.name, v.card.state, v.card.statusLine, v.card.battery],
-        ['linked', 'iPhone de Camille', 'Linked', 'Linked · Swisscom', 96]);
+    check('model: linked, nothing said of the link in the menu', [v.link, v.card.name, v.card.notices, v.card.battery],
+        ['linked', 'iPhone de Camille', [], 96]);
     check('model: conversations read', v.card.threads.map(t => t.name), ['Léo', 'Camille Martin']);
 
     // --- an incoming message, then a reply (OK acknowledgement, then events)
@@ -247,14 +247,14 @@ async function main() {
     await until(() => events.some(e => e.command === 'bt_phone_audio_result' && e.route === 'phone'));
     fake.say('eloigne switched_off');
     await until(() => model.view().link === 'away');
-    check('away because Bluetooth was cut on the iPhone: said so', model.view().card.statusLine, 'Bluetooth is off on the iPhone');
+    check('away because Bluetooth was cut on the iPhone: said so', model.view().card.notices, ['Bluetooth is off on the iPhone']);
     fake.say('relie');
     await until(() => model.view().link === 'linked');
 
     // --- states
     fake.say('hors-portee');
     await until(() => model.view().link === 'away');
-    check('out of range', model.view().pill.dot, 'off');
+    check('out of range', model.view().icon.state, 'away');
     fake.say('permission');
     await until(() => model.view().link === 'permission');
     check('permission needed', [model.view().pill.strong, model.view().card.steps.length], ['Permission needed', 2]);
@@ -264,11 +264,10 @@ async function main() {
     check('link again', model.view().pill.strong, 'Link again');
     fake.say('relie');
     await until(() => model.view().link === 'linked');
-    const alerts = [];
-    model.onAlert = a => alerts.push(a);
     fake.say('batterie-faible');
-    await until(() => alerts.length > 0);
-    check('battery low: one alert, no pill', [alerts, model.view().mode], [[{kind: 'battery', level: 12, threshold: 20}], 'idle']);
+    await until(() => model.view().icon.state === 'battery');
+    check('battery low: the icon and the menu (drawn red), no pill',
+        [model.view().icon.state, model.view().card.batteryLow, model.view().mode], ['battery', true, 'idle']);
 
     fake.say('batterie 96');
 
@@ -420,6 +419,211 @@ async function main() {
     await until(() => shown.some(([k]) => k === 'remove'));
     check('clear is relayed and confirmed', shown.at(-1), ['remove', shown[0][1]]);
 
+    // --- the classic link on demand, against an engine that knows it
+    const lastConn = () => events.findLast(e => e.command === 'bt_connection_changed') ?? {};
+    const leases = () => fake.received().filter(l => l.includes('"bt_lease"')).map(l => JSON.parse(l));
+    const CAMILLE = 'tel:+41790000001';
+    for (const delay of ['ouverture 0.4', 'mains-libres 0.5', 'maintien 0.5', 'composition 0.2'])
+        fake.say(`delai ${delay}`);
+    fake.say('sobre');
+    client.send({command: 'bt_list_threads'});
+    await until(() => model.view().card.notices?.includes('Messages and calls connect when needed.') &&
+        model.view().card.threads.length > 0);
+    check('light mode: linked on the notification link, classic link closed, everything on demand',
+        [model.view().link, lastConn().classic_connected, lastConn().messages, lastConn().calls_available,
+            model.view().card.composeAction, model.view().card.callAction],
+        ['linked', false, 'on_demand', 'on_demand', true, true]);
+
+    const pills = [];
+    model.onChange = () => {
+        const strong = model.view().pill.strong ?? '';
+        if (pills.at(-1) !== strong)
+            pills.push(strong);
+    };
+    model.cardOpened();
+    model.openThread(CAMILLE);
+    pills.length = 0;
+    check('reply sent from cold', model.reply('À tout de suite'), true);
+    await until(() => model.view().mode === 'sent');
+    check('the wait is shown step by step', pills.filter(p => p), ['Connecting to send…', 'Sending…', 'Sent']);
+    check('...as the engine said', events.filter(e => e.command === 'bt_send_progress').map(e => e.stage), ['connecting', 'sending']);
+    check('reading lease taken with the card and handed back with it', leases().map(l => [l.name, l.held]),
+        [['reading', true], ['reading', false]]);
+    await until(() => lastConn().classic_state === 'idle');
+    check('afterwards the classic link closes by itself, still linked', [lastConn().classic_connected, model.view().link], [false, 'linked']);
+
+    model.cardOpened();
+    model.startCompose();
+    await until(() => lastConn().classic_state === 'open');
+    check('writing a new message opens the link through the lease', lastConn().classic_leases, ['reading']);
+    model.cardClosed();
+    await until(() => lastConn().classic_state === 'idle');
+
+    fake.say('refuse-ouverture');
+    await sleep(100);
+    model.cardOpened();
+    model.openThread(CAMILLE);
+    model.reply('Tu me reçois ?');
+    await until(() => model.view().mode === 'notice');
+    model.cardOpened();
+    check('iPhone out of reach for the send: Not sent, the text kept, the engine’s reason',
+        [model.view().card.draft, model.view().card.subtitle], ['Tu me reçois ?', 'Couldn’t reach the iPhone to send.']);
+    model.cardClosed();
+    fake.say('accepte-ouverture');
+    await until(() => lastConn().classic_state === 'idle');
+
+    // The mode, chosen in Phone Settings.
+    model.wantSetting('link-mode', 'full');
+    await until(() => lastConn().link_mode_effective === 'full');
+    check('Always connected: bt_set_link_mode reaches the engine, both links up',
+        [fake.received().some(l => l.includes('"bt_set_link_mode"') && l.includes('"full"')), lastConn().classic_connected,
+            model.view().card.notices], [true, true, []]);
+    fake.say('notifications-en-pause phone_silent');
+    await until(() => model.view().card.paused !== null);
+    check('notifications paused while messages work: said, with the last battery level',
+        [model.view().link, model.view().icon.state, model.view().card.paused.cause, model.view().card.battery, model.view().card.batteryStale],
+        ['linked', 'paused', 'phone_silent', 96, true]);
+    fake.say('notifications-reprises');
+    await until(() => model.view().card.paused === null && model.view().icon.state === 'linked');
+    model.wantSetting('link-mode', 'lean');
+    await until(() => lastConn().link_mode_effective === 'lean' && lastConn().classic_state === 'idle');
+    fake.say('garde-le-lien');
+    await until(() => lastConn().link_mode_reason === 'phone_keeps_link');
+    check('the iPhone keeps the link: the mode in force is said to Phone Settings, not in the menu',
+        [model._linkModeState(), model.view().card.notices],
+        ['full:phone_keeps_link', []]);
+    fake.say('rend-le-lien');
+    await until(() => lastConn().link_mode_effective === 'lean');
+
+    // A call announced before the hands-free link.
+    events.length = 0;
+    fake.say('appel');
+    await until(() => model.view().mode === 'ring');
+    check('incoming call: card at once, Answer here connecting, no bt_calls yet',
+        [model.view().card.name, model.view().card.answerHere, events.some(e => e.command === 'bt_calls' && e.calls.length > 0)],
+        ['Camille Martin', 'connecting', false]);
+    await until(() => model.view().card.answerHere === 'ready');
+    check('hands-free arrived: ready, same call', [model.view().mode, model.view().card.name], ['ring', 'Camille Martin']);
+    model.answer('computer');
+    await until(() => model.view().mode === 'call' && model.view().card.audio === 'computer' && !model.view().card.moving);
+    check('Answer here: on a call, sound on this computer', model.view().card.audio, 'computer');
+    fake.say('raccroche');
+    await until(() => model.view().mode === 'idle');
+
+    fake.say('mains-libres jamais');
+    fake.say('delai sonnerie 0.6');
+    await until(() => lastConn().classic_state === 'idle');
+    fake.say('appel-inconnu');
+    await until(() => model.view().mode === 'ring' && model.view().card.answerHere === 'unavailable');
+    check('hands-free never comes: unavailable, the caller shown by number', model.view().card.name, '+41 22 555 01 99');
+    model.decline();
+    await until(() => model.view().mode === 'idle');
+    check('Decline went by the notification', JSON.parse(fake.received().findLast(l => l.includes('"decline"'))).path, undefined);
+    fake.say('mains-libres normal');
+    await until(() => lastConn().classic_state === 'idle');
+    shown.length = 0;
+    fake.say('appel');
+    await until(() => model.view().mode === 'ring');
+    fake.say('raccroche');
+    await until(() => model.view().mode === 'idle' && shown.some(([k]) => k === 'show'));
+    check('the caller gives up: the missed call is a desktop notification', shown.filter(([k]) => k === 'show').length, 1);
+    await until(() => lastConn().classic_state === 'idle');
+
+    // Placing a call.
+    events.length = 0;
+    model.cardOpened();
+    model.startDial();
+    model.dialQuery('cam');
+    await until(() => model.view().card.results?.length > 0);
+    check('Call…: the contact found by its number', model.view().card.results[0].number, '+41790000001');
+    model.dialPick(0);
+    client.send({command: 'bt_status'});
+    check('bt_call_dial does not hold the queue: the next command is answered meanwhile',
+        [await until(() => pending(client) === 0, 300), model.view().mode], [true, 'dialing']);
+    await until(() => model.view().mode === 'call' && events.some(e => e.stage === 'audio_here'));
+    check('the call went through its steps, then the usual card, the sound here as asked',
+        [events.filter(e => e.command === 'bt_call_progress').map(e => e.stage), model.view().card.kind,
+            JSON.parse(fake.received().findLast(l => l.includes('"bt_call_dial"'))).audio,
+            model.view().card.audio, model.view().card.moving, lastConn().calls.audio_wanted],
+        [['connecting', 'hands_free', 'dialing', 'audio_here'], 'call', 'here', 'computer', false, 'here']);
+    fake.say('raccroche');
+    await until(() => model.view().mode === 'idle' && lastConn().classic_state === 'idle');
+
+    model.cardOpened();
+    model.startDial({number: '+41790000002', name: 'Léo'});
+    model.dialPick(0);
+    await until(() => events.some(e => e.command === 'bt_call_progress' && e.stage === 'connecting'));
+    events.length = 0;
+    model.cancelDial();
+    await until(() => events.some(e => e.command === 'bt_call_result'));
+    check('Cancel: bt_call_cancel, the engine gives up, back to the menu',
+        [events.find(e => e.command === 'bt_call_result').reason, model.view().mode, model.view().card.kind],
+        ['cancelled', 'idle', 'menu']);
+    await sleep(900);
+    check('...and no call appears afterwards', model.view().mode, 'idle');
+    model.cardClosed();
+
+    for (const [mode, reason] of [['echec-lien', 'no_link'], ['echec-mains-libres', 'no_hands_free']]) {
+        fake.say(`composition ${mode}`);
+        await until(() => lastConn().classic_state === 'idle');
+        events.length = 0;
+        model.cardOpened();
+        model.startDial({number: '+41790000002', name: 'Léo'});
+        model.dialPick(0);
+        await until(() => model.view().card.failed === true);
+        check(`call that fails (${reason}): said on the card`,
+            [events.find(e => e.command === 'bt_call_result').reason, model.view().card.subtitle],
+            [reason, 'Couldn’t reach the iPhone.']);
+        model.cardClosed();
+    }
+    fake.say('composition normale');
+
+    // The sound asked here does not come: said, the call goes on.
+    fake.say('son-appel echec');
+    await until(() => lastConn().classic_state === 'idle');
+    model.cardOpened();
+    model.startDial({number: '+41790000002', name: 'Léo'});
+    model.dialPick(0);
+    await until(() => model.view().mode === 'call');
+    check('sound asked here, not here yet: on its way', [model.view().card.audio, model.view().card.moving, model.view().card.isError],
+        ['computer', true, false]);
+    await until(() => model.view().card.isError === true);
+    check('audio_failed: said, the call goes on with the iPhone',
+        [model.view().mode, model.view().card.subtitle, model.view().card.audio, lastConn().calls.audio_failed],
+        ['call', 'Couldn’t bring the call sound to this computer', 'phone', true]);
+    fake.say('raccroche');
+    fake.say('son-appel normal');
+    await until(() => model.view().mode === 'idle' && lastConn().classic_state === 'idle');
+    model.cardClosed();
+
+    // Accepted by the iPhone, and no call ever shows up.
+    fake.say('composition sans-appel');
+    events.length = 0;
+    model.cardOpened();
+    model.startDial({number: '+41790000002', name: 'Léo'});
+    model.dialPick(0);
+    await until(() => model.view().card.failed === true);
+    check('no_call: the call didn’t start, with a way to try again',
+        [events.filter(e => e.command === 'bt_call_progress').map(e => e.stage).pop(), model.view().card.subtitle],
+        ['no_call', 'The call didn’t start.']);
+    model.cardClosed();
+    fake.say('composition normale');
+    await until(() => lastConn().classic_state === 'idle');
+
+    // The same gestures against the engine of before.
+    fake.say('protocole-ancien');
+    await until(() => lastConn().link_mode === undefined && lastConn().classic_connected === true);
+    check('older engine again: no on-demand line, messages by the open session',
+        [model.view().card.notices, model.view().card.composeAction, model._linkModeState()], [[], true, '']);
+    model.cardOpened();
+    model.startDial({number: '+41790000002', name: 'Léo'});
+    model.dialPick(0);
+    await until(() => model.view().mode === 'call');
+    check('older engine: bt_call_dial places the call, as it always could', model.view().card.kind, 'call');
+    fake.say('raccroche');
+    await until(() => model.view().mode === 'idle');
+    model.onChange = null;
+
     // --- an engine from before the daily-life commands
     fake.say('quotidien-ancien');
     fake.say('relance');
@@ -429,8 +633,8 @@ async function main() {
     check('older engine: bt_audio and bt_presence are answered by a bare OK, nothing waits',
         [pending(client), model.view().card.phoneAudioHere], [0, null]);
     fake.say('batterie-faible');
-    await until(() => model.view().mode === 'notice');
-    check('older engine: the battery pill', model.view().pill.strong, 'iPhone 12 %');
+    await until(() => model.view().icon.state === 'battery');
+    check('older engine: the battery is said by the icon too', model.view().mode, 'idle');
 
     // --- engine dies: absent, then back
     states.length = 0;

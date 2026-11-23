@@ -74,6 +74,15 @@ namespace tether::bluetooth::ancs {
         // Whether a session being rebuilt retries every second. On by default.
         void set_fast_settle(bool enabled);
 
+        // Called, on BlueZ's thread, each time the phone has sent a packet on
+        // either source, so that the owner can run tick() without waiting for
+        // its next pass. It must not block. Set once, before the first tick().
+        void set_activity_listener(std::function<void()> listener);
+
+        // Whether BlueZ has confirmed the subscription of this session. It
+        // says nothing of the phone having allowed notifications: ready() does.
+        bool subscribed() const;
+
         // Makes the next tick discover, subscribe and probe without waiting for
         // their dates, and starts the close retries over. Same thread as tick().
         void retry_now();

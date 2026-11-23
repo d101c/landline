@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 
 namespace tether::bluetooth {
 
@@ -209,11 +210,39 @@ namespace tether::bluetooth {
                                      std::string address,
                                      std::unique_ptr<CallAudioCard> card)
         : sources_(std::move(sources)), address_(std::move(address)), card_(std::move(card)),
-          sleep_ms_([](int ms) { g_usleep(static_cast<gulong>(ms) * 1000); }) {}
+          sleep_ms_([](int ms) { g_usleep(static_cast<gulong>(ms) * 1000); }), now_ms_([] {
+              using namespace std::chrono;
+              return static_cast<int64_t>(
+                  duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+          }) {}
 
     void TelephonyClient::set_sleep(std::function<void(int)> sleep_ms) { sleep_ms_ = std::move(sleep_ms); }
 
     void TelephonyClient::set_handover_timing(const HandoverTiming& timing) { timing_ = timing; }
+
+    void TelephonyClient::set_follow_timing(const CallAudioFollowTiming& timing) {
+        std::lock_guard<std::mutex> lock(policy_mutex_);
+        follow_ = CallAudioFollowUp(timing);
+    }
+
+    void TelephonyClient::set_clock(std::function<int64_t()> now_ms) { now_ms_ = std::move(now_ms); }
+
+    void TelephonyClient::set_audio_event_handler(AudioEventFn handler) {
+        std::lock_guard<std::mutex> lock(policy_mutex_);
+        on_audio_event_ = std::move(handler);
+    }
+
+    void TelephonyClient::expect_call_audio(bool here) {
+        std::lock_guard<std::mutex> lock(policy_mutex_);
+        policy_.set_once(here);
+        follow_.expect(here);
+    }
+
+    void TelephonyClient::forget_call_audio() {
+        std::lock_guard<std::mutex> lock(policy_mutex_);
+        policy_.set_once(std::nullopt);
+        follow_.clear();
+    }
 
     std::optional<std::string> TelephonyClient::parked() const {
         std::lock_guard<std::mutex> lock(parked_mutex_);
@@ -265,6 +294,14 @@ namespace tether::bluetooth {
         // The card was left on `off` to keep the voice link closed; it goes
         // back on its profile when the call ends.
         j["audio_parked"] = parked().has_value();
+        // What was asked for the call in progress or about to be: "here",
+        // "phone", or null when nothing was. audio_route is where it is.
+        {
+            std::lock_guard<std::mutex> lock(policy_mutex_);
+            const auto wish = follow_.wish();
+            j["audio_wanted"] = wish ? nlohmann::json(*wish ? "here" : "phone") : nlohmann::json(nullptr);
+            j["audio_failed"] = follow_.failed();
+        }
         if (!source)
             j["reason"] = _("The iPhone has not connected Hands-Free to this computer.");
         else if (!snap.gateway.ready())
@@ -290,10 +327,40 @@ namespace tether::bluetooth {
         // is left, so the next one can be heard here if asked.
         if (snap.calls.empty() && parked())
             restore_parked_card();
+
+        // The voice link, journalled each time it moves: without these lines
+        // a call with no sound cannot be told from a call never offered one.
+        if (transport && snap.audio_state != audio_state_logged_) {
+            if (!audio_state_logged_.empty() || (!snap.audio_state.empty() && snap.audio_state != "idle"))
+                debug::log(INFO,
+                           "telephony: voice link {} (was {}; RejectSCO {})",
+                           snap.audio_state.empty() ? "gone" : snap.audio_state,
+                           audio_state_logged_.empty() ? "unknown" : audio_state_logged_,
+                           snap.reject_sco ? (*snap.reject_sco ? "true" : "false") : "unknown");
+            audio_state_logged_ = snap.audio_state;
+        } else if (!transport) {
+            audio_state_logged_.clear();
+        }
+
+        std::vector<std::string> states;
+        for (const Call& call : snap.calls)
+            states.push_back(call.state);
+
         std::optional<bool> reject;
+        CallAudioStep step = CallAudioStep::None;
+        std::optional<bool> wish;
+        AudioEventFn notify;
         {
             std::lock_guard<std::mutex> lock(policy_mutex_);
+            const bool had_wish = follow_.wish().has_value();
             reject = policy_.step(transport ? snap.gateway.path : std::string{}, snap.reject_sco, snap.calls.size());
+            // The wish goes with the call it was made for.
+            if (had_wish && !policy_.once())
+                follow_.clear();
+            if (transport)
+                step = follow_.step(any_call_carries_sound(states), snap.audio_state, now_ms_());
+            wish = policy_.once();
+            notify = on_audio_event_;
         }
         if (reject) {
             std::string err;
@@ -306,8 +373,57 @@ namespace tether::bluetooth {
                        err);
             if (written)
                 debug::log(INFO,
-                           "telephony: the sound of calls {}",
-                           *reject ? "stays on the iPhone" : "comes to this computer");
+                           "telephony: the sound of calls {}{}",
+                           *reject ? "stays on the iPhone" : "comes to this computer",
+                           wish ? " (chosen for this call)" : "");
+        }
+
+        switch (step) {
+        case CallAudioStep::None:
+            break;
+        case CallAudioStep::Activate: {
+            // A card left on `off` would take the voice link and play nothing.
+            std::optional<std::string> previous;
+            {
+                std::lock_guard<std::mutex> lock(parked_mutex_);
+                previous.swap(parked_);
+            }
+            if (card_ && !restore_voice_profile(*card_, address_, previous.value_or(std::string{})))
+                debug::log(INFO, "telephony: the iPhone's card is on no profile that carries the voice yet");
+            if (snap.reject_sco.value_or(false)) {
+                std::string err;
+                invoke(*source,
+                       snap.gateway.path,
+                       IFACE_PROPS,
+                       "Set",
+                       g_variant_new("(ssv)", transport, "RejectSCO", g_variant_new_boolean(FALSE)),
+                       err);
+            }
+            std::string err;
+            debug::log(INFO,
+                       "telephony: the call is up and its sound is not here (voice link {}); asking the iPhone for it",
+                       snap.audio_state.empty() ? "absent" : snap.audio_state);
+            if (!invoke(*source, snap.gateway.path, transport, "Activate", nullptr, err))
+                debug::log(INFO, "telephony: the iPhone did not open the voice link: {}", err);
+            break;
+        }
+        case CallAudioStep::Arrived:
+            debug::log(INFO, "telephony: the sound of the call is on this computer");
+            if (notify)
+                notify("audio_here", {});
+            break;
+        case CallAudioStep::Failed: {
+            // "pending": the iPhone opened the voice link and nothing here
+            // plays it. Anything else: the iPhone never offered it.
+            const std::string reason = snap.audio_state == "pending" ? "voice_link_unused" : "no_voice_link";
+            debug::log(WARN,
+                       "telephony: the sound of the call did not come to this computer ({}; voice link {})",
+                       reason,
+                       snap.audio_state.empty() ? "absent" : snap.audio_state);
+            if (notify)
+                notify("audio_failed", reason);
+            break;
+        }
         }
         return to_json(snap.calls);
     }
@@ -366,6 +482,10 @@ namespace tether::bluetooth {
             err = _("This computer is not carrying the call audio; it plays on the iPhone.");
             return false;
         }
+        // Kept for the call: a hands-free link that appears between this
+        // and the call is not put back on the standing choice, and a sound
+        // wanted here is followed until it is.
+        expect_call_audio(!to_phone);
         if (!invoke(source,
                     snap.gateway.path,
                     IFACE_PROPS,
@@ -377,8 +497,10 @@ namespace tether::bluetooth {
             // RejectSCO only refuses the next voice link. One already up is
             // closed by taking the phone's card off its profile for a moment.
             const auto voice_link_up = [&source] { return source.snapshot().audio_state == "active"; };
-            if (!voice_link_up())
+            if (!voice_link_up()) {
+                debug::log(INFO, "telephony: the voice link of this call will be refused; its sound stays on the iPhone");
                 return true;
+            }
             if (!card_) {
                 err = _("The call audio is still on this computer.");
                 return false;
@@ -415,6 +537,19 @@ namespace tether::bluetooth {
                 debug::log(WARN, "telephony: the iPhone's card could not be put back on its profile");
         }
 
+        // The voice link is the iPhone's to open, and it refuses to (ERROR to
+        // AT+BCC) while it has no call: asked for only under a call that
+        // carries sound. Before that the link is simply accepted when the
+        // iPhone offers it, and poll_calls() asks if it has not come.
+        std::vector<std::string> states;
+        for (const Call& call : snap.calls)
+            states.push_back(call.state);
+        if (!any_call_carries_sound(states)) {
+            debug::log(INFO, "telephony: the voice link of the next call will be accepted here");
+            return true;
+        }
+        if (snap.audio_state == "active")
+            return true;
         std::string activate_err;
         if (!invoke(source, snap.gateway.path, transport, "Activate", nullptr, activate_err))
             debug::log(INFO, "telephony: no call audio to take yet: {}", activate_err);
@@ -430,6 +565,12 @@ namespace tether::bluetooth {
         const auto [source, snap] = pick();
         if (!source) {
             err = _("The iPhone has not connected Hands-Free to this computer.");
+            return false;
+        }
+        // The object can be there before the service level connection is:
+        // a Dial sent then is lost, or answered with an error that says nothing.
+        if (!snap.gateway.ready()) {
+            err = _("The iPhone's Hands-Free service is still connecting.");
             return false;
         }
         const std::string argument = dial_argument(source->ids(), dialable);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tether/bluetooth/bond_health.hpp"
+#include "tether/bluetooth/classic_demand.hpp"
 #include "tether/bluetooth/le_first.hpp"
 
 #include <cstdint>
@@ -61,6 +62,15 @@ namespace tether::bluetooth {
         return !env_override || std::string_view(env_override) != "0";
     }
 
+    // The one cut made for hands-free is never made this soon after a call
+    // command (answer, hang up, dial): the link it would drop is the one the
+    // command has just been sent over.
+    inline constexpr int HFP_CYCLE_AFTER_CALL_COMMAND_SECONDS = 30;
+
+    // In the lean link mode, a connect asked for by a lease and refused is
+    // made again this long after, for as long as the opening lasts.
+    inline constexpr int DEMAND_CONNECT_RETRY_SECONDS = 3;
+
     // How long an LE link may read connected while the phone offers no ANCS
     // service before the solicitation goes back on air over it. Long enough for
     // GATT discovery on a freshly opened link, which runs to about a minute.
@@ -100,6 +110,10 @@ namespace tether::bluetooth {
         // May answer later: Requested then only means the call was issued, and a
         // refusal is handed to a later call. See classic_connect_outstanding().
         virtual ConnectResult connect_classic(std::string& err) = 0;
+        // The same link, asked for by a lease in the lean link mode: the LE
+        // link is up, so Bearer.BREDR1.Connect alone, with no fallback to
+        // Device1.Connect and no write of PreferredBearer.
+        virtual ConnectResult connect_classic_on_demand(std::string& err) { return connect_classic(err); }
         // Whether a BR/EDR connect is still waiting for BlueZ's answer. Always
         // false for an implementation that answers within connect_classic().
         virtual bool classic_connect_outstanding() const { return false; }
@@ -164,6 +178,10 @@ namespace tether::bluetooth {
         // that the phone opens the LE link first (le_first.hpp). No MAP or
         // PBAP session is to be opened meanwhile: obexd would bring BR/EDR up.
         bool holding_for_le = false;
+        // The LE link has just come up on its own and BR/EDR is left alone a
+        // few seconds more, sessions included: paging the phone now is what
+        // the young link was seen to die of.
+        bool le_settling = false;
 
         bool operator==(const BearerStatus&) const = default;
     };
@@ -188,7 +206,7 @@ namespace tether::bluetooth {
     // Whether MAP and PBAP sessions are opened. `session_open` is one that
     // already is: it is proof the phone serves this bond, whatever was counted.
     inline bool should_open_profiles(const BearerStatus& bearer, bool session_open) {
-        if (bearer.holding_for_le && !session_open)
+        if ((bearer.holding_for_le || bearer.le_settling) && !session_open)
             return false;
         return !bearer.standing_back || session_open;
     }
@@ -224,6 +242,10 @@ namespace tether::bluetooth {
     // Order is important: BR/EDR first, a settling interval, then LE
     class BearerSupervisor {
     public:
+        // #62: connect the LE link from here, if it is down and no connect
+        // is in flight. False when nothing was tried or the attempt failed.
+        bool dial_le();
+
         BearerSupervisor(BearerOps& ops, bool ancs_enabled);
 
         // Drive once per BEARER_POLL_SECONDS with a monotonic clock. Returns true
@@ -252,16 +274,39 @@ namespace tether::bluetooth {
         // back first, and both together.
         int le_recycles() const { return le_recycles_; }
         int planned_drops() const { return hfp_cycles_ + le_recycles_; }
+        // The lean link mode: BR/EDR is no longer kept up here. No hold, no
+        // recycle, no hands-free cycle, no backoff, no write of
+        // PreferredBearer; a connect is only made when set_demand() asks.
+        // Off, the default, is the supervision as it always was.
+        void set_link_mode(bool on_demand);
+        bool on_demand() const { return on_demand_; }
+        // What ClassicDemand decided, carried out now: OpenVoice connects
+        // (or asks for hands-free over the link in place), RecycleForVoice
+        // and Close drop BR/EDR alone. Ignored in the full mode.
+        void set_demand(DemandAction action, int64_t now);
+        // A call command was sent at `now`: see HFP_CYCLE_AFTER_CALL_COMMAND_SECONDS.
+        void note_call_command(int64_t now) { last_call_command_at_ = now; }
         // The "LE first" measures. Off until set: see le_first.hpp.
         void set_le_first(const LeFirstConfig& config) { le_first_ = config; }
         // bluetoothd was restarted: what was counted against the old one
         // (a recycle spent, a hold that ran out) says nothing about this one.
         void bluez_restarted();
+        // The computer came back from sleep. Every link was cut by the
+        // suspend: the hold starts over, a recycle is allowed again, and the
+        // advert is wanted fast.
+        void resumed(int64_t now);
+        // When the advert was last wanted fast again for a reason the caller
+        // cannot see from the links alone: every link just went down, a
+        // recycle was done, the computer woke up. Negative for never.
+        int64_t advert_rearmed_at() const { return advert_rearmed_at_; }
         const BearerStatus& status() const { return status_; }
 
     private:
         // The links, as tick() has always driven them.
         void supervise(int64_t now, bool obex_up);
+        // What is left of it in the lean link mode.
+        void supervise_on_demand(int64_t now);
+        void connect_on_demand(int64_t now);
         // Reads the bond, counts what the link reported since the last tick,
         // and decides whether this tick stands back.
         void assess(int64_t now);
@@ -306,6 +351,15 @@ namespace tether::bluetooth {
         int le_recycles_ = 0;
         bool unpin_logged_ = false;
         int64_t next_classic_attempt_ = 0;
+        int64_t advert_rearmed_at_ = -1;
+        int64_t le_up_since_ = -1;
+
+        int64_t last_call_command_at_ = -1;
+        bool on_demand_ = false;
+        // A voice lease wants the link: retried within the opening.
+        bool demand_voice_ = false;
+        int64_t next_demand_attempt_ = 0;
+        bool demand_unpin_logged_ = false;
     };
 
 } // namespace tether::bluetooth

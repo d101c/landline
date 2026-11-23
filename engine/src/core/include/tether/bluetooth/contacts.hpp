@@ -58,6 +58,15 @@ namespace tether::bluetooth {
     std::string serialize_contacts(const ContactStore& store);
     ContactStore deserialize_contacts(const std::string& text);
 
+    // The phone's recent calls, kept like the address book: same directory,
+    // same sealing, gone with retention "none".
+    std::string call_history_path(Retention mode);
+    bool migrate_call_history(Retention from, Retention to);
+    bool save_call_history(const std::vector<VCard>& history);
+    std::vector<VCard> load_call_history();
+    std::string serialize_call_history(const std::vector<VCard>& history);
+    std::vector<VCard> deserialize_call_history(const std::string& text);
+
     // Set by the daemon; command handlers read it to label threads.
     ContactStore& contact_store();
 

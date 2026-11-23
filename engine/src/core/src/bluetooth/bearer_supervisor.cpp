@@ -109,7 +109,21 @@ namespace tether::bluetooth {
 
     BearerSupervisor::BearerSupervisor(BearerOps& ops, bool ancs_enabled) : ops_(ops), ancs_enabled_(ancs_enabled) {}
 
-    void BearerSupervisor::set_ancs_enabled(bool enabled) { ancs_enabled_ = enabled; }
+    bool BearerSupervisor::dial_le() {
+        if (status_.le_connected || ops_.le_connect_outstanding())
+            return false;
+        std::string err;
+        const ConnectResult result = classify(ops_.connect_le(err), err);
+        if (result == ConnectResult::Failed) {
+            debug::log(WARN, "bluetooth: LE connect from here failed ({})", err);
+            return false;
+        }
+        debug::log(INFO, "bluetooth: the iPhone is here over the classic link; connecting the LE link from here");
+        status_.le_dialling = ops_.le_connect_outstanding();
+        return true;
+    }
+
+        void BearerSupervisor::set_ancs_enabled(bool enabled) { ancs_enabled_ = enabled; }
 
     void BearerSupervisor::set_calls_enabled(bool enabled) { calls_enabled_ = enabled; }
 
@@ -128,6 +142,111 @@ namespace tether::bluetooth {
         if (ec != std::errc() || parsed != end || value < HFP_ABSENT_SECONDS_MIN || value > HFP_ABSENT_SECONDS_MAX)
             return fallback;
         return value;
+    }
+
+    void BearerSupervisor::set_link_mode(bool on_demand) {
+        if (on_demand == on_demand_)
+            return;
+        on_demand_ = on_demand;
+        demand_voice_ = false;
+        next_demand_attempt_ = 0;
+        // Either way the other mode's bookkeeping starts from nothing.
+        reset();
+        telephony_absent_since_ = -1;
+        hfp_cycle_spent_ = false;
+        hfp_request_spent_ = false;
+        status_.holding_for_le = false;
+        status_.le_settling = false;
+    }
+
+    void BearerSupervisor::connect_on_demand(int64_t now) {
+        if (status_.classic_connected || ops_.classic_connect_outstanding() || now < next_demand_attempt_)
+            return;
+        // What an earlier attempt reported is not this one's answer.
+        ops_.forget_classic_refusal();
+        std::string err;
+        const ConnectResult result = classify(ops_.connect_classic_on_demand(err), err);
+        next_demand_attempt_ = now + DEMAND_CONNECT_RETRY_SECONDS;
+        if (result == ConnectResult::Failed)
+            debug::log(WARN, "bluetooth: BR/EDR connect on demand failed ({})", err);
+        else if (result == ConnectResult::Busy)
+            debug::log(INFO, "bluetooth: BR/EDR connect on demand: BlueZ is already connecting");
+    }
+
+    void BearerSupervisor::set_demand(DemandAction action, int64_t now) {
+        if (!on_demand_)
+            return;
+        switch (action) {
+        case DemandAction::OpenVoice:
+            demand_voice_ = true;
+            next_demand_attempt_ = 0;
+            if (!ops_.classic_connected()) {
+                connect_on_demand(now);
+            } else if (calls_enabled_ && !ops_.telephony_present()) {
+                // A link obexd or the phone brought up carries no hands-free
+                // because nobody asked BlueZ for it.
+                if (ops_.request_hands_free())
+                    debug::log(INFO, "bluetooth: asking BlueZ for hands-free over the BR/EDR link in place");
+            }
+            break;
+        case DemandAction::RecycleForVoice:
+        case DemandAction::Close: {
+            demand_voice_ = false;
+            if (!ops_.classic_connected())
+                break;
+            std::string err;
+            if (ops_.disconnect_classic(err))
+                debug::log(INFO,
+                           "bluetooth: BR/EDR link closed on purpose ({}); the LE link stays",
+                           action == DemandAction::Close ? "nothing needs it" : "to bring hands-free");
+            else
+                debug::log(WARN, "bluetooth: could not close the BR/EDR link ({})", err);
+            break;
+        }
+        case DemandAction::OpenData:
+        case DemandAction::None:
+            break;
+        }
+    }
+
+    // The lean link mode. BR/EDR is a resource ClassicDemand opens and
+    // closes; nothing here keeps it up, waits for it or cuts it.
+    void BearerSupervisor::supervise_on_demand(int64_t now) {
+        status_.holding_for_le = false;
+        status_.le_settling = false;
+        telephony_absent_since_ = -1;
+        if (status_.classic_connected) {
+            if (classic_connected_since_ < 0)
+                classic_connected_since_ = now;
+            classic_failures_ = 0;
+            demand_voice_ = false;
+        } else {
+            classic_connected_since_ = -1;
+            if (demand_voice_)
+                connect_on_demand(now);
+        }
+        status_.classic_backoff = 0;
+        status_.le_dialling = ops_.le_connect_outstanding();
+
+        // The full mode writes PreferredBearer and this one never does, but a
+        // bond it left preferring BR/EDR turns away the LE link everything
+        // here rests on. Handed back once, with no connect in flight.
+        if (!status_.le_connected && !ops_.classic_connect_outstanding() && !ops_.le_connect_outstanding() &&
+            ops_.preferred_bearer() == "bredr") {
+            ops_.set_preferred_bearer("le");
+            if (!demand_unpin_logged_)
+                debug::log(INFO, "bluetooth: bond was left preferring BR/EDR; preference handed back to LE");
+            demand_unpin_logged_ = true;
+        }
+
+        if (status_.le_connected) {
+            status_.reason = _("Messages and calls connect when needed.");
+            return;
+        }
+        const bool le_silent = le_down_since_ >= 0 && now - le_down_since_ >= LE_SILENT_SECONDS;
+        status_.reason = le_silent && !solicited_since_le_down_ ? _(LE_NEVER_SOLICITED_ADVICE)
+                         : le_silent                            ? _(LE_PHONE_SILENT_ADVICE)
+                                     : _("Waiting for the iPhone to open the link that carries notifications...");
     }
 
     void BearerSupervisor::reset() {
@@ -152,6 +271,19 @@ namespace tether::bluetooth {
         le_recycle_spent_ = false;
         unpin_logged_ = false;
         status_.holding_for_le = false;
+    }
+
+    void BearerSupervisor::resumed(int64_t now) {
+        reset();
+        // The clock this runs on stood still during the sleep, so nothing
+        // dated before it is stale by the clock; it is stale by what happened.
+        all_down_since_ = -1;
+        hold_expired_at_ = -1;
+        last_recycle_at_ = -1;
+        le_recycle_spent_ = false;
+        unpin_logged_ = false;
+        status_.holding_for_le = false;
+        advert_rearmed_at_ = now;
     }
 
     LeExpectation BearerSupervisor::le_expectation() const {
@@ -263,6 +395,7 @@ namespace tether::bluetooth {
 
     void BearerSupervisor::supervise(int64_t now, bool obex_up) {
         const bool le_was_connected = status_.le_connected;
+        const bool classic_was_connected = status_.classic_connected;
         status_.device_present = ops_.device_present();
         status_.device_paired = status_.device_present && ops_.device_paired();
         if (!status_.device_present || !status_.device_paired) {
@@ -273,6 +406,8 @@ namespace tether::bluetooth {
             classic_connected_since_ = -1;
             status_.reason = status_.device_present ? "iPhone is not paired." : "iPhone not known to BlueZ.";
             status_.holding_for_le = false;
+            status_.le_settling = false;
+            le_up_since_ = -1;
             all_down_since_ = -1;
             advert_on_air_since_ = -1;
             // No bond, so nothing left to be broken: a pairing made after this
@@ -287,14 +422,23 @@ namespace tether::bluetooth {
         }
 
         status_.classic_connected = ops_.classic_connected();
+        // A session still on the books of a link that has just dropped.
+        if (le_first_.strict_hold && session_outlived_link(classic_was_connected, status_.classic_connected))
+            obex_up = false;
         status_.le_available = ops_.le_bearer_available();
         status_.le_connected = status_.le_available && ops_.le_connected();
         if (status_.le_connected) {
             le_down_since_ = -1;
             solicited_since_le_down_ = false;
-        } else if (le_down_since_ < 0) {
-            le_down_since_ = now;
+            if (le_up_since_ < 0)
+                le_up_since_ = now;
+        } else {
+            le_up_since_ = -1;
+            if (le_down_since_ < 0)
+                le_down_since_ = now;
         }
+        const bool was_settling = status_.le_settling;
+        status_.le_settling = false;
         const bool on_air = !status_.le_connected && ops_.solicitation_on_air();
         if (on_air)
             solicited_since_le_down_ = true;
@@ -308,15 +452,17 @@ namespace tether::bluetooth {
         const int64_t down_since = all_down_since_;
         if (status_.classic_connected || status_.le_connected || obex_up)
             all_down_since_ = -1;
-        else if (all_down_since_ < 0)
+        else if (all_down_since_ < 0) {
             all_down_since_ = now;
+            advert_rearmed_at_ = now;
+        }
         if (status_.le_connected) {
             le_recycle_spent_ = false;
             hold_expired_at_ = -1;
             unpin_logged_ = false;
             if (was_holding && down_since >= 0)
                 debug::log(INFO,
-                           "bluetooth: the LE link came first, {}s after every link was down; BR/EDR follows",
+                           "bluetooth: the LE link came first, {}s after every link was down",
                            now - down_since);
         }
         status_.holding_for_le = false;
@@ -349,6 +495,11 @@ namespace tether::bluetooth {
             else if (classic_connected_since_ < 0)
                 classic_connected_since_ = now;
             status_.le_dialling = ops_.le_connect_outstanding();
+            return;
+        }
+
+        if (on_demand_) {
+            supervise_on_demand(now);
             return;
         }
 
@@ -387,6 +538,24 @@ namespace tether::bluetooth {
             return;
         }
 
+        // The LE link came up with nothing else: it is given a few seconds
+        // on the radio before the phone is paged for BR/EDR.
+        {
+            SettleFacts settle;
+            settle.le = le_expectation();
+            settle.le_connected = status_.le_connected;
+            settle.classic_connected = status_.classic_connected;
+            settle.obex_up = obex_up;
+            settle.now = now;
+            settle.le_up_since = le_up_since_;
+            status_.le_settling = settle_le_before_classic(le_first_, settle);
+            if (status_.le_settling && !was_settling)
+                debug::log(INFO,
+                           "bluetooth: LE link up with nothing else; leaving BR/EDR alone {}s more so that it "
+                           "settles",
+                           le_first_.settle_seconds);
+        }
+
         if (status_.classic_connected) {
             if (classic_connected_since_ < 0)
                 classic_connected_since_ = now;
@@ -407,6 +576,7 @@ namespace tether::bluetooth {
             // A connect still waiting for its answer is neither retried nor
             // counted: the answer, not the clock, decides what happens next.
             if (ops_.classic_connect_outstanding()) {
+            } else if (status_.le_settling) {
             } else if (now >= next_classic_attempt_) {
                 std::string err;
                 switch (classify(ops_.connect_classic(err), err)) {
@@ -493,7 +663,9 @@ namespace tether::bluetooth {
                                "the live link",
                                now - telephony_absent_since_);
             }
-            if (!hfp_cycle_spent_ && now - telephony_absent_since_ >= hfp_absent_seconds_) {
+            const bool call_command_recent = last_call_command_at_ >= 0 &&
+                                             now - last_call_command_at_ < HFP_CYCLE_AFTER_CALL_COMMAND_SECONDS;
+            if (!hfp_cycle_spent_ && !call_command_recent && now - telephony_absent_since_ >= hfp_absent_seconds_) {
                 hfp_cycle_spent_ = true;
                 ++hfp_cycles_;
                 // Said out loud: without this line the drop that follows reads
@@ -558,6 +730,7 @@ namespace tether::bluetooth {
                 if (recycle_for_le(le_first_, recycle) == RecycleVerdict::Recycle) {
                     le_recycle_spent_ = true;
                     last_recycle_at_ = now;
+                    advert_rearmed_at_ = now;
                     ++le_recycles_;
                     debug::log(INFO,
                                "bluetooth: BR/EDR up for {}s with the solicitation on air and no LE link; dropping "

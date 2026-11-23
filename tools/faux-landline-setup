@@ -5,14 +5,18 @@ toucher au système. L'état vit dans le fichier JSON désigné par
 FAUX_SETUP_STATE (défaut : rien n'est réglé).
 
     faux-landline-setup status    écrit {"experimental":…,"device_class":…,"ertm":…,"ready":…,
-                                     "persistent":{…},"required":{…},"bluez_version":…}
+                                     "persistent":{…},"required":{…},"bluez_version":…,
+                                     "le_params":…}
     faux-landline-setup version   écrit « faux »
     faux-landline-setup apply     règle ce qui est exigé
     faux-landline-setup revert    remet tout à zéro
 
 Fichier d'état : {"experimental": bool, "ertm": bool, "device_class": bool,
 "persistent": bool ou {"experimental": bool, "ertm": bool},
-"required_experimental": bool}. La classe d'appareil n'est publiée que pour
+"required_experimental": bool, "le_params": bool, "le_params_source": bool}.
+« le_params » (l'auxiliaire de la tolérance du lien LE) est souhaité, jamais
+exigé : « apply » le pose si « le_params_source » est vrai (défaut).
+La classe d'appareil n'est publiée que pour
 information : « ready » n'en dépend pas, « apply » ne la pose pas.
 """
 import json
@@ -34,6 +38,8 @@ def load():
     kept = state.get("persistent", False)
     out["persistent"] = {k: bool(kept.get(k, False)) if isinstance(kept, dict) else bool(kept) for k in KEYS}
     out["required_experimental"] = bool(state.get("required_experimental", True))
+    out["le_params"] = bool(state.get("le_params", False))
+    out["le_params_source"] = bool(state.get("le_params_source", True))
     return out
 
 
@@ -54,6 +60,7 @@ if action == "status":
         "persistent": {**state["persistent"], "device_class": False},
         "required": {"experimental": need, "ertm": True},
         "bluez_version": "5.87" if need else "5.88",
+        "le_params": state["le_params"],
     }))
 elif action == "version":
     print("faux")
@@ -66,9 +73,12 @@ elif action == "apply":
         "device_class": state["device_class"],
         "persistent": {"experimental": state["persistent"]["experimental"] or need, "ertm": True},
         "required_experimental": need,
+        "le_params": state["le_params"] or state["le_params_source"],
+        "le_params_source": state["le_params_source"],
     })
 elif action == "revert":
     state = load()
-    save({"required_experimental": state["required_experimental"]})
+    save({"required_experimental": state["required_experimental"],
+          "le_params_source": state["le_params_source"]})
 else:
     sys.exit(64)

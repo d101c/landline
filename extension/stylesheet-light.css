@@ -2,6 +2,7 @@
    assumed a dark background turned around. */
 @import url("stylesheet.css");
 
+.landline-section,
 .landline-sub {
   color: rgba(0, 0, 0, 0.62);
 }
@@ -14,6 +15,15 @@
   background-color: #f2b45c;
 }
 
+/* A white icon (Calendar, Teams…) keeps its edge on a light menu. */
+.landline-menu .landline-app-icon {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.landline-menu .landline-app-icon-plain {
+  border-width: 0;
+}
+
 .landline-top-glyph {
   color: rgba(0, 0, 0, 0.4);
 }
@@ -22,12 +32,22 @@
   color: #b3690a;
 }
 
-.landline-top-state {
-  color: rgba(0, 0, 0, 0.65);
+.landline-battery-label.landline-battery-low,
+.landline-battery-gauge.landline-battery-low {
+  color: #c0392b;
 }
 
-.landline-battery-label.landline-battery-low {
-  color: #c0392b;
+.landline-battery-label.landline-battery-stale,
+.landline-battery-gauge.landline-battery-stale {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.landline-paused-title {
+  color: #b3690a;
+}
+
+.landline-result-icon {
+  color: rgba(0, 0, 0, 0.55);
 }
 
 .landline-switch-row {
@@ -51,19 +71,7 @@
   color: #b3690a;
 }
 
-.landline-dot-on {
-  background-color: #e09a35;
-}
-
-.landline-dot-off {
-  border-color: #6f6f6f;
-}
-
-.landline-dot-warn {
-  background-color: #3d3d3d;
-}
-
-#panel .panel-button.landline-dim {
+.landline-dim .landline-pill-strong {
   color: #6f6f6f;
 }
 

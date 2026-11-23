@@ -238,3 +238,69 @@ TEST(CallAudioPolicy, AStackWithoutTheSwitchIsLeftAlone) {
     for (int tick = 0; tick < 5; ++tick)
         EXPECT_FALSE(policy.step(GATEWAY, std::nullopt, 0));
 }
+
+// --- The Audio lease: in the lean link mode the phone's sound wanted here is
+// --- what keeps the classic link open.
+
+TEST(PhoneAudioLease, TheStandingChoiceHoldsAndReturnsTheLease) {
+    PhoneAudioFollower follower;
+    std::vector<bool> told;
+    follower.set_lease_handler([&told](bool here) {
+        told.push_back(here);
+        return true;
+    });
+    follower.configure("02:00:00:00:00:04", PhoneAudio::Here);
+    EXPECT_EQ(told, std::vector<bool>{true});
+    EXPECT_TRUE(follower.wants_here());
+    // Said once, not on every configure.
+    follower.configure("02:00:00:00:00:04", PhoneAudio::Here);
+    EXPECT_EQ(told.size(), 1u);
+    follower.configure("02:00:00:00:00:04", PhoneAudio::Phone);
+    EXPECT_EQ(told, (std::vector<bool>{true, false}));
+    EXPECT_FALSE(follower.wants_here());
+}
+
+TEST(PhoneAudioLease, NoPhoneSelectedIsNoLease) {
+    PhoneAudioFollower follower;
+    std::vector<bool> told;
+    follower.set_lease_handler([&told](bool here) {
+        told.push_back(here);
+        return true;
+    });
+    follower.configure("", PhoneAudio::Here);
+    ASSERT_FALSE(told.empty());
+    EXPECT_FALSE(told.back());
+    EXPECT_FALSE(follower.wants_here());
+}
+
+TEST(PhoneAudioLease, AOneOffHereWithNoLinkOpensOneInTheLeanMode) {
+    PhoneAudioFollower follower;
+    std::vector<bool> told;
+    follower.set_lease_handler([&told](bool here) {
+        told.push_back(here);
+        return true;
+    });
+    follower.configure("02:00:00:00:00:04", PhoneAudio::Phone);
+    EXPECT_TRUE(follower.apply_now(nullptr, true));
+    EXPECT_EQ(told, (std::vector<bool>{false, true}));
+    EXPECT_TRUE(follower.wants_here());
+}
+
+TEST(PhoneAudioLease, AOneOffHereWithNoLinkIsRefusedWhenNoLinkWillBeOpened) {
+    PhoneAudioFollower follower;
+    // The full link mode: the handler opens nothing.
+    follower.set_lease_handler([](bool) { return false; });
+    follower.configure("02:00:00:00:00:04", PhoneAudio::Phone);
+    EXPECT_FALSE(follower.apply_now(nullptr, true));
+    EXPECT_FALSE(follower.wants_here());
+}
+
+TEST(PhoneAudioLease, WithoutAHandlerNothingChanges) {
+    PhoneAudioFollower follower;
+    follower.configure("02:00:00:00:00:04", PhoneAudio::Phone);
+    EXPECT_FALSE(follower.apply_now(nullptr, true));
+    EXPECT_FALSE(follower.apply_now(nullptr));
+    // A one-off "phone" with no link has nothing to move either.
+    follower.set_lease_handler([](bool) { return true; });
+    EXPECT_FALSE(follower.apply_now(nullptr, false));
+}

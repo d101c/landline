@@ -4,7 +4,7 @@ Ce que le moteur exige du système, comment `system/landline-setup` le met en pl
 comment installer moteur et extension dans le dossier de l'utilisateur. Complète
 `moteur-inventaire.md` (section 5) et `moteur-api.md` (section 11).
 
-Cette version de l'assistant (3) n'a pas été appliquée sur la machine : tout a été écrit et essayé à
+Cette version de l'assistant (4) n'a pas été appliquée sur la machine : tout a été écrit et essayé à
 blanc (racine factice, HOME factice, `--dry-run`) ; seul `status` y a été lu. La procédure d'essai réelle est en fin de document.
 
 ## 1. Les deux réglages, en clair
@@ -24,6 +24,16 @@ Le moteur ne règle rien lui-même : il constate et le signale dans `capability.
 les mêmes constats sans le démon. Écart connu : le moteur exige encore le mode expérimental quelle que
 soit la version de BlueZ (il juge sur la présence de `Bearer.LE1`, ce qui reste juste).
 
+### Le réglage souhaité : la tolérance du lien LE
+
+| Réglage | Ce que c'est | Sans lui | Tient tout seul ? |
+|---|---|---|---|
+| Tolérance du lien LE (`le_params`) | l'auxiliaire `landline-le-params`, à root, avec le seul droit `cap_net_raw` : il permet au moteur de demander à l'iPhone une supervision de 6 s sur le lien LE (commande HCI *LE Connection Update*, `moteur-reconnexion.md` §15) | tout marche, mais le lien LE garde les 720 ms de l'iPhone : il tombe au moindre trou radio (5 coupures en 5 min avant l'essai du 17 novembre, aucune en près d'une heure après) | oui : un fichier et sa capacité ; à reposer si le fichier est remplacé |
+
+**Souhaité, jamais exigé** : son absence ne fait pas passer `ready` à faux et n'affiche pas « Permission
+needed ». L'extension le propose dans le même passage de mot de passe que les autres réglages, ou seul
+(« Keep the link steady »), et continue s'il est refusé.
+
 ## 2. L'assistant `landline-setup`
 
 Un seul fichier bash, sans dépendance hors BlueZ et systemd.
@@ -33,7 +43,7 @@ Un seul fichier bash, sans dépendance hors BlueZ et systemd.
 | `status` | aucun | une ligne JSON sur la sortie standard, code 0 |
 | `apply [--dry-run]` | administrateur | rend les réglages exigés effectifs maintenant et persistants ; retire ce qu'une version précédente avait posé pour la classe d'appareil |
 | `revert [--dry-run]` | administrateur | retire tout ce qu'`apply` a créé |
-| `version` | aucun | numéro de version de l'assistant (3 depuis le nom « landline » ; 2 quand la classe n'a plus été posée) |
+| `version` | aucun | numéro de version de l'assistant (4 avec la tolérance du lien LE ; 3 depuis le nom « landline » ; 2 quand la classe n'a plus été posée) |
 
 Codes de sortie : 0 réussi ; 1 droits manquants ou erreur ; 2 fichiers écrits mais une étape
 d'activation a échoué (ou `revert` a laissé un fichier qu'il ne reconnaît pas) ; 64 mauvais usage.
@@ -46,7 +56,7 @@ son contenu), chaque lien, chaque commande. Rien n'est modifié.
 ```json
 {"experimental":true,"device_class":false,"ertm":true,"ready":true,
  "persistent":{"experimental":true,"device_class":true,"ertm":true},
- "required":{"experimental":true,"ertm":true},"bluez_version":"5.87"}
+ "required":{"experimental":true,"ertm":true},"bluez_version":"5.87","le_params":false}
 ```
 
 Le premier niveau est l'état **courant** ; `persistent` dit si chaque réglage tiendra au prochain
@@ -65,7 +75,11 @@ classe encore installée (`persistent.device_class`), qu'un prochain `apply` ou 
   jamais supposée ; illisible, le mode expérimental reste exigé. `bluez_version` la publie (`""` si
   illisible). Sur cette machine : 5.87, donc exigé.
 - `required.ertm` : toujours vrai.
-- `ready` = ERTM actif **et** (mode expérimental actif **ou** non requis). La classe n'y entre plus.
+- `ready` = ERTM actif **et** (mode expérimental actif **ou** non requis). La classe n'y entre plus, la
+  tolérance du lien LE non plus.
+- `le_params` : l'auxiliaire `/usr/local/libexec/landline/landline-le-params` est un fichier ordinaire
+  exécutable, à root, que ni le groupe ni les autres ne peuvent écrire, et `getcap` y lit `cap_net_raw`
+  effectif et permis. Faux sinon ; c'est ce qui fait proposer le réglage par l'extension.
 
 L'extension propose l'assistant quand, pour un réglage **exigé**, la valeur courante ou la valeur
 persistante est fausse. Une machine où l'ERTM est actif et persistant et où le mode expérimental n'est
@@ -84,6 +98,53 @@ restent sur le système de l'utilisateur). Le préfixe vient d'une seule variabl
 | `/etc/systemd/system/bluetooth.service.d/landline-experimental.conf` | **seulement si le mode expérimental est requis et que rien ne l'active déjà.** Reprend la ligne `ExecStart` existante de `bluetooth.service` (chemin de `bluetoothd` et options compris, jamais en dur) et ajoute `--experimental` |
 | `/etc/systemd/system/landline-ertm.service` | unité `oneshot` ordonnée après `sysfsutils.service` : charge le module `bluetooth` si besoin et écrit `N` |
 | `/etc/systemd/system/multi-user.target.wants/landline-ertm.service` | lien d'activation |
+
+| `/usr/local/libexec/landline/landline-le-params` | **si sa source est trouvée** : l'auxiliaire de la tolérance du lien LE, à root, mode 0755, avec la capacité de fichier `cap_net_raw+ep` |
+| `/usr/local/libexec/landline/landline-le-params.managed` | témoin (un binaire ne peut pas porter l'en-tête) : `revert` ne retire l'auxiliaire que s'il le trouve |
+
+**L'auxiliaire, pas à pas.** Sa source est cherchée **uniquement à côté de l'assistant lancé**, là
+où elle a la même provenance que lui : `landline-le-params` dans le même dossier (la copie de root
+`/usr/local/libexec/landline/`, ou la copie vérifiée du script de l'extension), `engine/landline-le-params`
+(ce que pose `scripts/install-local.sh` à côté de `~/.local/lib/landline/landline-setup`), puis, quand
+l'assistant est dans un dossier `system/`, `../landline-le-params` (le moteur installé en un clic :
+`~/.local/lib/landline/engine/system/landline-setup` lancé par `sudo`). **Jamais** dans le dossier
+personnel de l'utilisateur qui a demandé les droits (`PKEXEC_UID`, `SUDO_UID`) : la copie de root lancée
+par `pkexec` donnerait sinon `cap_net_raw` à un fichier que cet utilisateur peut changer à volonté
+(issue #25). Une source qui n'est pas un fichier ordinaire (lien refusé), pas un ELF, ou de plus
+de 8 Mo est ignorée. Puis : copie à root sous un nom provisoire (`.landline-le-params.new`), comparaison
+avec la source, `setcap cap_net_raw+ep` **sur la copie provisoire**, mise en place d'un coup (`mv`),
+relecture par `getcap`. Source introuvable, `setcap` absent (paquet `libcap2-bin`) ou en échec : `apply`
+le dit (`remarque :` sur la sortie d'erreur), ne laisse rien, et **réussit quand même** (code 0, pas 2).
+Déjà en place et identique : rien n'est refait.
+
+**Ce que fait l'auxiliaire, et rien d'autre** (`engine/src/le_params/main.cpp`, 360 ko, lié au seul libc,
+sans RUNPATH) :
+- arguments : `hciN`, une adresse `AA:BB:CC:DD:EE:FF`, quatre nombres (intervalle min et max, latence,
+  supervision) bornés aux règles d'Apple (intervalle multiple de 15 ms, supervision 6 à 18 s, intervalle ×
+  (latence + 1) ≤ 6 s), un délai d'attente (≤ 30 s) et une durée de surveillance (≤ 6 h) ; tout le reste
+  est refusé (code 2) avant d'ouvrir le moindre socket ;
+- cherche le lien LE à cette adresse dans la liste du contrôleur ; pas de lien : refus, rien d'envoyé ;
+- envoie **une** commande *LE Connection Update* sur ce lien et lit la réponse ; puis, en lecture seule,
+  rapporte les changements de paramètres de ce lien jusqu'à sa fin (ou la fin de la surveillance) ;
+- ne lit ni entrée, ni fichier, ni variable d'environnement ; ne coupe jamais un lien ; n'envoie aucune
+  autre commande ; une ligne par résultat sur sa sortie ; code 0 (demande faite), 1 (pas faite).
+
+**Le droit accordé : `CAP_NET_RAW`, sur ce seul fichier.** Le noyau n'accepte une commande HCI LE sur un
+socket brut que d'un processus qui le détient (`hci_sock_sendmsg`). Le démon, lui, reste sans aucun droit
+et lance l'auxiliaire avec un environnement vide.
+
+**Risques.** Tout utilisateur local peut lancer l'auxiliaire, donc changer les paramètres d'un lien LE
+existant, **dans les bornes d'Apple** : nuisance faible (un lien plus lent ou plus tolérant, jamais coupé).
+Un défaut exploitable dans l'auxiliaire donnerait `CAP_NET_RAW` (sockets bruts : écoute réseau, paquets
+forgés) : d'où sa taille, ses arguments réduits à des nombres et une adresse, et l'absence de toute
+bibliothèque hors libc. La capacité est ignorée si `/usr/local` est monté `nosuid`, et effacée par toute
+réécriture du fichier (un nouvel `apply` la repose). Sources copiées depuis le dossier de l'utilisateur :
+un programme de cet utilisateur qui remplacerait la source entre la demande de mot de passe et la copie
+obtiendrait `CAP_NET_RAW` — même confiance que la copie de l'assistant lui-même.
+
+**Le retirer** : `sudo /usr/local/libexec/landline/landline-setup revert` (retire tout), ou à la main
+`sudo rm /usr/local/libexec/landline/landline-le-params /usr/local/libexec/landline/landline-le-params.managed`.
+Le moteur le constate à son prochain démarrage (`le_conn_params:"no_right"`) et ne demande plus rien.
 
 **Sur cette machine**, le fichier d'appoint `experimental.conf` posé à la main suffit déjà : `apply` ne
 crée pas `landline-experimental.conf` et **ne redémarre pas** `bluetoothd`.
@@ -118,7 +179,8 @@ sortie (« REDÉMARRAGE DU BLUETOOTH… »). L'extension le dit **avant** la dem
 
 ### `revert`
 
-Retire les liens, l'unité ERTM, le fichier d'appoint, la copie de l'assistant et la fiche polkit, ainsi
+Retire les liens, l'unité ERTM, le fichier d'appoint, l'auxiliaire de la tolérance du lien LE (s'il porte
+son témoin), la copie de l'assistant et la fiche polkit, ainsi
 que les restes de classe d'une version précédente (unité, lien, règle udev, auxiliaire) ; retire les dossiers qu'`apply` avait créés s'ils sont vides. Un fichier du même nom
 qui ne porte pas l'en-tête est laissé en place et signalé (code 2).
 
@@ -156,6 +218,7 @@ une copie et l'installe lui-même ; un essai vérifie que les deux sont identiqu
 | Cas | Commande de l'extension | Fenêtre |
 |---|---|---|
 | Première fois, rien d'installé chez root | **aucune** : l'extension n'élève jamais un fichier modifiable par l'utilisateur. Le parcours montre la commande à lancer soi-même, `sudo ~/.local/lib/landline/landline-setup apply`, et avance seul quand c'est fait | celle de `sudo`, dans le terminal |
+| Première fois, moteur installé depuis Réglages › Engine | `pkexec /bin/sh -c '<script constant>' landline-bootstrap <setup> <auxiliaire>` (section 3 bis) : copie, vérifie les sommes écrites dans le script, lance la copie de root | message générique de `pkexec` pour `/bin/sh` |
 | Assistant déjà installé (après un premier `apply`, ou par un paquet) | `pkexec /usr/local/libexec/landline/landline-setup apply` | message propre |
 
 Le premier `apply` s'installe lui-même (copie root + fiche) : les fois suivantes, le message est propre.
@@ -163,14 +226,62 @@ Le premier `apply` s'installe lui-même (copie root + fiche) : les fois suivante
 
 **Pour l'extension** (`extension/lib/setupHelper.js`) : `pkexec` n'est lancé que sur
 `/usr/local/libexec/landline/landline-setup`, et seulement si ce fichier appartient à root et n'est
-inscriptible ni par le groupe ni par les autres. L'assistant n'est pas dans l'archive de l'extension.
-`status` est lu sur cette copie, à défaut sur `~/.local/lib/landline/landline-setup`.
+inscriptible ni par le groupe ni par les autres ; ou, depuis Réglages › Engine, sur `/bin/sh` avec le
+script constant de la section 3 bis. L'assistant n'est pas dans l'archive de l'extension. `status` est
+lu sur la copie de root, à défaut sur `~/.local/lib/landline/engine/system/landline-setup` (moteur
+installé depuis les réglages) puis `~/.local/lib/landline/landline-setup` (installation à la main).
 
 Pourquoi un emplacement root : ni polkit ni l'extension ne doivent élever un fichier que
 l'utilisateur (ou un programme à son nom) peut réécrire.
 
 Un paquet de distribution installerait directement les deux fichiers ; l'annotation devrait alors suivre
 le chemin choisi par le paquet.
+
+## 3 bis. Première fois depuis les réglages : le script racine constant (issue #21)
+
+Avant, la première fois (rien chez root), seule une commande `sudo` à copier dans un terminal était
+possible. Depuis Réglages › Engine (`docs/extension.md`, « Installer le moteur en un clic »), l'étape
+« Bluetooth settings » le fait avec la fenêtre de mot de passe du système, **sans jamais exécuter en
+root un fichier que l'utilisateur peut modifier** :
+
+```
+pkexec /bin/sh -c '<script>' landline-bootstrap \
+    ~/.local/lib/landline/engine/system/landline-setup \
+    ~/.local/lib/landline/engine/landline-le-params
+```
+
+- **Le script est une constante de la version de l'extension** (`bootstrapScript()` dans
+  `extension/lib/engineInstall.js`). Les deux SHA-256 attendus (`setupSha256`, `leParamsSha256` de
+  `extension/lib/engineRelease.js`) sont **écrits dans son texte**, pas passés en argument : un
+  argument que l'utilisateur pourrait changer ne vérifierait rien. Ses seuls arguments sont les deux
+  chemins ; ils doivent être absolus, désigner des fichiers ordinaires, pas des liens.
+- Il **copie d'abord** les deux fichiers dans un dossier neuf de root (`mktemp -d /run/landline-setup.XXXXXX`,
+  mode 0700), **puis vérifie la somme des copies** : ce qui est vérifié est ce qui sera exécuté, et
+  l'utilisateur ne peut plus le changer entre les deux. Somme fausse : code 66, rien n'est lancé.
+- Il lance la copie avec `bash <copie>/landline-setup apply` (`/run` peut être monté `noexec`). `apply`
+  fait ce qu'il fait d'habitude (section 2) : il s'installe lui-même dans
+  `/usr/local/libexec/landline/` (root:root 0755) avec la fiche polkit, et trouve l'auxiliaire
+  `landline-le-params` **à côté de lui**, c'est-à-dire la copie vérifiée, qu'il pose avec `cap_net_raw`.
+  Rien à changer dans `landline-setup` pour cela.
+- `trap … EXIT` retire le dossier de travail quoi qu'il arrive.
+- Codes : 0 fait, 2 partiel (de `apply`), 126/127 fenêtre fermée ou refus (de `pkexec`), 64 mauvais
+  arguments, 65 fichier manquant, 66 somme fausse, autre : échec.
+- **Annuler la fenêtre** : rien n'est lancé, rien n'est cassé ; l'étape propose de recommencer, de la
+  sauter (« Skip for Now ») ou la commande à la main. Le moteur marche sans ; seuls les iPhone qui ont
+  besoin de ces réglages ne se relient pas.
+- Les fois suivantes, l'extension retrouve le cas habituel : `pkexec /usr/local/libexec/landline/landline-setup …`
+  sur la copie de root, avec le message propre de la fiche polkit. Avec le script constant, la fenêtre
+  affiche le message générique de `pkexec` pour `/bin/sh`.
+- Une installation faite à la main (`install-local.sh`, sans `VERSION` ni sommes épinglées) n'y a pas
+  droit : la page montre la commande `sudo …/landline-setup apply`, comme avant (chemin cité, précédé
+  d'un commentaire : il n'y a pas de somme épinglée pour la vérifier). Pour le moteur épinglé, la
+  commande à la main vérifie d'abord les deux fichiers : `printf '%s  %s\n' <somme> <landline-setup>
+  <somme> <landline-le-params> | sha256sum -c - && sudo <landline-setup> apply`, sur une seule ligne.
+
+Essai sans root : `tests/engineInstaller.test.js` joue le script avec `/bin/sh`, son dossier de
+travail déplacé de `/run` vers un dossier temporaire et un faux `landline-setup` ; il vérifie que
+`apply` part de la copie et voit l'auxiliaire copié, qu'un assistant ou un auxiliaire modifiés sont
+refusés sans rien lancer, et que le dossier de travail disparaît.
 
 ## 4. La manette Xbox et l'ERTM
 
@@ -202,10 +313,11 @@ connexions ouvertes après son écriture.
 
 | Posé | Contenu |
 |---|---|
-| `~/.local/lib/landline/engine/` | `landlined`, `landlinectl`, `LICENSE` (MIT, Tether) |
+| `~/.local/lib/landline/engine/` | `landlined`, `landlinectl`, `landline-le-params` (sans aucun droit ici : seul `landline-setup apply` en pose une copie à root avec `cap_net_raw`), `LICENSE` (MIT, Tether) |
 | `~/.local/lib/landline/engine/lib/` | bibliothèques hors système, s'il y en a |
 | `~/.local/lib/landline/engine/locale/` | traductions du moteur |
 | `~/.config/systemd/user/landline-engine.service` | unité utilisateur |
+| `~/.config/systemd/user/obex.service.d/landline.conf` | complément d'`obex.service` (copie de `system/obex-landline.conf`) : obexd relancé s'il s'arrête en erreur (`Restart=on-failure`, 10 relances en 5 min, tué 5 s après une demande d'arrêt) ; il le fait s'il démarre avant que la session soit active, voir `moteur-reconnexion.md` §16. Pris en compte au `daemon-reload`, obexd n'est pas relancé par l'installation ; retiré par `uninstall-local.sh` |
 | `~/.local/share/gnome-shell/extensions/<uuid>/` | copie de `extension/`, uuid lu dans `metadata.json` |
 | `~/.local/lib/landline/landline-setup` | l'assistant, **hors du dossier de l'extension** : `status` y est lu sans droits ; `apply` se lance à la main avec `sudo` la première fois |
 
@@ -256,6 +368,11 @@ compilé), puis vérifie que les copies ne dépendent plus que du système et de
 reste inscrit dans les binaires : avec `patchelf` il est remplacé par `$ORIGIN/lib` ; sinon l'unité pose
 `LD_LIBRARY_PATH`, que l'éditeur de liens consulte avant le `RUNPATH`.
 
+L'archive portable du moteur (`scripts/build-release.sh`, voir `release.md`) a la même disposition que
+`engine/` ici, mais est faite autrement : compilée dans un conteneur ancien, OpenSSL et le runtime C++ liés
+statiquement, Avahi embarqué dans `lib/`, `RPATH $ORIGIN/lib` posé à la compilation. `wayland-client` n'est
+plus une dépendance du moteur.
+
 Ne sont plus compilés ni installés : les interfaces de Tether (`tether-gtk`, `tether-tui`,
 `tether-dialog` ; option CMake `LANDLINE_UPSTREAM_FRONTENDS`, éteinte), la caméra (`TETHER_CAMERA=OFF`),
 les extensions de navigateur. L'hôte natif de navigateur (`tether-native-host`, un script) est encore
@@ -285,7 +402,7 @@ appairés, messages, journal). Les réglages système ne sont pas touchés : le 
 
 | Commande | Ce qu'elle couvre |
 |---|---|
-| `system/tests/run.sh` | 136 vérifications : `status`, `apply`, `revert`, `--dry-run` dans des racines factices, avec doublures de `systemctl`, `btmgmt`, `udevadm`, `bluetoothctl` : machine vierge, machine déjà réglée à la main, idempotence, redémarrage simulé, retour à l'arborescence d'origine, cas particuliers (chemin Arch, options existantes, `main.conf`, fichier d'appoint tiers, `modprobe.d`, Bluetooth éteint), classe publiée sans effet sur `ready`, restes d'une version précédente retirés par `apply` et par `revert`, installation sous l'ancien nom reprise par `apply` et retirée par `revert`, versions de BlueZ (5.87 exigé, 5.88 et après non, illisible exigé, lecture de secours par `bluetoothd`), machine où il n'y a rien à demander, `systemd-analyze verify` |
+| `system/tests/run.sh` | 185 vérifications : `status`, `apply`, `revert`, `--dry-run` dans des racines factices, avec doublures de `systemctl`, `btmgmt`, `udevadm`, `bluetoothctl` : machine vierge, machine déjà réglée à la main, idempotence, redémarrage simulé, retour à l'arborescence d'origine, cas particuliers (chemin Arch, options existantes, `main.conf`, fichier d'appoint tiers, `modprobe.d`, Bluetooth éteint), classe publiée sans effet sur `ready`, restes d'une version précédente retirés par `apply` et par `revert`, installation sous l'ancien nom reprise par `apply` et retirée par `revert`, versions de BlueZ (5.87 exigé, 5.88 et après non, illisible exigé, lecture de secours par `bluetoothd`), machine où il n'y a rien à demander, source de l'auxiliaire LE prise seulement à côté de l'assistant, jamais dans le dossier personnel de `PKEXEC_UID` ou `SUDO_UID` (#25), `systemd-analyze verify` |
 | `system/tests/install.sh` | 70 vérifications : installation et désinstallation dans un HOME factice, migration d'une installation sous les anciens noms (à blanc, pour de bon, deux fois, dossier déjà présent), relevé `ldd` des copies, `systemd-analyze verify --user` de l'unité. Demande un moteur compilé (`BUILD_DIR`) |
 
 Les deux lancent `shellcheck` s'il est installé, et le signalent sinon.

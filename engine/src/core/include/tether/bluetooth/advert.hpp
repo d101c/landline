@@ -41,10 +41,23 @@ namespace tether::bluetooth {
     // back this long before that, so it never goes off air waiting for the
     // supervising thread to notice.
     inline constexpr int ADVERT_RENEW_MARGIN_SECONDS = 20;
+    // Fast again for this long when every link has just gone down, when the
+    // links were dropped on purpose, and when the computer wakes up: the
+    // moments the phone is expected to answer the advert, whatever the time
+    // since the LE link was lost. On 17 November 2026 the LE link had been
+    // down for hours, so each of those moments was spent at 152.5 ms.
+    inline constexpr int ADVERT_REARM_FAST_SECONDS = 60;
     inline constexpr AdvertInterval ADVERT_INTERVAL_FAST{20, 20};
     // BlueZ converts to 0.625 ms slots and truncates: 152 ms gives 243 slots
     // (151.875 ms) and 153 ms gives 244 (152.5 ms), so the pair brackets it.
     inline constexpr AdvertInterval ADVERT_INTERVAL_STEADY{152, 153};
+    // The longest interval of Apple's list, 1022.5 ms (1636 slots; 1022 ms
+    // truncates to 1635). For links that served and keep dropping
+    // (le_strikes.hpp, Pebble's churn): a phone at the edge of range is then
+    // offered a link about once a second and not fifty times. No longer after
+    // links that died unused (#29): an iPhone indoors took about 80 s to
+    // answer it on 18 November.
+    inline constexpr AdvertInterval ADVERT_INTERVAL_SLOW{1022, 1023};
 
     // Fast for `fast_seconds` after the LE link went down, and for
     // ADVERT_SEEN_FAST_SECONDS after BR/EDR reached the phone without LE;
@@ -52,12 +65,14 @@ namespace tether::bluetooth {
     inline AdvertInterval advert_interval_for(int64_t now,
                                               int64_t le_down_since,
                                               int fast_seconds = ADVERT_FAST_SECONDS,
-                                              int64_t seen_without_le_since = -1) {
+                                              int64_t seen_without_le_since = -1,
+                                              int64_t rearmed_at = -1) {
         const auto within = [now](int64_t since, int seconds) {
             return since >= 0 && now >= since && now - since < seconds;
         };
         const bool fast =
-            within(le_down_since, fast_seconds) || within(seen_without_le_since, ADVERT_SEEN_FAST_SECONDS);
+            within(le_down_since, fast_seconds) || within(seen_without_le_since, ADVERT_SEEN_FAST_SECONDS) ||
+            (fast_seconds > 0 && within(rearmed_at, ADVERT_REARM_FAST_SECONDS));
         return fast ? ADVERT_INTERVAL_FAST : ADVERT_INTERVAL_STEADY;
     }
 

@@ -23,6 +23,7 @@ namespace tether::bluetooth {
         constexpr auto BUSY_RETRY = std::chrono::seconds(2);
         constexpr int BUSY_ATTEMPTS = 5;
         constexpr auto OPEN_SETTLE = std::chrono::seconds(3);
+        constexpr auto HOLD_POLL = std::chrono::milliseconds(500);
 
         std::filesystem::path rule_path() {
             std::filesystem::path base;
@@ -229,29 +230,76 @@ namespace tether::bluetooth {
         return objects.find_sink_transport(device->path) ? "here" : "phone";
     }
 
-    void PhoneAudioFollower::configure(const std::string& address, PhoneAudio choice) {
+    void PhoneAudioFollower::set_hold(HoldFn hold) {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (address != address_) {
-            link_since_.reset();
-            acted_ = false;
-            closing_ = false;
-            closes_ = 0;
-            ++generation_;
+        hold_ = std::move(hold);
+    }
+
+    void PhoneAudioFollower::set_lease_handler(LeaseFn handler) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        lease_handler_ = std::move(handler);
+        lease_told_.reset();
+    }
+
+    PhoneAudio PhoneAudioFollower::effective_choice() const {
+        if (once_)
+            return *once_ ? PhoneAudio::Here : PhoneAudio::Phone;
+        return choice_;
+    }
+
+    bool PhoneAudioFollower::wants_here() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return !address_.empty() && effective_choice() == PhoneAudio::Here;
+    }
+
+    bool PhoneAudioFollower::notify_lease() {
+        LeaseFn handler;
+        bool here = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            here = !address_.empty() && effective_choice() == PhoneAudio::Here;
+            if (!lease_handler_ || (lease_told_ && *lease_told_ == here))
+                return false;
+            lease_told_ = here;
+            handler = lease_handler_;
         }
-        address_ = address;
-        choice_ = choice;
+        return handler(here);
+    }
+
+    void PhoneAudioFollower::configure(const std::string& address, PhoneAudio choice) {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (address != address_) {
+                link_since_.reset();
+                acted_ = false;
+                closing_ = false;
+                closes_ = 0;
+                once_.reset();
+                ++generation_;
+            }
+            address_ = address;
+            choice_ = choice;
+        }
+        notify_lease();
     }
 
     void PhoneAudioFollower::update(const BluezObjects& objects, GDBusConnection* conn) {
         std::unique_lock<std::mutex> lock(mutex_);
         const Device* device = address_.empty() ? nullptr : find_phone(objects, address_);
         if (!device || !device->classic_link_up() || !offers_sink(objects, *device)) {
+            // A route asked for one connection ends with it.
+            const bool ended = link_since_.has_value() && once_.has_value();
             if (link_since_)
                 ++generation_;
             link_since_.reset();
             acted_ = false;
             closing_ = false;
             closes_ = 0;
+            if (ended) {
+                once_.reset();
+                lock.unlock();
+                notify_lease();
+            }
             return;
         }
         device_path_ = device->path;
@@ -259,7 +307,7 @@ namespace tether::bluetooth {
         if (!link_since_) {
             link_since_ = now;
             // Nothing else may change in the snapshot once the link settles.
-            if (choice_ == PhoneAudio::Here) {
+            if (effective_choice() == PhoneAudio::Here) {
                 std::thread([this, conn] {
                     std::this_thread::sleep_for(HERE_DELAY);
                     if (g_bluez)
@@ -273,7 +321,7 @@ namespace tether::bluetooth {
         if (acted_)
             return;
 
-        switch (plan_phone_audio(choice_, open, closing_, closes_, now - *link_since_)) {
+        switch (plan_phone_audio(effective_choice(), open, closing_, closes_, now - *link_since_)) {
         case StreamMove::Wait:
             return;
         case StreamMove::Done:
@@ -295,12 +343,31 @@ namespace tether::bluetooth {
 
     bool PhoneAudioFollower::apply_now(GDBusConnection* conn, std::optional<bool> here) {
         std::unique_lock<std::mutex> lock(mutex_);
-        if (!link_since_ || (!here && choice_ == PhoneAudio::Auto))
+        if (!link_since_) {
+            // No link: in the lean link mode a one-off "here" opens one, and
+            // the stream is opened on it when it comes. Anything else has
+            // nothing to act on.
+            if (!here || !*here || address_.empty() || !lease_handler_)
+                return false;
+            once_ = true;
+            lock.unlock();
+            const bool opening = notify_lease();
+            if (!opening) {
+                std::lock_guard<std::mutex> relock(mutex_);
+                once_.reset();
+                lease_told_.reset();
+            }
+            return opening;
+        }
+        if (!here && choice_ == PhoneAudio::Auto)
             return false;
         // Whatever was asked for now stands until the next connection.
         acted_ = true;
         const bool target = here ? *here : choice_ == PhoneAudio::Here;
+        if (here)
+            once_ = *here;
         lock.unlock();
+        notify_lease();
         act(conn, target);
         return true;
     }
@@ -316,6 +383,22 @@ namespace tether::bluetooth {
         std::thread([this, conn, path, generation, here, settle] {
             if (settle)
                 std::this_thread::sleep_for(OPEN_SETTLE);
+            // Closing the stream waits for a call in hand; opening it does not.
+            for (bool said = false; !here;) {
+                HoldFn hold;
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    if (generation != generation_)
+                        return;
+                    hold = hold_;
+                }
+                if (!hold || !hold())
+                    break;
+                if (!said)
+                    debug::log(INFO, "phone audio: a call is in hand; the stream is closed once it is over");
+                said = true;
+                std::this_thread::sleep_for(HOLD_POLL);
+            }
             for (int attempt = 1;; ++attempt) {
                 {
                     std::lock_guard<std::mutex> lock(mutex_);

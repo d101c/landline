@@ -11,9 +11,23 @@ add_executable(tether_test
     test_bus_watch.cpp
     test_log_file.cpp
     test_le_first.cpp
+    test_le_after_sleep.cpp
+    test_le_conn_params.cpp
+    test_le_after_reset.cpp
+    test_le_recovery.cpp
+    test_le_ghost.cpp
+    test_ancs_liveness.cpp
+    test_le_first_use.cpp
+    test_le_health.cpp
+    test_le_strikes.cpp
     test_pending_connect.cpp
     test_supervision_tick.cpp
     test_reconnect_policy.cpp
+    test_message_sync_policy.cpp
+    test_classic_demand.cpp
+    test_link_mode.cpp
+    test_incoming_call.cpp
+    test_dial_plan.cpp
     test_advert.cpp
     test_bmessage.cpp
     test_bmessage_build.cpp
@@ -24,6 +38,7 @@ add_executable(tether_test
     test_groups.cpp
     test_bt_diagnostics.cpp
     test_telephony.cpp
+    test_call_audio_follow.cpp
     test_call_audio_handover.cpp
     test_presence.cpp
     test_phone_state.cpp

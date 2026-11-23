@@ -6,6 +6,8 @@
 //                         (answer, decline, hangUp, toPhone, toComputer, send,
 //                         close, differ, match, action, settings, calls,
 //                         chips n, rows n)
+//   switch <nom> [rail]   vrai clic sur l'interrupteur de la ligne <nom> (poignée,
+//                         ou rail), là où l'on clique d'habitude
 //   type <texte>          écrit dans le champ de réponse
 //   key <Return|Escape>   vraie touche du clavier
 //   state <nom>           écrit ce que montre l'extension dans <nom>.json
@@ -17,6 +19,8 @@
 //                         continue, match, differ, repaired, next, back, done,
 //                         retry, candidates n, help, fix, forget, confirm, again)
 //   langue <fr|en|auto>   langue de l'iPhone (réglage phone-language)
+//   steadyrequest         ce que fait le bouton « Set Up… » de « Keep the link
+//                         steady » dans Phone Settings
 //   forgetrequest         ce que fait le bouton « Forget This iPhone… » de
 //                         Phone Settings
 //   fakeauth open|close   ouvre / ferme une fenêtre modale du Shell au-dessus du
@@ -29,12 +33,24 @@
 //   sharing <on|off|auto> fait comme si l'écran était partagé (aucun partage réel
 //                         n'est possible dans ce Shell sans écran)
 //   reglage <clé> <on|off>  un réglage booléen de l'extension
-//   hotspot <profil|sans-profil|refuse|accepte>
-//                         doublure de NetworkManager pour « Use iPhone's Internet
-//                         Connection » : un profil existe ou non pour l'iPhone, la
-//                         connexion aboutit ou retombe
+//   hotspot <profil|sans-profil|refuse|accepte|sans-internet|lache>
+//                         doublure de NetworkManager pour « Internet from
+//                         iPhone » : un profil existe ou non pour l'iPhone ; la
+//                         prochaine connexion aboutit (accepte), est refusée par
+//                         l'iPhone (refuse) ou n'obtient pas d'adresse
+//                         (sans-internet) ; lache : la connexion établie tombe,
+//                         comme quand l'iPhone s'éloigne
 //   hoverbanner           amène le pointeur sur la bulle de notification, qui se
 //                         déplie et montre ses boutons
+//   texte <clé> <valeur>  un réglage texte de l'extension (link-mode)
+//   fermefenetres         ferme les fenêtres ouvertes (Phone Settings)
+//   animations <on|off>   les animations du bureau (enable-animations) ; « force »
+//                         lève en plus l'interdit que le Shell pose sans carte
+//                         graphique, pour voir bouger l'icône dans ce Shell sans écran
+//   vieillir [n]          vieillit de n secondes ce qui vient d'arriver (la minute
+//                         d'animation de l'icône)
+//   surveille             note les acteurs de l'icône, pour vérifier leur destruction
+//   clicxy <x> <y>        vrai clic à cet endroit de l'écran
 //   steady <on|off>       indicateur stable (délai de 3 s, verrou « Link again ») ;
 //                         coupé pour les parties écrites avant lui
 import Clutter from 'gi://Clutter';
@@ -84,7 +100,8 @@ const everyStyled = name => root => {
 
 // Les contrôles d'une carte, dans l'ordre où les essais les attendent.
 const CARD_CONTROLS = {
-    close: root => all(root, a => a instanceof St.Button && hasClass(a, 'landline-round'))[0] ?? null,
+    close: root => all(root, a => a instanceof St.Button && hasClass(a, 'landline-round') &&
+        a.accessible_name === 'Close')[0] ?? null,
     entry: root => all(root, a => a instanceof St.Entry)[0] ?? null,
     send: styled('landline-send'),
     chips: everyStyled('landline-chip'),
@@ -92,7 +109,7 @@ const CARD_CONTROLS = {
     results: everyStyled('landline-result'),
     decline: labelled('Decline'),
     answer: labelled('Answer', 'Answer here'),
-    answerHere: labelled('Answer here'),
+    answerHere: labelled('Answer here', 'Answer here · Connecting…', 'Answer here · unavailable'),
     answerPhone: labelled('Answer on iPhone'),
     toPhone: root => all(root, a => a instanceof St.Button && a.label === 'iPhone')[0] ?? null,
     toComputer: labelled('This computer'),
@@ -104,14 +121,25 @@ const CARD_CONTROLS = {
     permission: labelled('Finish Setting Up This Computer…'),
     setup: labelled('Continue Setup…'),
     fix: labelled('Fix It'),
-    hotspot: labelled('Use iPhone’s Internet Connection'),
-    hotspotLine: root => {
-        const item = all(root, a => hasClass(a, 'landline-under-switch'))[0];
-        return item ? all(item, a => a instanceof St.Label)[0] ?? null : null;
-    },
+    internet: labelled('Internet from iPhone'),
+    internetArt: styled('landline-internet-art'),
     phoneAudio: labelled('Play iPhone audio on this computer'),
     mute: labelled('Mute iPhone on this computer'),
     compose: labelled('New Message…'),
+    call: labelled('Call…'),
+    cancelDial: labelled('Cancel'),
+    closeCard: labelled('Close'),
+    callThread: root => all(root, a => a instanceof St.Button && a.accessible_name === 'Call')[0] ?? null,
+    history: root => {
+        const rows = all(root, a => a instanceof PopupMenu.PopupBaseMenuItem && hasClass(a, 'landline-history'));
+        return rows.length ? rows : null;
+    },
+    paused: styled('landline-paused'),
+    rowCall: root => {
+        const found = all(root, a => a instanceof St.Button && hasClass(a, 'landline-round') &&
+            (a.accessible_name ?? '').startsWith('Call '));
+        return found.length ? found : null;
+    },
     forget: labelled('Forget This iPhone…'),
     rows: root => {
         const rows = all(root, a => a instanceof PopupMenu.PopupBaseMenuItem && hasClass(a, 'landline-row') &&
@@ -197,6 +225,21 @@ export default class Pilote {
                 return pilote._sharing ?? real.call(this);
             },
         });
+        // L'App Store n'est jamais joint : ses icônes viennent de
+        // $FAUX_APPSTORE/<identifiant>.png quand il est donné ; sinon
+        // aucune, comme sans réseau (rien n'est retenu sur le disque).
+        const {AppIcons} = await import(`${base}/appIcons.js`);
+        AppIcons.prototype._download = async function (appId) {
+            const dir = GLib.getenv('FAUX_APPSTORE');
+            const file = dir ? Gio.File.new_for_path(`${dir}/${appId}.png`) : null;
+            if (!file?.query_exists(null))
+                throw new Error('faux App Store : appli inconnue');
+            await new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+                resolve();
+                return GLib.SOURCE_REMOVE;
+            }));
+            return file.load_bytes(null)[0];
+        };
         GLib.file_set_contents(`${this._dir}/doublures`, 'ok\n');
     }
 
@@ -229,11 +272,14 @@ export default class Pilote {
             row: span(row),
             glyph: span(row.glyph),
             name: span(row.nameLabel),
-            state: span(row.stateLabel),
             battery: span(row.batteryLabel),
+            gauge: span(row.gauge),
             nameText: row.nameLabel.text,
+            batteryText: row.batteryLabel?.text ?? null,
+            batteryStale: row.batteryLabel ? hasClass(row.batteryLabel, 'landline-battery-stale') : null,
+            batteryLow: row.gauge ? hasClass(row.gauge, 'landline-battery-low') : null,
             nameCut: row.nameLabel.clutter_text.get_layout().is_ellipsized(),
-            baselines: [baseline(row.nameLabel), baseline(row.stateLabel), baseline(row.batteryLabel)],
+            baselines: [baseline(row.nameLabel), baseline(row.batteryLabel)],
         };
     }
 
@@ -274,13 +320,20 @@ export default class Pilote {
     _state() {
         const ext = this._ext();
         const ind = ext?._indicator;
-        if (!ind)
-            return {enabled: false, inPanel: Main.panel.statusArea[UUID] !== undefined};
+        if (!ind) {
+            return {
+                enabled: false, inPanel: Main.panel.statusArea[UUID] !== undefined,
+                // Rien ne doit survivre à la désactivation.
+                timers: ext ? [ext._timerId, ext._startTimerId, ext._setupPollId].filter(id => id).length : 0,
+                watched: this._watched ?? null,
+            };
+        }
         const right = Main.panel._rightBox.get_children();
         const focus = global.stage.get_key_focus();
         const tour = ext._tourDialog;
         const controls = this._card(ind);
-        const bridge = ext._bridge;
+        // Ce qui attend sur l'iPhone, tel que le modèle le tient.
+        const notes = ext._model._phoneNotes;
         const right0 = right.filter(a => a !== ind.container).map(a => Math.round(a.get_transformed_position()[0]));
         return {
             // Le parcours d'accueil : ouvert, au premier plan, clavier dessus.
@@ -294,11 +347,20 @@ export default class Pilote {
             phoneLanguage: ext._illustrations?.language ?? null,
             focusInTour: !!tour && !!focus && tour.contains(focus),
             focusLabel: focus?.label ?? null,
+            // Le nom lu de ce qui a le focus (les boutons à icône n'ont pas de label).
+            focusName: focus?.accessible_name ?? null,
             grabIsTour: !!tour && global.stage.get_grab_actor() === tour,
             authOpen: !!this._auth,
             neighbours: right0,
             pillWidth: Math.round(ind._pill.width),
-            slot: ind._slot.visible,
+            // Les icônes d'applis : dans la pastille, et dans le menu ouvert
+            // (celles de l'App Store, arrondies, puis celles du bureau).
+            pillAppIcons: ind._apps?.visible ? ind._apps.get_n_children() : 0,
+            menuAppIcons: ind.menu.isOpen ? all(ind.menu.box, a => hasClass(a, 'landline-app-icon') &&
+                !hasClass(a, 'landline-app-icon-plain')).length : 0,
+            // L'icône : ce qu'elle dessine, et où en est chaque calque à cet instant.
+            icon: this._icon(ind),
+            animations: St.Settings.get().enable_animations,
             menuWidth: Math.round(ind.menu.box.width),
             // La première ligne du menu au repos : où sont le nom, l'état, la batterie.
             header: ind.menu.isOpen ? this._geometry(controls.top) : null,
@@ -313,8 +375,14 @@ export default class Pilote {
             panelHeight: Math.round(Main.panel.height),
             strong: ind._strong.visible ? ind._strong.text : '',
             text: ind._text.visible ? ind._text.text : '',
-            count: ind._count.visible ? ind._count.text : '',
-            dot: ind._dot.visible,
+            rowCalls: controls.rowCall?.length ?? 0,
+            // Ce que le moteur a dit en dernier, et ce qui est utilisable sur la carte.
+            conn: ext._model._conn,
+            usable: Object.fromEntries(Object.entries(controls)
+                .filter(([, a]) => a instanceof St.Button).map(([name, a]) => [name, a.reactive])),
+            linkModeKeys: [ext._settings.get_string('link-mode'), ext._settings.get_string('link-mode-state')],
+            cardTexts: (ind.menu.isOpen ? this._texts(ind.menu.box)
+                : ind._passive?.isOpen ? this._texts(ind._passive.box) : []),
             classes: ind.get_style_class_name(),
             menuOpen: ind.menu.isOpen,
             passiveOpen: ind._passive.isOpen,
@@ -322,17 +390,44 @@ export default class Pilote {
             menuTexts: ind.menu.isOpen ? this._texts(ind.menu.box) : [],
             focusInEntry: !!controls.entry && controls.entry.clutter_text === focus,
             entryText: controls.entry?.text ?? null,
-            notifications: bridge._notifications.size,
-            replyLinks: Object.fromEntries([...bridge._notifications]
-                .filter(([, entry]) => entry.replyUri).map(([uid, entry]) => [uid, entry.replyUri])),
-            hotspotLine: controls.hotspotLine?.text ?? null,
+            notifications: notes.size,
+            // Les conversations que « Open in … » ouvrirait (#49).
+            replyLinks: Object.fromEntries([...notes]
+                .map(([uid, entry]) => [uid, ext._model._handoff(entry)])
+                .filter(([, handoff]) => handoff?.conversation).map(([uid, handoff]) => [uid, handoff.open.uri])),
+            phoneLinks: !!ext._phoneLinks,
+            // Les lignes sous « Internet from iPhone », boutons compris.
+            internetLines: (() => {
+                const item = ind.menu.isOpen ? all(ind.menu.box, a => hasClass(a, 'landline-under-switch'))[0] : null;
+                return item ? all(item, a => a instanceof St.Button || (a instanceof St.Label &&
+                    !(a.get_parent() instanceof St.Button))).map(a => textOf(a)) : [];
+            })(),
             bannerTexts: Main.messageTray._banner ? this._texts(Main.messageTray._banner) : [],
-            sources: [...ext._bridge._sources.values()].map(s => s.title),
+            sources: [...new Set([...notes.values()].map(note => note.appName))],
             trayTitles: Main.messageTray.getSources().flatMap(s => s.notifications.map(n => `${s.title}: ${n.title}`)),
             timer: ext._timerId !== 0,
             engine: ext._client.state,
             windows: global.get_window_actors().length,
             banner: Main.messageTray._notification?.title ?? null,
+        };
+    }
+
+    _icon(ind) {
+        const icon = ind._icon;
+        const [x, y] = icon.get_transformed_position();
+        const r = n => Math.round(n * 100) / 100;
+        return {
+            style: icon._style, state: icon._state, moving: icon._moving, running: icon.running,
+            visible: icon.visible, check: ind._check.visible,
+            x: Math.round(x), y: Math.round(y), width: Math.round(icon.width), height: Math.round(icon.height),
+            palette: icon._palette,
+            layers: icon._layers.map(({layer, actor}) => ({
+                ink: layer.ink, motion: layer.motion ?? null, opacity: actor.opacity,
+                x: r(actor.translation_x), y: r(actor.translation_y), angle: r(actor.rotation_angle_z),
+                scale: r(actor.scale_x), size: Math.round(actor.width),
+                // Ce qui le fait bouger en ce moment : l'horloge de l'icône, ou rien.
+                transitions: icon._timeline?.is_playing() && layer.motion ? 1 : 0,
+            })),
         };
     }
 
@@ -362,6 +457,20 @@ export default class Pilote {
             this._clickActor(target);
             break;
         }
+        case 'switch': {
+            // Vrai clic sur l'interrupteur d'une ligne, pas au milieu de la
+            // ligne : sur sa poignée (knob, par défaut) ou sur son rail.
+            const row = this._card(ind)[args[0]];
+            const toggle = all(row, a => a instanceof PopupMenu.Switch)[0] ?? null;
+            if (!toggle)
+                throw new Error(`no switch on ${args[0]}`);
+            this._clickActor(args[1] === 'rail' ? toggle : toggle._handle);
+            break;
+        }
+        case 'label':
+            // Le bouton ou la ligne du menu ouvert qui porte ce libellé.
+            this._clickActor(labelled(rest)((ind.menu.isOpen ? ind.menu : ind._passive).box));
+            break;
         case 'dpress':
             this._clickActor(this._ext()._tourDialog.buttonLayout.get_children()[Number(args[0])]);
             break;
@@ -370,6 +479,14 @@ export default class Pilote {
             if (Array.isArray(target))
                 target = target[Number(args[1] ?? 0)];
             this._clickActor(target);
+            break;
+        }
+        case 'pointe': {
+            // Un clic à cet endroit de l'écran (une fenêtre GTK : Phone Settings).
+            const t = GLib.get_monotonic_time();
+            this._pointer.notify_absolute_motion(t, Number(args[0]), Number(args[1]));
+            this._pointer.notify_button(t + 1000, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.PRESSED);
+            this._pointer.notify_button(t + 2000, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.RELEASED);
             break;
         }
         case 'expand':
@@ -409,32 +526,47 @@ export default class Pilote {
                 this._net = null;
                 ext._hotspot.setBackend(null);
             } else if (args[0] === 'profil') {
-                const net = {state: 'off', refuse: false, onChange: null, timer: 0};
+                // Ce que dirait NetworkManager (lib/hotspot.js) : l'état de
+                // l'activation, et la raison d'un échec.
+                const net = {state: 'off', next: 'accepte', onChange: null, onFailure: null, timer: 0};
                 this._net = net;
-                ext._hotspot.setBackend(onChange => ({
-                    state: () => net.state,
-                    connect: async () => {
-                        net.state = 'connecting';
-                        onChange();
-                        net.timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2500, () => {
-                            net.timer = 0;
-                            net.state = net.refuse ? 'off' : 'on';
+                const address = () => ext._model.phoneAddress;
+                ext._hotspot.setBackend((onChange, onFailure) => {
+                    net.onChange = onChange;
+                    net.onFailure = onFailure;
+                    return {
+                        state: () => net.state,
+                        connect: async () => {
+                            net.state = 'connecting';
                             onChange();
-                            return GLib.SOURCE_REMOVE;
-                        });
-                    },
-                    disconnect: async () => {
-                        net.state = 'off';
-                        onChange();
-                    },
-                    destroy: () => {
-                        if (net.timer)
-                            GLib.source_remove(net.timer);
-                        net.timer = 0;
-                    },
-                }));
+                            net.timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2500, () => {
+                                net.timer = 0;
+                                if (net.next === 'accepte') {
+                                    net.state = 'on';
+                                    onChange();
+                                } else {
+                                    net.state = 'off';
+                                    onFailure(address(), net.next === 'refuse' ? 'refused' : 'no-internet');
+                                }
+                                return GLib.SOURCE_REMOVE;
+                            });
+                        },
+                        disconnect: async () => {
+                            net.state = 'off';
+                            onChange();
+                        },
+                        destroy: () => {
+                            if (net.timer)
+                                GLib.source_remove(net.timer);
+                            net.timer = 0;
+                        },
+                    };
+                });
+            } else if (this._net && args[0] === 'lache') {
+                this._net.state = 'off';
+                this._net.onFailure(ext._model.phoneAddress, 'lost');
             } else if (this._net) {
-                this._net.refuse = args[0] === 'refuse';
+                this._net.next = args[0];
             }
             break;
         }
@@ -445,6 +577,36 @@ export default class Pilote {
             const [x, y] = banner.get_transformed_position();
             const [w, h] = banner.get_transformed_size();
             this._pointer.notify_absolute_motion(GLib.get_monotonic_time(), x + w / 2, y + h / 2);
+            break;
+        }
+        case 'animations':
+            if (args[0] === 'force') {
+                if (!St.Settings.get().enable_animations)
+                    St.Settings.get().uninhibit_animations();
+            } else {
+                new Gio.Settings({schema_id: 'org.gnome.desktop.interface'})
+                    .set_boolean('enable-animations', args[0] === 'on');
+            }
+            break;
+        case 'vieillir': {
+            // Ce qui vient d'arriver date de N secondes de plus : la minute
+            // pendant laquelle l'icône bouge se termine sans l'attendre.
+            const model = this._ext()._model;
+            if (model._attentionAt !== null)
+                model._attentionAt -= Number(args[0] ?? 55) * 1000;
+            model._changed();
+            break;
+        }
+        case 'surveille': {
+            // Les acteurs de l'icône, pour constater après la désactivation
+            // qu'ils ont tous été détruits.
+            const icon = ind._icon;
+            const watched = {made: 0, destroyed: 0};
+            this._watched = watched;
+            for (const actor of [icon, ...icon._layers.map(entry => entry.actor)]) {
+                watched.made++;
+                actor.connect('destroy', () => watched.destroyed++);
+            }
             break;
         }
         case 'dnd':
@@ -458,6 +620,18 @@ export default class Pilote {
         case 'reglage':
             this._ext()._settings.set_boolean(args[0], args[1] === 'on');
             break;
+        case 'offre':
+            // « Use Landline for phone links? » du menu (#50), comme si aucune
+            // appli de cette machine n'ouvrait tel: ni callto:.
+            this._ext()._model.setPhoneLinksOffer(args[0] === 'on');
+            break;
+        case 'texte':
+            this._ext()._settings.set_string(args[0], args[1] ?? '');
+            break;
+        case 'fermefenetres':
+            for (const actor of global.get_window_actors())
+                actor.meta_window.delete(global.display.get_current_time_roundtrip());
+            break;
         case 'nohelper':
             this._helperMode = 'none';
             this._ext()._refreshSystemSetup();
@@ -470,8 +644,8 @@ export default class Pilote {
             break;
         case 'clearall':
             // Sans relayer quarante effacements au faux moteur.
-            this._ext()._bridge._keepOnly(new Set());
-            this._ext()._bridge._notice?.destroy();
+            for (const uid of [...this._ext()._model._phoneNotes.keys()])
+                this._ext()._model._unmirror(uid);
             break;
         case 'type':
             this._card(ind).entry.text = rest;
@@ -481,6 +655,14 @@ export default class Pilote {
             const t = GLib.get_monotonic_time();
             this._keyboard.notify_keyval(t, keyval, Clutter.KeyState.PRESSED);
             this._keyboard.notify_keyval(t + 1000, keyval, Clutter.KeyState.RELEASED);
+            break;
+        }
+        case 'clicxy': {
+            // Vrai clic à cet endroit de l'écran (une fenêtre, comme Phone Settings).
+            const t = GLib.get_monotonic_time();
+            this._pointer.notify_absolute_motion(t, Number(args[0]), Number(args[1]));
+            this._pointer.notify_button(t + 1000, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.PRESSED);
+            this._pointer.notify_button(t + 2000, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.RELEASED);
             break;
         }
         case 'scroll': {
@@ -502,6 +684,9 @@ export default class Pilote {
             break;
         case 'forgetrequest':
             this._ext()._settings.set_boolean('forget-request', true);
+            break;
+        case 'steadyrequest':
+            this._ext()._settings.set_boolean('steady-request', true);
             break;
         case 'accent':
             this._ext()._settings.set_boolean('use-accent-color', args[0] === 'on');

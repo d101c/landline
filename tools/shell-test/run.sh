@@ -5,6 +5,12 @@
 #   SCALE=2 tools/shell-test/run.sh    captures deux fois plus fines
 #   SCHEME=prefer-light SHOTS=/tmp/clair tools/shell-test/run.sh
 #                                      style clair, captures ailleurs
+#   INNER=tools/shell-test/proto-notifs.sh tools/shell-test/run.sh
+#                                      un autre déroulé que inner.sh (chemin absolu ou relatif au dépôt)
+#   FAUX_APPSTORE=/chemin/icones tools/shell-test/run.sh
+#                                      icônes des applis : <identifiant>.png de ce
+#                                      dossier (hors dépôt) ; sans lui, aucune.
+#                                      L'App Store n'est jamais joint.
 #   SECTIONS="parcours cartes" tools/shell-test/run.sh
 #                                      seulement ces parties (voir inner.sh)
 #
@@ -25,7 +31,7 @@
 set -u
 S="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$S/../.." && pwd)"
 UUID="landline@d101c.github.io"
-OUT="$S/out"; SHOTS="${SHOTS:-$REPO/docs/captures}"
+OUT="${OUT:-$S/out}"; SHOTS="${SHOTS:-$REPO/docs/captures}"
 
 rm -rf "$OUT"; mkdir -p "$OUT" "$SHOTS"
 # Dans /tmp : le chemin d'un socket Unix ne dépasse pas 108 octets.
@@ -42,11 +48,11 @@ env -u WAYLAND_DISPLAY -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS -u XDG_SESSION_ID 
   FAUX_SOCKET="$RT/landline/landlined.sock" PILOTE_DIR="$OUT" SHOTS="$SHOTS" REPO="$REPO" \
   PATH="$S/bin:$PATH" PILOTE_SETUP="$REPO/tools/faux-landline-setup" \
   FAUX_SETUP_STATE="$RT/reglages.json" FAUX_PKEXEC_REFUSE="$RT/refuse" FAUX_PKEXEC_HOLD="$RT/attente" \
-  SECTIONS="${SECTIONS:-}" \
+  SECTIONS="${SECTIONS:-}" HEURE="${HEURE:-}" FAUX_APPSTORE="${FAUX_APPSTORE:-}" \
   FAUX_PKEXEC_LOG="$OUT/pkexec.log" FAUX_SYSTEMCTL_LOG="$OUT/systemctl.log" \
   FAUX_SYSTEMCTL_REFUSE="$RT/refuse-relance" \
   SCALE="${SCALE:-1}" SCHEME="${SCHEME:-prefer-dark}" LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 LANGUAGE= \
-  dbus-run-session -- "$S/inner.sh" 2> "$OUT/session.log"
+  dbus-run-session -- "${INNER:-$S/inner.sh}" 2> "$OUT/session.log"
 status=$?
 # Les services de la session privée s'arrêtent avec son bus ; le portail de
 # documents laisse parfois son montage un instant.

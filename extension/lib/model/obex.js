@@ -7,6 +7,7 @@
 // waiting will not help. Restarting the engine does.
 
 import {FIX_TIMEOUT_MS, OBEX_STUCK_MS, RETRY_PROFILES_MS} from './constants.js';
+import {FIELD, SERVICE} from './protocol.js';
 
 export const withObex = Base => class extends Base {
     // The engine names the fault itself: it lost the session bus, and with
@@ -23,12 +24,28 @@ export const withObex = Base => class extends Base {
         const conn = this._conn;
         if (this._busClosed())
             return true;
-        if (this._engine !== 'connected' || !conn || conn.classic_connected !== true)
+        // An engine that opens the classic link on demand says what to
+        // expect of each service, link open or not.
+        // An engine that opens the classic link on demand says what to
+        // expect of each service, link open or not: the fault is looked for
+        // while linked, whatever the classic link is doing. 'unavailable'
+        // alone is no fault (a service put on hold, an iPhone just gone):
+        // the reasons below must say so too.
+        const said = [this._service(FIELD.messages), this._service(FIELD.contacts)];
+        if (said.some(state => state !== null)) {
+            if (this._engine !== 'connected' || !this._linked() ||
+                !said.every(state => state === SERVICE.unavailable))
+                return false;
+        } else if (this._engine !== 'connected' || !conn || conn.classic_connected !== true) {
             return false;
+        }
         if (conn.map_open === true || conn.pbap_open === true || conn.map_held || conn.pbap_held)
             return false;
+        // 'daemon_down': obexd is on its way back and the engine is seeing
+        // to it (it asks systemd itself); restarting the engine would not
+        // help, and re-pairing even less.
         const bad = error => typeof error === 'string' && error !== '' &&
-            !['none', 'forbidden', 'busy'].includes(error);
+            !['none', 'forbidden', 'busy', 'daemon_down'].includes(error);
         return bad(conn.map_error) && bad(conn.pbap_error) && !this._brokenPairing();
     }
 
@@ -61,8 +78,10 @@ export const withObex = Base => class extends Base {
         if (!fix)
             return;
         const conn = this._conn ?? {};
-        const linked = this._engine === 'connected' && conn.classic_connected === true;
-        if (conn.map_open === true || conn.pbap_open === true) {
+        const linked = this._engine === 'connected' &&
+            (conn.classic_connected === true || (this._lean() && this._linked()));
+        if (conn.map_open === true || conn.pbap_open === true ||
+            (this._service(FIELD.messages) !== null && (this._messagesUsable() || this._contactsUsable()))) {
             // A switch came on: nothing left to say.
             this._fix = null;
         } else if (fix.state === 'restarting') {

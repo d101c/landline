@@ -1,5 +1,6 @@
 /* Landline. Amber #f2b45c with dark text #2a1a05 is the warm color; the
-   .landline-system-accent variants at the end use the desktop accent. */
+   .landline-system-accent variants at the end use the desktop accent (never
+   for the icon of the top bar at rest, whose colors are fixed). */
 
 /* --- the indicator in the top bar ------------------------------------- */
 
@@ -10,42 +11,24 @@
   max-width: 19em;
 }
 
-.landline-glyph {
+.landline-glyph,
+.landline-icon-layer {
   icon-size: 1.091em;
 }
 
-/* The dot or the count, in a slot that keeps its width. */
-.landline-slot {
-  width: 16px;
+/* The icon: its glyph has the color of the text around it; the three inks
+   are fixed, whatever the accent color of the desktop. */
+.landline-icon {
+  -landline-amber: #f2b45c;
+  -landline-green: #6fd58e;
+  -landline-red: #ff8a7a;
 }
 
-.landline-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
-}
-
-.landline-dot-on {
-  background-color: #f2b45c;
-}
-
-.landline-dot-off {
-  border: 1px solid #b0b0b0;
-}
-
-.landline-dot-warn {
-  background-color: #ffffff;
-}
-
-.landline-count {
-  min-width: 8px;
-  padding: 0 3px;
-  border-radius: 8px;
-  background-color: #f2b45c;
-  color: #2a1a05;
-  font-size: 0.8em;
-  font-weight: bold;
-  font-feature-settings: "tnum";
+/* On the amber pill everything is drawn in its dark ink. */
+#panel .panel-button.landline-accent .landline-icon {
+  -landline-amber: #2a1a05;
+  -landline-green: #2a1a05;
+  -landline-red: #2a1a05;
 }
 
 .landline-pill-avatar {
@@ -69,7 +52,7 @@
   max-width: 12em;
 }
 
-#panel .panel-button.landline-dim {
+.landline-dim .landline-pill-strong {
   color: #b0b0b0;
 }
 
@@ -370,11 +353,6 @@
   color: #f2b45c;
 }
 
-.landline-top-state {
-  font-size: 0.85em;
-  color: rgba(255, 255, 255, 0.7);
-}
-
 /* "New Message…": the matches under the search field. */
 .landline-results {
   spacing: 4px;
@@ -416,8 +394,42 @@
   font-feature-settings: "tnum";
 }
 
-.landline-battery-label.landline-battery-low {
+.landline-battery-label.landline-battery-low,
+.landline-battery-gauge.landline-battery-low {
   color: #ff8a7a;
+}
+
+/* The battery lying on its side, beside the level. */
+.landline-battery-gauge {
+  width: 1.6em;
+  height: 0.8em;
+}
+
+/* The last level known, while the link that reports it is down. */
+.landline-battery-label.landline-battery-stale {
+  font-weight: normal;
+}
+
+.landline-battery-label.landline-battery-stale,
+.landline-battery-gauge.landline-battery-stale {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Under the first line of the menu: notifications do not arrive. */
+.landline-paused-title {
+  font-size: 0.9em;
+  font-weight: bold;
+  color: #f2b45c;
+}
+
+/* "Call…": what a click on a match does, and the choice of the sound. */
+.landline-result-icon {
+  icon-size: 1em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.landline-choice-title {
+  padding-top: 4px;
 }
 
 /* In a call: the side the sound was asked to go to, before it is there. */
@@ -427,8 +439,6 @@
 
 /* --- desktop accent instead of amber ------------------------------------ */
 
-.landline-system-accent .landline-dot-on,
-.landline-system-accent .landline-count,
 .landline-system-accent .landline-avatar-accent,
 .landline-system-accent .landline-send,
 .landline-system-accent .landline-choice.landline-chosen,
@@ -437,6 +447,10 @@
 .landline-system-accent .landline-tour .modal-dialog-button.landline-dialog-primary {
   background-color: -st-accent-color;
   color: -st-accent-fg-color;
+}
+
+.landline-system-accent .landline-paused-title {
+  color: -st-accent-color;
 }
 
 .landline-system-accent .landline-send:hover,
@@ -455,6 +469,12 @@
 .landline-system-accent .landline-pill-avatar {
   background-color: -st-accent-fg-color;
   color: -st-accent-color;
+}
+
+#panel .panel-button.landline-accent.landline-system-accent .landline-icon {
+  -landline-amber: -st-accent-fg-color;
+  -landline-green: -st-accent-fg-color;
+  -landline-red: -st-accent-fg-color;
 }
 
 #panel .panel-button.landline-accent.landline-system-accent {
@@ -689,4 +709,151 @@
 .landline-tour-command {
   font-family: monospace;
   font-size: 0.85em;
+}
+
+/* The two things one opens the menu for, under its first line. */
+.landline-start-button {
+  min-height: 2.2em;
+}
+
+/* The card of a notification of another app. */
+.landline-note-title {
+  font-weight: bold;
+}
+
+/* "Voice message — play it in Signal". */
+.landline-note-media {
+  font-style: italic;
+  padding-top: 4px;
+}
+
+/* The official app is missing: one quiet line, said once. */
+.landline-note-suggestion {
+  padding-top: 6px;
+}
+
+/* "On your iPhone": what waits there, in the menu. */
+.landline-section {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.landline-word {
+  font-size: 0.8em;
+  padding: 2px 10px;
+  border-radius: 99px;
+  min-height: 0;
+}
+
+/* "Internet from iPhone": the drawing of Settings › Personal Hotspot and
+   the words to try again, under the switch. */
+.landline-internet-art {
+  margin: 8px 0 4px;
+}
+
+.landline-internet-actions {
+  spacing: 6px;
+  padding-top: 6px;
+}
+
+.landline-phone-list {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.landline-phone-scroll {
+  max-height: 36em;
+}
+
+.landline-app {
+  spacing: 8px;
+  padding-top: 6px;
+}
+
+.landline-app-avatar {
+  font-size: 0.7em;
+}
+
+/* The real icon of an iPhone app: square artwork from the App Store, rounded
+   here like on the iPhone (about 22 % of its side). An icon of this computer
+   (landline-app-icon-plain) keeps its own shape. The sizes are the ones of
+   the initials they replace. */
+.landline-app-icon {
+  background-size: cover;
+}
+
+.landline-app-icon-pill {
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 0.28em;
+}
+
+.landline-app-icon-small {
+  width: 1.75em;
+  height: 1.75em;
+  border-radius: 0.39em;
+}
+
+.landline-app-icon-large {
+  width: 2.15em;
+  height: 2.15em;
+  border-radius: 0.48em;
+}
+
+.landline-app-icon-plain {
+  border-radius: 0;
+}
+
+.landline-app-icon-pill.landline-app-icon-plain {
+  icon-size: 1.25em;
+}
+
+.landline-app-icon-small.landline-app-icon-plain {
+  icon-size: 1.75em;
+}
+
+.landline-app-icon-large.landline-app-icon-plain {
+  icon-size: 2.15em;
+}
+
+.landline-pill-apps {
+  spacing: 3px;
+}
+
+/* The icons of the pill come on top of its text. */
+.landline-with-apps .landline-pill {
+  max-width: 23em;
+}
+
+.landline-wide.landline-with-apps .landline-pill {
+  max-width: 36em;
+}
+
+.landline-app-name {
+  font-size: 0.85em;
+  font-weight: bold;
+}
+
+.landline-note {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+/* "While you were away: …": a sentence, wider than a name and a few words. */
+.landline-wide .landline-pill {
+  max-width: 32em;
+}
+
+.landline-wide .landline-pill-strong {
+  max-width: 14em;
+}
+
+.landline-wide .landline-pill-text {
+  max-width: 20em;
+}
+
+.landline-earlier {
+  padding-top: 3px;
+  padding-bottom: 3px;
 }

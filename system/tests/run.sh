@@ -126,6 +126,22 @@ case "$1" in
 esac
 STUB
     printf '#!/bin/bash\nexit 0\n' > "$R/.stubs/udevadm"
+
+    # setcap et getcap : le droit posé sur un fichier, noté dans l'état.
+    # « setcap-fails » fait échouer setcap.
+    cat > "$R/.stubs/setcap" <<'STUB'
+#!/bin/bash
+S="$LANDLINE_ROOT/.state"
+[ -e "$S/setcap-fails" ] && exit 1
+[ "$1" = cap_net_raw+ep ] && [ -f "$LANDLINE_ROOT$2" ] || exit 1
+echo yes > "$S/caps"
+STUB
+    cat > "$R/.stubs/getcap" <<'STUB'
+#!/bin/bash
+S="$LANDLINE_ROOT/.state"
+[ -f "$1" ] && [ "$(cat "$S/caps" 2>/dev/null)" = yes ] && printf '%s cap_net_raw=ep\n' "$1"
+exit 0
+STUB
     chmod +x "$R"/.stubs/*
     : > "$R/.commands.log"
 }
@@ -157,7 +173,7 @@ ertm_value() { cat "$R/sys/module/bluetooth/parameters/disable_ertm"; }
 
 # La classe d'appareil reste à faux partout : elle n'est plus posée, et
 # « ready » n'en dépend plus.
-TAIL='"required":{"experimental":true,"ertm":true},"bluez_version":"5.87"}'
+TAIL='"required":{"experimental":true,"ertm":true},"bluez_version":"5.87","le_params":false}'
 ALL_FALSE='{"experimental":false,"device_class":false,"ertm":false,"ready":false,"persistent":{"experimental":false,"device_class":false,"ertm":false},'"$TAIL"
 ALL_TRUE='{"experimental":true,"device_class":false,"ertm":true,"ready":true,"persistent":{"experimental":true,"device_class":false,"ertm":true},'"$TAIL"
 
@@ -516,13 +532,155 @@ set -e
 check "apply : unité sans en-tête laissée en place" test -f "$R/etc/systemd/system/iphone-link-ertm.service"
 check_eq "apply : le signale (code 2)" 2 "$rc"
 
+# --- 5 quater. tolérance du lien LE (auxiliaire landline-le-params) ---------
+
+echo "== Tolérance du lien LE : souhaitée, jamais bloquante"
+HELPER=usr/local/libexec/landline/landline-le-params
+SRC="$WORK/landline-le-params"
+printf '\177ELF\002\001\001\000fake helper\n' > "$SRC"
+chmod 0755 "$SRC"
+LE_TRUE="${ALL_TRUE/\"le_params\":false/\"le_params\":true}"
+
+new_root le-sans-source
+set +e
+out="$(setup apply 2>"$WORK/err")"; rc=$?
+set -e
+check_eq "sans source : apply réussit quand même" 0 "$rc"
+check_eq "sans source : prêt, le_params à faux" "$ALL_TRUE" "$(tail -n 1 <<< "$out")"
+check "sans source : le dit" grep -q 'auxiliaire landline-le-params introuvable' "$WORK/err"
+check_not "sans source : rien posé" test -e "$R/$HELPER"
+check_not "sans source : pas de setcap" grep -q setcap "$R/.commands.log"
+
+new_root le-pose
+before="$(snapshot)"
+dry="$(LANDLINE_LE_PARAMS_SRC="$SRC" setup apply --dry-run)"
+check "dry-run : annonce la copie" grep -q "copierait : $SRC -> /$HELPER" <<< "$dry"
+check "dry-run : annonce setcap" grep -q "exécuterait : setcap cap_net_raw+ep /$HELPER" <<< "$dry"
+check_eq "dry-run : rien n'est écrit" "$before" "$(snapshot)"
+out="$(LANDLINE_LE_PARAMS_SRC="$SRC" setup apply)"
+check_eq "apply : prêt et le_params à vrai" "$LE_TRUE" "$(tail -n 1 <<< "$out")"
+check_eq "status : le confirme" "$LE_TRUE" "$(status)"
+check "apply : auxiliaire identique à sa source" cmp -s "$SRC" "$R/$HELPER"
+check_eq "apply : mode 0755" 755 "$(stat -c %a "$R/$HELPER")"
+check "apply : marque posée" grep -q 'Managed by landline-setup' "$R/$HELPER.managed"
+check "apply : setcap sur la copie provisoire, avant sa mise en place" \
+    grep -qx 'setcap cap_net_raw+ep /usr/local/libexec/landline/.landline-le-params.new' "$R/.commands.log"
+check_not "apply : pas de copie provisoire laissée" test -e "$R/usr/local/libexec/landline/.landline-le-params.new"
+check "apply : le dit" grep -q 'auxiliaire en place avec cap_net_raw' <<< "$out"
+: > "$R/.commands.log"
+out="$(LANDLINE_LE_PARAMS_SRC="$SRC" setup apply)"
+check "2e apply : inchangé" grep -q 'inchangé : /usr/local/libexec/landline/landline-le-params' <<< "$out"
+check_not "2e apply : pas de nouveau setcap" grep -q setcap "$R/.commands.log"
+out="$(setup apply)"
+check "apply sans source, déjà posé : gardé" grep -q 'auxiliaire déjà en place' <<< "$out"
+check_eq "apply sans source, déjà posé : toujours vrai" "$LE_TRUE" "$(tail -n 1 <<< "$out")"
+chmod 0775 "$R/$HELPER"
+check "écrivable par le groupe : plus opérationnel" grep -q '"le_params":false' <<< "$(status)"
+chmod 0755 "$R/$HELPER"
+rm "$R/.state/caps"
+check "sans le droit : plus opérationnel" grep -q '"le_params":false' <<< "$(status)"
+echo yes > "$R/.state/caps"
+dry="$(setup revert --dry-run)"
+check "revert --dry-run : annonce le retrait" grep -q 'retirerait : /usr/local/libexec/landline/landline-le-params' <<< "$dry"
+out="$(setup revert)"
+check_not "revert : auxiliaire retiré" test -e "$R/$HELPER"
+check_not "revert : marque retirée" test -e "$R/$HELPER.managed"
+check "revert : le_params à faux" grep -q '"le_params":false' <<< "$(tail -n 1 <<< "$out")"
+check_eq "revert : arborescence d'origine" "$before" "$(snapshot)"
+
+new_root le-pas-elf
+printf '#!/bin/sh\necho pirate\n' > "$WORK/script"
+out="$(LANDLINE_LE_PARAMS_SRC="$WORK/script" setup apply 2>/dev/null)"
+check_not "source qui n'est pas un ELF : refusée" test -e "$R/$HELPER"
+check_eq "source qui n'est pas un ELF : prêt quand même" "$ALL_TRUE" "$(tail -n 1 <<< "$out")"
+ln -s "$SRC" "$WORK/lien"
+LANDLINE_LE_PARAMS_SRC="$WORK/lien" setup apply >/dev/null 2>&1
+check_not "source qui est un lien : refusée" test -e "$R/$HELPER"
+
+new_root le-setcap-echoue
+touch "$R/.state/setcap-fails"
+set +e
+out="$(LANDLINE_LE_PARAMS_SRC="$SRC" setup apply 2>"$WORK/err")"; rc=$?
+set -e
+check_eq "setcap échoue : apply réussit quand même" 0 "$rc"
+check "setcap échoue : le dit" grep -q 'setcap a échoué' "$WORK/err"
+check_not "setcap échoue : rien laissé" test -e "$R/$HELPER"
+check_not "setcap échoue : pas de copie provisoire" test -e "$R/usr/local/libexec/landline/.landline-le-params.new"
+check_eq "setcap échoue : prêt, le_params à faux" "$ALL_TRUE" "$(tail -n 1 <<< "$out")"
+
+new_root le-etranger
+mkdir -p "$R/usr/local/libexec/landline"
+cp "$SRC" "$R/$HELPER"
+set +e
+setup revert >/dev/null 2>&1; rc=$?
+set -e
+check "revert : auxiliaire sans marque laissé en place" test -f "$R/$HELPER"
+check_eq "revert : le signale (code 2)" 2 "$rc"
+
+# La source de l'auxiliaire n'est prise qu'à côté de l'assistant lancé, jamais
+# dans le dossier personnel de l'utilisateur qui a demandé les droits (#25).
+# L'assistant est copié ailleurs pour chaque disposition ; getent est une
+# doublure qui donne à l'uid 4321 un dossier personnel où un auxiliaire
+# « piégé » (un ELF valide) attend.
+echo "== Source de l'auxiliaire : à côté de l'assistant seulement"
+PIRATE_HOME="$WORK/home-pirate"
+mkdir -p "$PIRATE_HOME/.local/lib/landline/engine" "$WORK/fakebin"
+printf '\177ELF\002\001\001\000piege du dossier personnel\n' > "$PIRATE_HOME/.local/lib/landline/engine/landline-le-params"
+chmod 0755 "$PIRATE_HOME/.local/lib/landline/engine/landline-le-params"
+cat > "$WORK/fakebin/getent" <<STUB
+#!/bin/sh
+[ "\$1" = passwd ] && [ "\$2" = 4321 ] && echo "pirate:x:4321:4321::$PIRATE_HOME:/bin/sh"
+STUB
+chmod +x "$WORK/fakebin/getent"
+# copy_setup <dossier> : l'assistant posé dans <dossier>, son chemin en sortie.
+copy_setup() { mkdir -p "$1"; cp "$SETUP" "$1/landline-setup"; chmod 0755 "$1/landline-setup"; printf '%s\n' "$1/landline-setup"; }
+
+for who in PKEXEC_UID SUDO_UID; do
+    new_root "le-home-$who"
+    copy="$(copy_setup "$WORK/copie-de-root-$who")"
+    set +e
+    out="$(env PATH="$WORK/fakebin:$PATH" "$who=4321" LANDLINE_ROOT="$R" "$copy" apply 2>"$WORK/err")"; rc=$?
+    set -e
+    check_eq "copie de root, $who : apply réussit" 0 "$rc"
+    check_not "copie de root, $who : l'auxiliaire du dossier personnel n'est pas pris" test -e "$R/$HELPER"
+    check_not "copie de root, $who : pas de setcap" grep -q setcap "$R/.commands.log"
+    check "copie de root, $who : dit qu'il n'y en a pas à côté" grep -q 'introuvable à côté de l' "$WORK/err"
+done
+
+new_root le-a-cote-root
+copy="$(copy_setup "$WORK/libexec-root")"
+printf '\177ELF\002\001\001\000auxiliaire de root\n' > "$WORK/libexec-root/landline-le-params"
+env PATH="$WORK/fakebin:$PATH" PKEXEC_UID=4321 LANDLINE_ROOT="$R" "$copy" apply >/dev/null 2>&1
+check "copie de root, auxiliaire à côté : c'est lui qui est posé" cmp -s "$WORK/libexec-root/landline-le-params" "$R/$HELPER"
+
+new_root le-un-clic
+copy="$(copy_setup "$WORK/un-clic/engine/system")"
+printf '\177ELF\002\001\001\000moteur un clic\n' > "$WORK/un-clic/engine/landline-le-params"
+env SUDO_UID=4321 PATH="$WORK/fakebin:$PATH" LANDLINE_ROOT="$R" "$copy" apply >/dev/null 2>&1
+check "un clic (engine/system/landline-setup) : engine/landline-le-params posé" \
+    cmp -s "$WORK/un-clic/engine/landline-le-params" "$R/$HELPER"
+
+new_root le-local
+copy="$(copy_setup "$WORK/local")"
+mkdir -p "$WORK/local/engine"
+printf '\177ELF\002\001\001\000install-local\n' > "$WORK/local/engine/landline-le-params"
+env SUDO_UID=4321 PATH="$WORK/fakebin:$PATH" LANDLINE_ROOT="$R" "$copy" apply >/dev/null 2>&1
+check "install-local (landline-setup + engine/) : engine/landline-le-params posé" \
+    cmp -s "$WORK/local/engine/landline-le-params" "$R/$HELPER"
+
+new_root le-pas-system
+copy="$(copy_setup "$WORK/autre/engine/ailleurs")"
+printf '\177ELF\002\001\001\000voisin\n' > "$WORK/autre/engine/landline-le-params"
+LANDLINE_ROOT="$R" "$copy" apply >/dev/null 2>&1
+check_not "dossier parent pris seulement quand l'assistant est dans system/" test -e "$R/$HELPER"
+
 # --- 5 bis. version de BlueZ et mode expérimental ---------------------------
 
 echo "== BlueZ 5.88 et après : mode expérimental non requis"
 new_root bluez588
 echo 5.88 > "$R/.state/bluez-version"
 check_eq "5.88, ERTM coupé : pas prêt, expérimental non requis" \
-    '{"experimental":false,"device_class":false,"ertm":false,"ready":false,"persistent":{"experimental":false,"device_class":false,"ertm":false},"required":{"experimental":false,"ertm":true},"bluez_version":"5.88"}' \
+    '{"experimental":false,"device_class":false,"ertm":false,"ready":false,"persistent":{"experimental":false,"device_class":false,"ertm":false},"required":{"experimental":false,"ertm":true},"bluez_version":"5.88","le_params":false}' \
     "$(status)"
 out="$(setup apply)"
 check_not "5.88 : pas de fichier d'appoint" test -e "$R/etc/systemd/system/bluetooth.service.d/landline-experimental.conf"
@@ -537,7 +695,7 @@ echo 5.88 > "$R/.state/bluez-version"
 rm "$R/etc/sysfs.conf"
 echo N > "$R/sys/module/bluetooth/parameters/disable_ertm"
 check_eq "ERTM actif et persistant, expérimental non requis : prêt sans rien demander" \
-    '{"experimental":false,"device_class":false,"ertm":true,"ready":true,"persistent":{"experimental":false,"device_class":false,"ertm":true},"required":{"experimental":false,"ertm":true},"bluez_version":"5.88"}' \
+    '{"experimental":false,"device_class":false,"ertm":true,"ready":true,"persistent":{"experimental":false,"device_class":false,"ertm":true},"required":{"experimental":false,"ertm":true},"bluez_version":"5.88","le_params":false}' \
     "$(status)"
 
 new_root versions

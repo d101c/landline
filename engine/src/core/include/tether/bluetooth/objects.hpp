@@ -69,6 +69,8 @@ namespace tether::bluetooth {
         std::string path;
         std::string adapter_path;
         std::string address;
+        // Device1.AddressType: "public" or "random".
+        std::string address_type;
         std::string name;
         bool paired = false;
         bool bonded = false;

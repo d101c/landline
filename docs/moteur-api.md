@@ -14,6 +14,12 @@ l'iPhone par défaut (section 9, commande et événement `bt_audio`), l'éloigne
 (section 7, `bt_presence`), la batterie faible est annoncée (section 3, `bt_battery_low`). L'étude, les
 choix et les essais à faire avec l'iPhone sont dans `moteur-quotidien.md`.
 
+**Mise à jour (branche `moteur-sobre`).** Le moteur a deux modes de lien : « sobre » (`lean`, par défaut :
+le LE est le seul lien permanent, le lien classique est ouvert à la demande) et « complet » (`full`, le
+comportement d'avant). Tout ce que cela ajoute au socket — commandes `bt_set_link_mode`, `bt_lease`,
+`bt_call_cancel`, événements `bt_send_progress`, `bt_incoming_call`, `bt_call_progress`, onze champs d'état —
+est décrit en **section 13**. Les sections 3, 5, 8 et 11 y renvoient là où leur contenu a changé.
+
 La documentation amont du protocole est `docs/PROTOCOL.md`. Elle est juste mais incomplète : les commandes
 d'appel (`bt_call_*`), `bt_scan`, `bt_solicit`, `bt_set_calls`, `bt_set_lock_on_away`, `bt_set_phone_audio`
 et plusieurs événements n'y figurent pas. Ce document part du code.
@@ -59,8 +65,8 @@ intermédiaire n'est requis.
 ### Pièges à connaître avant d'écrire le client
 
 - **Pas d'identifiant de requête.** Réponses directes et événements arrivent sur le même flux, sans
-  corrélation. Seules quatre commandes renvoient un `operation_id` fourni par le client : `bt_pair`,
-  `bt_unpair`, `bt_send_message`, `send_file`. Le plus simple : traiter chaque ligne reçue selon son champ
+  corrélation. Seules cinq commandes renvoient un `operation_id` fourni par le client : `bt_pair`,
+  `bt_unpair`, `bt_send_message`, `bt_call_dial`, `send_file`. Le plus simple : traiter chaque ligne reçue selon son champ
   `command`, comme un événement, que ce soit une réponse ou une diffusion. Les réponses directes portent des
   noms distincts (`bt_threads`, `bt_messages`, `bt_contacts`…), donc cela fonctionne sans ambiguïté.
 - **Ignorer les lignes `OK`.** Le client GTK amont fait exactement cela
@@ -71,9 +77,13 @@ intermédiaire n'est requis.
 - **Toujours lire.** Les écritures du démon vers un client lent bouclent avec des pauses de 1 ms jusqu'à une
   limite, sous verrou (`src/core/src/net.cpp:255-275`, `:296`). Un client abonné qui cesse de lire ralentit
   tout le démon avant d'être abandonné.
-- **Les commandes d'appel bloquent la boucle.** `bt_call_dial`, `bt_call_action` et `bt_call_tones`
-  s'exécutent sur la boucle d'événements et attendent la pile téléphonie jusqu'à 10 s
-  (`src/core/src/bluetooth/telephony.cpp:19`, `:195`). Pendant ce temps aucun client n'est servi.
+- **Les commandes d'appel ne bloquent plus la boucle** (branche `moteur-sobre`). `bt_call_dial` et
+  `bt_call_action` s'exécutent sur un fil à part ; leur `bt_call_result` revient au client qui a envoyé la
+  commande **et** est diffusé aux abonnés. Un client abonné le reçoit une fois, comme un événement ; un client
+  non abonné (`landlinectl`) le reçoit comme réponse. Il peut arriver plusieurs secondes après la commande
+  (jusqu'à 35 s pour une composition à froid) : ne pas le confondre avec la réponse à une commande envoyée
+  entre-temps. Seul `bt_call_tones` s'exécute encore sur la boucle, jusqu'à 10 s
+  (`src/core/src/bluetooth/telephony.cpp:19`).
 - **Le démon n'affiche plus de bulles par défaut.** `desktop_popups_enabled` vaut maintenant `false`
   (`include/tether/bluetooth/config.hpp`) : le code libnotify (`src/daemon/notification.cpp`) reste en place
   mais ne montre rien. L'extension n'a rien à envoyer pour éviter les doublons. Pour retrouver les bulles
@@ -133,9 +143,15 @@ C'est **le** message central pour la pastille.
 | `le_available` | bool | le lien a une moitié LE (sans elle, pas de notifications) |
 | `le_connected` | bool | lien LE actif |
 | `map_open` / `pbap_open` | bool | session messages / contacts ouverte (maintenu à vrai pendant le cycle mains-libres, voir « Réglages de reconnexion ») |
-| `map_error` / `pbap_error` | chaîne | `none`, `forbidden` (réglage désactivé sur l'iPhone), `busy` (un autre ordinateur tient la session), `no_record`, `unavailable`, `no_daemon` (obexd absent), `bus_closed` (le moteur a perdu le bus de session, voir ci-dessous), `other` — `src/core/src/bluetooth/profile_supervisor.cpp:26-72` |
+| `map_error` / `pbap_error` | chaîne | `none`, `forbidden` (réglage désactivé sur l'iPhone), `busy` (un autre ordinateur tient la session), `no_record`, `unavailable`, `no_daemon` (obexd absent), `bus_closed` (le moteur a perdu le bus de session, voir ci-dessous), `daemon_down` (obexd absent du bus, muet, ou `CreateSession` expiré : le moteur le fait démarrer ou relancer par systemd, transitoire, voir `moteur-reconnexion.md` §16), `other` — `src/core/src/bluetooth/profile_supervisor.cpp` (`to_string`, `classify_obex_error`) |
 | `map_held` / `pbap_held` / `ancs_held` | bool | service relâché volontairement sur cet ordinateur |
 | `ancs_ready` | bool | notifications actives |
+| `le_state` | chaîne | état du lien des notifications : `connected`, `waiting`, `paused`, `unavailable`, `off` — voir « Notifications en pause » ci-dessous |
+| `le_cause` | chaîne | pourquoi, en un mot ; vide quand `connected` |
+| `le_detail` | chaîne | phrase prête à afficher (en anglais), seulement quand `paused` ou quand `le_cause` vaut `holding_off` (ce dernier n'apparaît plus par défaut, #29) |
+| `le_strikes` | entier | liens LE terminés avant que le service de notifications ait répondu, depuis le dernier lien qui a servi (0 en temps normal) — voir « Liens morts avant service » ci-dessous |
+| `le_conn_params` | chaîne | tolérance du lien LE (paramètres de connexion demandés à l'iPhone) : `applied` (l'iPhone a pris une supervision ≥ celle demandée), `pending` (demande en cours ou relance prévue), `refused` (abandon sur ce lien, qui est gardé), `no_right` (ni auxiliaire opérationnel ni `CAP_NET_RAW` : rien n'est demandé), `waiting` (pas de lien LE), `off` (`LANDLINE_LE_CONN_PARAMS=0`). Absent d'un moteur plus ancien — `moteur-reconnexion.md` §15 |
+| `le_conn_values` | objet ou `null` | les paramètres en vigueur sur le lien LE, tels que le contrôleur les a rapportés : `{"interval_ms": 60, "latency": 0, "timeout_ms": 6000}` ; `null` sans lien LE ou tant que rien n'a été rapporté. Suit aussi les renégociations de l'iPhone |
 | `ancs_reason` | chaîne | phrase d'état des notifications |
 | `link_reason` / `profile_reason` | chaîne | phrases prêtes à afficher (en anglais, traduites par gettext) |
 | `bond_state` | chaîne | santé de l'appairage : `none`, `ok`, `partial`, `broken` — voir « Santé de l'appairage » ci-dessous |
@@ -145,6 +161,72 @@ C'est **le** message central pour la pastille.
 | `battery_source` | chaîne ou `null` | d'où vient `battery` : `le` (service Batterie, pas de 1 %) ou `hfp` (indicateur mains-libres, pas de 20 %) |
 | `battery_state` | chaîne ou `null` | `ok`, `low` (20 % ou moins), `critical` (10 % ou moins) |
 | `calls` | objet ou `null` | état de la téléphonie, voir section 8 ; `null` si le contrôle d'appel est désactivé |
+| `link_mode`, `link_mode_effective`, `link_mode_reason` | chaînes | le mode de lien réglé, celui appliqué, et pourquoi ils diffèrent — section 13 |
+| `classic_state`, `classic_leases`, `classic_opened_by` | chaîne, tableau, chaîne | ce que fait le lien classique à la demande — section 13 |
+| `messages`, `contacts`, `calls_available` | chaînes | ce que l'utilisateur peut attendre de chaque service, lien ouvert ou non — section 13. **C'est sur eux qu'un client doit se régler en mode sobre**, pas sur `map_open` ni `classic_connected`, qui restent vrais au sens strict (ce qui est monté à l'instant) |
+| `last_sync`, `next_sync` | entiers (secondes Unix) ou `null` | dernière relève des messages réussie, prochaine relève de fond |
+
+### Notifications en pause (`le_state`, `le_cause`, `le_detail`)
+
+Les notifications et le niveau de batterie précis passent par le lien LE, que seul l'iPhone ouvre. Quand il
+manque, `classic_connected`, `map_open` et `pbap_open` peuvent tous être vrais : messages, contacts et
+appels marchent, et rien d'autre ne disait que les notifications n'arrivent plus. Ces trois champs le
+disent (`le_state_for()` dans `include/tether/bluetooth/le_after_sleep.hpp`).
+
+| `le_state` | Sens | Affichage conseillé |
+|---|---|---|
+| `connected` | lien LE monté ; `ancs_ready` dit si les notifications sont actives | rien |
+| `waiting` | lien LE perdu depuis moins de 180 s, ou retenue en cours : le moteur attend que l'iPhone le rouvre (avec `unsteady` : des liens viennent d'échouer et le moteur rappelle l'iPhone) | rien, ou « Reconnecting » |
+| `paused` | lien LE absent depuis 180 s ou plus | **« Notifications paused »** et `le_detail` |
+| `unavailable` | pas d'appairage, appairage sans moitié LE ou à refaire | suivre `needs_repair` / `bond_state` |
+| `off` | notifications désactivées sur cet ordinateur | rien |
+
+| `le_cause` | Avec | Sens |
+|---|---|---|
+| `reconnecting` | `waiting` | perte récente |
+| `unsteady` | `waiting` | **liens qui échouent, nouvel essai en cours** : des liens LE sont morts avant d'avoir servi (`le_strikes` > 0), aucun n'a servi depuis, le dernier est tombé il y a moins de 180 s, et l'annonce est à l'antenne (20 ms pendant 30 s après chaque échec, puis 152,5 ms) ; ou, avec `LANDLINE_LE_STRIKES=0`, le lien est tombé 3 fois en 60 s (§13). Pas de `le_detail` |
+| `holding_off` | `waiting` | **n'apparaît plus par défaut** (#29) : seulement si les retraits d'annonce sont rétablis par `LANDLINE_LE_STRIKE_PAUSE_SECONDS` / `LANDLINE_LE_STRIKE_LONG_PAUSE_SECONDS`. Le moteur a alors retiré lui-même l'annonce après un lien mort avant service ; `le_detail` porte la phrase. Passe avant toute autre cause, y compris au-delà de 180 s (`moteur-reconnexion.md` §14.2) |
+| `after_resume` | `waiting`, `paused` | l'ordinateur sort de veille et aucun lien LE n'a été vu depuis |
+| `phone_silent` | `paused` | l'iPhone est joignable (BR/EDR ou session ouverte) mais ne rouvre pas le LE ; remède connu : couper puis rallumer le Bluetooth sur l'iPhone |
+| `phone_away` | `paused` | aucun lien : iPhone hors de portée ou Bluetooth coupé. Si la perte suit une rafale de coupures, `le_detail` dit aussi le geste (couper puis rallumer le Bluetooth de l'iPhone) |
+| `phone_backoff` | `paused` | le lien LE a été perdu après au moins deux liens morts avant service (ou une rafale de coupures) et l'iPhone, joint depuis par le lien classique, ne le rouvre plus ; revient parfois seul, sinon couper puis rallumer le Bluetooth sur l'iPhone |
+| `unresolved_address` | `paused` | un appareil LE inconnu à adresse privée a répondu à l'annonce dans le dernier quart d'heure ; ce peut être l'iPhone non reconnu (piste, voir `moteur-reconnexion.md` 11.5) |
+| `advert_off_air` | `paused` | l'annonce LE n'est pas enregistrée auprès de BlueZ |
+| `disabled`, `not_paired`, `bond`, `no_le_bond` | `off`, `unavailable` | — |
+
+`waiting` devient `paused` sans autre événement, 180 s après la perte : l'objet est alors rediffusé. Les
+champs ne changent pas à chaque seconde. Un client qui ne les connaît pas n'a rien à faire.
+
+#### Liens morts avant service (`unsteady`, `le_strikes`)
+
+Un iPhone de 2015 comptait les liens LE terminés avant que l'accessoire ait utilisé un service et cessait
+de se reconnecter au troisième (`moteur-reconnexion.md` §14.1) ; deux essais réels du 18 novembre montrent
+qu'iOS 26 revient après trois (§14.7, #29). Le moteur tient ce compte (`le_strikes.hpp`) : un lien LE qui
+tombe avant que `ancs_ready` soit passé à vrai est une « faute ». Depuis #29, **l'annonce n'est plus
+retirée** après une faute.
+
+| Fautes à la suite | Annonce (défaut) | Publié |
+|---|---|---|
+| 1 et plus | **reste à l'antenne** : 20 ms pendant 30 s après chaque faute, puis 152,5 ms | `waiting` / `unsteady`, `le_strikes` = N ; au-delà de 180 s sans lien après la dernière : `paused` / `phone_backoff` (si le classique joint l'iPhone, à partir de 2) ou `phone_away` |
+| 8 et plus, aucun lien servi entre elles (`LANDLINE_LE_STRIKE_BRAKE`, #41) | à l'antenne à 152,5 ms, **plus de phase rapide** | inchangé |
+| lien qui a servi moins de 10 s puis est tombé (#40) | rythme d'une perte ordinaire (20 ms pendant 180 s, puis 152,5 ms) | compte gardé, `le_strikes` = N, `unsteady` |
+| lien dont les notifications sont actives depuis 10 s | rythme ordinaire | compte remis à zéro, `le_strikes` = 0, `connected` |
+
+Avant #29 : retirée 15 s à la première, 30 s à la deuxième puis le double jusqu'à 120 s, remise à
+1022,5 ms à partir de la deuxième, publiée `holding_off` pendant le retrait. Variables pour y revenir :
+section des variables, ci-dessous.
+
+**Pour un client qui veut dire « reconnexion en cours » (#30).** `le_state == "waiting"` suffit à dire
+que le moteur attend le lien des notifications ; `le_cause == "unsteady"` (avec `le_strikes` > 0) dit en
+plus que des liens viennent d'échouer et que l'iPhone est rappelé ; `holding_off` (retraits rétablis
+seulement) dit que l'attente est voulue. L'objet est republié à chaque changement de `le_state` /
+`le_cause`, et `le_strikes` change à chaque faute. Le moteur ne publie pas de délai avant le prochain
+essai : par défaut il n'y en a pas, l'iPhone peut se relier à tout moment.
+
+Affichage conseillé pour `unsteady` et `holding_off` : rien de plus alarmant que « Reconnecting ».
+`le_strikes` sert au diagnostic plus qu'à l'affichage. Le compte n'est tenu que pour
+un appairage sain dont l'iPhone a déjà offert les notifications : un appairage en cours n'est pas concerné.
+Il est aussi oublié après 15 min sans nouvelle faute, au réveil de l'ordinateur et au retour de bluetoothd.
 
 ### Batterie et état du téléphone
 
@@ -258,6 +340,11 @@ Constantes : `AUTH_FAILURES_BEFORE_BROKEN` (5), `AUTH_FAILURE_WINDOW_SECONDS` (1
 - Requête : `{"command":"bt_status"}` — réponse directe (`src/core/src/net.cpp:1332`).
 - Aussi diffusé après tout changement de réglage et à chaque changement BlueZ.
 - Construction : `src/core/src/net.cpp:420-471`.
+
+Depuis la branche `moteur-sobre`, `bt_status` porte aussi `link_mode` et les dix autres champs de la
+section 13 (`link_mode_effective`, `link_mode_reason`, `classic_state`, `classic_leases`,
+`classic_opened_by`, `messages`, `contacts`, `calls_available`, `last_sync`, `next_sync`), recopiés de
+`bt_connection_changed` ; ils valent `null` tant qu'aucun iPhone n'est suivi, sauf `link_mode`.
 
 Champs : `available`, `version`, `device_address` (l'iPhone choisi), `adapter`, `enabled`, `ancs_enabled`,
 `ancs_content_enabled`, `calls_enabled`, `retention`, `retention_ready`, `desktop_popups_enabled` (faux par
@@ -394,10 +481,16 @@ Formes :
 
 Points à savoir :
 
-- **Les messages ne sont pas poussés par l'iPhone.** Le démon relit la boîte toutes les 15 s
-  (`MESSAGE_POLL_SECONDS`, `connection.cpp:309`, `:929-931`). Un message reçu apparaît donc avec jusqu'à 15 s
-  de retard ; la notification ANCS correspondante arrive plus tôt. Côté client, en revanche, tout est
-  événement : pas d'interrogation à faire.
+- **La relève est déclenchée par la notification** (branche `moteur-sobre`, étape M1). L'iPhone ne pousse
+  pas les messages par MAP, mais sa notification ANCS de Messages dit qu'il y en a un : le démon relève la
+  boîte 2 s après (une rafale ne fait qu'une relève), relance à +3 s puis +10 s si le message n'y est pas
+  encore, puis abandonne. Une session MAP qui vient de s'ouvrir est relevée aussitôt. L'horloge n'est plus
+  qu'un filet : une relève par heure tant que les notifications sont prêtes et portent leur texte, toutes
+  les 15 s sinon (`message_sync_policy.hpp`). `LANDLINE_MESSAGE_POLL_SECONDS` remplace cet intervalle de
+  fond dans les deux cas. Un message qui n'a produit aucune notification (Messages à l'écran de l'iPhone,
+  message envoyé depuis l'iPhone) est vu à la relève suivante : au pire une heure plus tard.
+- **`bt_send_message` peut prendre plusieurs secondes en mode sobre** : le lien classique est ouvert pour
+  l'envoi. `bt_send_progress` dit où il en est ; voir la section 13.
 - La première lecture d'une session renvoie tout l'historique : ces messages sont diffusés en `bt_message`
   mais sans bulle (`backfill`, `connection.cpp:1097-1107`). L'événement ne porte pas ce drapeau : l'extension
   doit ne faire surgir que les messages `read:false`, `outgoing:false` et récents.
@@ -639,7 +732,7 @@ système) ou celui de PipeWire (`org.pipewire.Telephony`, bus de session), le pr
 | `bt_list_calls` | requête | — | réponse directe `bt_calls` | `src/core/src/net.cpp:1609`, `connection.cpp:1678` |
 | `bt_call_history` | événement | — | `{calls:[{number, name, type, timestamp}]}` | `src/daemon/main.cpp:780-785`, `connection.cpp:1154-1205` |
 | `bt_list_call_history` | requête | — | réponse directe `bt_call_history` | `src/core/src/net.cpp:1617` |
-| `bt_call_dial` | requête | `number`, `audio` (facultatif : `here` ou `phone`) | `bt_call_result` `{action:"dial", success, message?}`, en réponse directe **et** en diffusion | `src/core/src/net.cpp:1625`, `telephony.cpp:241-259` |
+| `bt_call_dial` | requête | `number`, `audio` (facultatif : `here` ou `phone` ; absent : `here`) | `bt_call_result` `{action:"dial", success, message?}`, en réponse directe **et** en diffusion | `src/core/src/net.cpp:1625`, `telephony.cpp:241-259` |
 | `bt_call_action` | requête | `action`, `path` (facultatif), `audio` (facultatif, avec `answer` : `here` ou `phone`) | `bt_call_result` `{action, success, message?}`, idem | `src/core/src/net.cpp:1637`, `telephony.cpp:261-302` |
 | `bt_call_tones` | requête | `tones` (chiffres, `*`, `#`, `A`-`D`, 32 au plus) | `bt_call_result` `{action:"tones", …}`, idem | `src/core/src/net.cpp:1651`, `telephony.cpp:304-322` |
 
@@ -672,7 +765,26 @@ Actions de `bt_call_action` :
 
 Répondre et raccrocher fonctionnent quel que soit le réglage du son. Le paramètre `audio` de
 `bt_call_dial` et de `answer` fixe où ira le son de **cet** appel, avant de le passer ou de le prendre ;
-absent, rien n'est touché et le réglage `call_audio` s'applique (section 9).
+sur `answer`, absent, rien n'est touché et le réglage `call_audio` s'applique (section 9). **Sur
+`bt_call_dial`, absent, le son va sur l'ordinateur** : qui compose d'ici est devant
+(`LANDLINE_DIAL_AUDIO_DEFAULT=setting` rend le réglage, `=phone` force l'iPhone). Le choix est tenu jusqu'à
+la fin de l'appel, puis le réglage reprend.
+
+Le son d'un appel voulu ici est **suivi** (`call_audio_follow.hpp`) : le lien voix est accepté avant
+l'appel ; s'il n'est pas là 3 s après que l'appel porte du son (`dialing`, `alerting`, `active`, `held`),
+le moteur le demande à l'iPhone (`Activate`), trois fois à 3 s d'intervalle. Deux événements
+`bt_call_progress`, sans `number` ni `operation_id`, valables pour un appel sortant comme entrant :
+
+| `stage` | `reason` | Sens |
+|---|---|---|
+| `audio_here` | — | le son de l'appel est sur l'ordinateur (`calls.audio_route:"here"`) |
+| `audio_failed` | `no_voice_link` | 12 s après, l'iPhone n'a pas ouvert le lien voix ; le son est sur l'iPhone |
+| `audio_failed` | `voice_link_unused` | l'iPhone a ouvert le lien voix et rien ici ne le joue (carte PipeWire sur `off`) : l'appel peut être muet des deux côtés ; `audio_phone` ou raccrocher |
+
+Pendant une composition, une sonnerie ou un appel, le moteur ne lit ni carnet, ni journal d'appels, ni
+messages, n'ouvre aucune session OBEX en mode sobre, et relit la liste des appels quatre fois par seconde
+(`LANDLINE_OBEX_DURING_CALLS=1` : comme avant). `messages` et `contacts` peuvent donc rester `on_demand`
+pendant tout l'appel ; un message envoyé pendant l'appel passe.
 
 État de la téléphonie, dans `bt_connection_changed.calls`
 (`src/core/src/bluetooth/telephony.cpp:82-94`, `:158-175`) : `available`, `path`, `state`, `operator`,
@@ -682,17 +794,20 @@ PipeWire : `active` quand le son de l'appel est ici ; vide sans transport), `aud
 son des appels), `audio_route` (`here` si le son de l'appel est ici, sinon `phone` : **lu sur le
 transport de PipeWire à chaque lecture, jamais déduit de ce qui a été demandé**), `audio_reject` (bool
 ou `null` : le prochain lien voix offert par l'iPhone sera refusé), `audio_parked` (bool : la carte
-PipeWire de l'iPhone est laissée sur `off` jusqu'à la fin de l'appel, voir section 9), `reason`. Avec PipeWire, `indicators`
+PipeWire de l'iPhone est laissée sur `off` jusqu'à la fin de l'appel, voir section 9), `audio_wanted`
+(`here`, `phone` ou `null` : ce qui a été demandé pour l'appel en cours ou à venir ; `audio_route` dit où
+le son est), `audio_failed` (bool : voulu ici, pas venu), `reason`. Avec PipeWire, `indicators`
 est faux :
 opérateur, signal et batterie restent à zéro, et `available` vaut toujours vrai dès que la passerelle
 existe (`src/core/src/bluetooth/telephony_pipewire.cpp:193`).
 
 Limites actuelles, détaillées dans `moteur-reconnexion.md` (section 6) :
 
-- la liste des appels est **interrogée chaque seconde** par le démon, sur le fil qui fait aussi tout le
-  reste ; elle l'est maintenant avant les lectures longues (carnet, messages) et la connexion BR/EDR ne
-  bloque plus ce fil, mais l'ouverture d'une session OBEX peut encore le retenir : un appel bref à ce
-  moment-là n'est pas vu ;
+- la liste des appels est **interrogée chaque seconde** par le démon, quatre fois par seconde dès qu'un
+  appel est composé, sonne ou est en cours, sur le fil qui fait aussi tout le reste. Les lectures longues
+  (carnet, journal d'appels, messages) et l'ouverture de sessions OBEX attendent la fin de l'appel ; en
+  mode complet, une session OBEX en cours d'ouverture au moment où l'appel commence peut encore retenir
+  ce fil ;
 - le démon n'affiche aucune bulle pour un appel entrant ; il écrit en revanche une ligne de journal à
   chaque changement d'état (voir ci-dessous) ;
 - le journal d'appels ne se rafraîchit qu'à la fin d'un appel que le démon a vu, ou à une nouvelle session
@@ -714,6 +829,13 @@ Autres formes : `call: outgoing to ***67 (dialing)`, `call: ***67 active -> held
 `call: in progress with ***67 (active)` (appel déjà en cours à la première lecture). Un appel manqué laisse
 deux lignes : `incoming from …` puis `ended, … (was incoming)`. Ces lignes n'existent que si le contrôle
 d'appel est activé (`bt_set_calls`).
+
+### Appels en mode sobre
+
+Trois ajouts de la branche `moteur-sobre`, décrits en section 13 : l'événement `bt_incoming_call`, publié dès
+la notification d'appel, avant tout mains-libres ; `bt_call_action` qui accepte `uid` et l'action `decline`
+et rend `via` ; `bt_call_dial` qui ouvre le lien si besoin, publie `bt_call_progress` et s'annule par
+`bt_call_cancel`. `bt_list_calls` rend en plus `incoming` : le dernier `bt_incoming_call` en cours, ou `null`.
 
 ## 9. Audio : le son de l'iPhone
 
@@ -769,6 +891,12 @@ Diffusé à chaque changement : flux ouvert ou fermé, réglage modifié, appel 
 | `{"route":…,"rule":true}` | en plus : écrit la règle WirePlumber (voir « Ce qui est écrit sur le disque ») | `bluetooth.json` et le fichier de règle |
 | `{"route":…,"rule":false}` | en plus : retire la règle | `bluetooth.json`, fichier de règle supprimé |
 
+En mode sobre (#43), `route:"here"` (persistant ou non) est aussi une **demande** : le lien classique est
+ouvert et offert à l'iPhone 120 s, puis gardé tant que le flux A2DP joue (transport `pending` ou `active`)
+et 60 s après ; le réglage seul ne tient plus le lien. Renvoyer `route:"here"` alors que le réglage vaut
+déjà `here` rouvre le lien (journal : `the iPhone's sound asked for here; the classic link is offered for
+120s`). Détail : `moteur-quotidien.md`, section 1.
+
 Résultat : `{"command":"bt_phone_audio_result","success":true,"route":"here","persist":false}`. Avec
 `persist:false`, `success:false` et `message:"not_connected"` si l'iPhone n'est pas relié. `auto` avec
 `persist:false` est refusé (`invalid_route`). Le déplacement réel du son se lit ensuite dans `bt_audio`
@@ -803,8 +931,12 @@ l'interrupteur `RejectSCO` du mains-libres de PipeWire sur le réglage. Il l'éc
 de l'iPhone apparaît (PipeWire le crée ouvert à chaque connexion), quand le réglage change, et **quand le
 dernier appel se termine** : un choix fait pour un appel (`audio_here`, `audio_phone`, `audio` sur
 `answer` ou `bt_call_dial`, `persist:false`) dure le temps de cet appel puis le réglage reprend. Jamais
-pendant un appel. Le contrôle d'appel doit être activé (`bt_set_calls`) : sans lui le moteur ne parle pas
-au mains-libres et ne tient pas cet interrupteur.
+pendant un appel, sauf sur une passerelle vue pour la première fois avec l'appel déjà dessus (lien ouvert
+pour lui) : PipeWire la crée ouverte et le son viendrait ici quel que soit le choix. Un choix fait pour un
+appel **avant** qu'il existe (`audio` de `bt_call_dial`, `persist:false`) est gardé : la passerelle qui
+apparaît ensuite est réglée dessus, pas sur le réglage. Il tombe à la fin de l'appel, quand le
+mains-libres disparaît, ou si la composition n'a amené aucun appel. Le contrôle d'appel doit être activé
+(`bt_set_calls`) : sans lui le moteur ne parle pas au mains-libres et ne tient pas cet interrupteur.
 
 #### Rendre le son à l'iPhone en cours d'appel
 
@@ -833,7 +965,11 @@ aucun autre appareil audio n'est nommé.
 `audio_here` en cours d'appel : `RejectSCO` à faux, la carte est remise sur son profil si elle était
 sur `off`, puis `Activate()` (PipeWire envoie `AT+BCC`, l'iPhone ouvre le lien voix). Le résultat ne
 dit que si la demande est partie : l'arrivée du son se lit dans `calls.audio_route`, une à trois
-secondes plus tard.
+secondes plus tard, et dans `bt_call_progress` (`audio_here`, ou `audio_failed` après trois demandes).
+
+`audio_here` **sans appel qui porte du son** (avant de composer, pendant qu'un appel sonne) : `RejectSCO`
+à faux et rien d'autre. `Activate()` n'est pas appelé : l'iPhone répond `ERROR` à `AT+BCC` tant qu'il n'a
+pas d'appel, et c'est lui qui ouvre le lien voix quand l'appel s'établit.
 
 Limites connues :
 
@@ -880,6 +1016,7 @@ sans effet quand `pactl` est absent.
 | Où va le son de l'iPhone (musique, appels) | `bt_audio` ; commandes `bt_set_phone_audio`, `bt_set_call_audio` |
 | Interrupteur de l'iPhone à activer | `map_error` / `pbap_error` à `forbidden` ; `bt_retry_profiles` quand l'utilisateur agit |
 | Moteur coupé du bus de session | `map_error` / `pbap_error` à `bus_closed` (le moteur redémarre seul) |
+| obexd en train de revenir | `map_error` / `pbap_error` à `daemon_down` (rien à faire : le moteur réessaie et fait relancer obexd ; pas de « Fix It », pas de ré-appairage) |
 | Appairage à refaire | `needs_repair` et `bond_state` dans `bt_connection_changed` et `bt_status` ; réparation par `bt_pair` avec `fresh:true` (voir `contrat-appairage.md`) |
 | Prérequis système manquants, réglages | `bt_status` |
 | Repérer l'iPhone avant appairage | `bt_devices` |
@@ -922,8 +1059,11 @@ La décision est prise une fois, au démarrage (`src/daemon/main.cpp`, `resolve_
 supprimé, seulement non démarré ; l'objet `TcpServer` existe toujours parce que `UnixServer` en garde une
 référence (voir `moteur-inventaire.md`, 4.1).
 
-Ce qui reste présent partie réseau coupée : le presse-papiers Wayland (inerte sous GNOME) et le
-gestionnaire de fichiers reçus (jamais sollicité). `state_snapshot` reste envoyé à l'abonnement, avec des
+Ce qui reste présent partie réseau coupée : le gestionnaire de fichiers reçus (jamais sollicité). Le
+presse-papiers Wayland, inerte sous GNOME (Mutter n'offre aucun protocole d'accès au presse-papiers), a été
+retiré (issue #19) : `clipboard_set` et `clipboard_get` sont acceptés sans effet, `clipboard_send` répond un
+`clipboard_content` vide, la capacité `clipboard` n'est jamais annoncée et `state_snapshot` porte
+`clipboard_available:false`. `state_snapshot` reste envoyé à l'abonnement, avec des
 listes vides et `network_enabled:false`.
 
 ### Réglages de reconnexion (environnement du démon)
@@ -947,6 +1087,31 @@ arrière. Lus une fois au démarrage.
 | `LANDLINE_LE_FIRST=0` | absent | coupe les quatre mesures « LE d'abord » (retenue, recyclage, préférence rendue, connexion LE sortante retardée), comme avant |
 | `LANDLINE_LE_FIRST_HOLD_SECONDS=<n>` | 10 | sans aucun lien, durée pendant laquelle rien n'est demandé en BR/EDR pour laisser l'iPhone rouvrir le LE, de 0 à 600 s ; 0 la coupe |
 | `LANDLINE_LE_RECYCLE_SECONDS=<n>` | 12 | BR/EDR monté et annonce en ondes sans LE depuis ce temps : tous les liens sont coupés une fois, de 0 à 600 s ; 0 le coupe |
+| `LANDLINE_LE_FIRST_STRICT=0` | absent | la retenue redevient celle du 17 novembre : une demande BR/EDR part avant qu'elle commence |
+| `LANDLINE_LE_SETTLE_SECONDS=<n>` | 5 | quand le lien LE monte seul, durée pendant laquelle ni BR/EDR ni MAP/PBAP ne sont demandés, de 0 à 600 s ; 0 la coupe |
+| `LANDLINE_LE_STABLE_SECONDS=<n>` | 45 | mode sobre : âge minimal, sans coupure, du lien LE avant une ouverture du classique que personne n'a demandée (`sync`, `arrival`, `hourly`, `audio`), de 0 à 3600 s ; 0 : ouverture immédiate, comme avant |
+| `LANDLINE_CLASSIC_QUIET_SECONDS=<n>` | 300 | mode sobre : après une coupure LE survenue dans les 10 s d'une ouverture ou d'une fermeture du classique, durée sans ouverture automatique (doublée à chaque récidive dans l'heure, plafond 1800 s), de 0 à 1800 s ; 0 la coupe |
+| `LANDLINE_LE_BURST_PAUSE=0` | absent | ne joue qu'avec `LANDLINE_LE_STRIKES=0` : l'annonce reste en ondes pendant une rafale de coupures LE (3 en 60 s) ; la rafale reste journalisée et publiée (`unsteady`). Avec la règle des fautes (défaut), cette pause n'existe plus |
+| `LANDLINE_LE_STRIKES=0` | absent | **retour arrière de la règle des « trois fautes »** : les liens LE morts avant service ne sont plus comptés, et l'ancienne règle (annonce retirée 30 à 120 s après 3 coupures en 60 s) reprend |
+| `LANDLINE_LE_STRIKE_PAUSE_SECONDS=<n>` | 0 (15 avant #29) | durée du retrait de l'annonce après le premier lien LE mort avant service, de 0 à 600 s ; 0 : la faute est comptée, l'annonce reste à l'antenne |
+| `LANDLINE_LE_STRIKE_LONG_PAUSE_SECONDS=<n>` | 0 (30 avant #29) | durée du retrait après le deuxième à la suite (doublée à chacun des suivants, plafond 120 s ou la valeur réglée si elle est plus grande), de 0 à 3600 s ; 0 : pas de retrait |
+| `LANDLINE_LE_STRIKE_FAST_SECONDS=<n>` | 30 | après chaque lien mort avant service, l'annonce va à 20 ms pendant n s, puis à 152,5 ms tant qu'aucun lien n'a servi ; de 0 à 180 s. 0 : la faute ne touche pas au rythme, celui d'une perte ordinaire s'applique (20 ms pendant 180 s après la perte, puis 152,5 ms), comme avant #29 |
+| `LANDLINE_LE_STRIKE_BRAKE=<n>` | 8 | frein sur une boucle sans fin (#41) : à partir de n liens LE morts avant service **à la suite, aucun lien servi entre eux**, plus de phase rapide (ni les 20 ms après une faute, ni celles « classique joint, LE absent ») : l'annonce reste à l'antenne à 152,5 ms jusqu'à ce qu'un lien serve ; une ligne de journal par série. De 0 à 99, 0 : pas de frein. Un lien qui a servi, même brièvement, rend aussi la main au rythme ordinaire (#40, `moteur-reconnexion.md` §14.7) |
+| `LANDLINE_LE_STRIKE_SLOW=<n>` | 0 (2 avant #29) | à partir de n fautes à la suite, l'annonce va à 1022,5 ms ; de 0 à 99, 0 : jamais (le ralenti des liens servis qui tombent en boucle reste). **Retour exact à la règle d'avant #29** : `LANDLINE_LE_STRIKE_PAUSE_SECONDS=15 LANDLINE_LE_STRIKE_LONG_PAUSE_SECONDS=30 LANDLINE_LE_STRIKE_SLOW=2 LANDLINE_LE_STRIKE_FAST_SECONDS=0` |
+| `LANDLINE_LE_SERVED_SECONDS=<n>` | 10 | durée pendant laquelle les notifications doivent être actives sur un lien pour qu'il soit tenu pour « servi » et que le compte reparte de zéro, de 1 à 600 s |
+| `LANDLINE_LE_PROMPT=0` | absent | la supervision ne regarde plus les liens qu'une fois par seconde, comme avant : plus de passe déclenchée par la montée ou la chute du lien LE ni par un paquet ANCS, plus de remise à zéro des dates d'essai à chaque nouveau lien |
+| `LANDLINE_LE_CONN_PARAMS=0` | absent (**activé**) | **retour arrière** : plus aucune demande de paramètres de connexion LE (`le_conn_params:"off"`). Par défaut, la demande (HCI *LE Connection Update*) est faite dès que le lien est chiffré, à chaque nouveau lien, si l'auxiliaire `landline-le-params` est opérationnel (ou que le démon détient `CAP_NET_RAW`) ; sinon une ligne au journal, une fois, et `le_conn_params:"no_right"` |
+| `LANDLINE_LE_CONN_INTERVAL_MS=<min>-<max>` | `45-60` | intervalle de connexion demandé, en millisecondes. Un jeu que les règles d'Apple refusent (minimum multiple de 15 ms, maximum ≥ minimum + 15 ms, intervalle × (latence + 1) ≤ 6 s…) n'est pas envoyé : les valeurs par défaut le sont, et le journal dit pourquoi |
+| `LANDLINE_LE_CONN_LATENCY=<n>` | 0 | latence demandée (0 à 30 ; Pebble demande 4 à 60 ms) |
+| `LANDLINE_LE_CONN_TIMEOUT_MS=<n>` | 6000 | délai de supervision demandé, de 6000 à 18000 ms |
+| `LANDLINE_LE_CONN_DELAY_SECONDS=<n>` | 0 | attente entre la montée du lien LE et la demande, de 0 à 600 s |
+| `LANDLINE_LE_CONN_ENCRYPTED=0` | absent | demande dès que le handle du lien est connu, sans attendre qu'il soit chiffré (5 s au plus d'attente par défaut) |
+| `LANDLINE_ANCS_LIVENESS=0` | absent | plus de sonde de vie ANCS (toutes les 15 min) ni de réabonnement après 6 h sans notification |
+| `LANDLINE_ANCS_PROBE_SECONDS=<n>` | 900 | intervalle de la sonde de vie ANCS, de 60 à 86400 s |
+| `LANDLINE_ANCS_QUIET_SECONDS=<n>` | 21600 | silence de la *Notification Source* au-delà duquel la session est reconstruite, de 600 à 604800 s |
+| `LANDLINE_LE_PARAMS_HELPER=<chemin>` | `/usr/local/libexec/landline/landline-le-params` | où chercher l'auxiliaire quand le démon n'a pas lui-même la capacité. Le chemin par défaut doit être à root, non inscriptible par d'autres et porter une capacité de fichier ; un chemin donné ici (essais) n'a besoin que d'être exécutable |
+| `LANDLINE_RESUME_WATCH=0` | absent | la sortie de veille de l'ordinateur n'est plus traitée (ni annonce réenregistrée, ni retenue et recyclage réarmés) |
+| `LANDLINE_LE_STRANGER=0` | absent | un lien LE venu d'un appareil non appairé n'est ni journalisé ni suivi d'un réenregistrement de l'annonce |
 | `LANDLINE_MESSAGE_POLL_SECONDS=<n>` | 15 | intervalle de relève des messages, de 5 à 3600 s |
 | `LANDLINE_LONG_READ_ATTEMPTS=0` | absent | plus d'essai de profil ni de travail de notifications pendant une lecture longue (carnet, messages), comme avant |
 
@@ -954,9 +1119,27 @@ Pendant le cycle mains-libres (coupure volontaire de BR/EDR, quelques secondes) 
 « LE d'abord » (coupure volontaire de tous les liens, une fois), `map_open` et `pbap_open`
 restent publiés à vrai alors que les sessions se rouvrent ; `classic_connected` et `le_connected` passent
 bien à faux. Pendant la retenue (10 s au plus sans aucun lien), `link_reason` dit que le moteur attend que
-l'iPhone rouvre d'abord le lien des notifications. Quand bluetoothd redémarre, `device_present` passe à
+l'iPhone rouvre d'abord le lien des notifications. Quand le lien LE monte seul, BR/EDR et les sessions
+attendent 5 s de plus. Au réveil de l'ordinateur, tous les liens sont tombés (`Reason.Suspend`) : le moteur
+réenregistre l'annonce à 20 ms et recommence par la retenue. Quand bluetoothd redémarre, `device_present` passe à
 faux le temps de son absence, puis tout se rétablit sans commande. Une
 commande de message envoyée à ce moment-là peut échouer.
+
+### Réglages du mode sobre (environnement du démon)
+
+| Variable | Défaut | Effet |
+|---|---|---|
+| `LANDLINE_LINK_MODE` | non posée | `lean` ou `full` : impose le mode de lien sans toucher à `bluetooth.json`. `full` est le retour arrière de tout le mode sobre |
+| `LANDLINE_MESSAGE_POLL_SECONDS` | non posée | 5 à 3600 : remplace la relève de fond des messages (3 600 s avec notifications, 15 s sans). `15` rend l'ancienne relève |
+| `LANDLINE_SLEEP_CLOSE` | `1` | `0` : l'annonce de veille de logind n'est plus écoutée, le lien classique n'est pas fermé avant la veille |
+| `LANDLINE_ANCS_CALLS` | `1` | `0` : plus de `bt_incoming_call` ni d'ouverture du lien à la sonnerie |
+| `LANDLINE_GATEWAY_STRICT` | `1` | `0` : une passerelle PipeWire est dite prête dès que son objet existe, comme avant |
+| `LANDLINE_DIAL_AUDIO_DEFAULT` | non posée | son d'un appel composé sans `audio` : non posée = l'ordinateur ; `setting` = le réglage `call_audio`, comme avant ; `phone` = l'iPhone |
+| `LANDLINE_OBEX_DURING_CALLS` | `0` | `1` : sessions OBEX, lectures longues et fermeture du flux A2DP ne s'arrêtent plus pendant un appel, comme avant (les deux modes) |
+
+Les réglages de la section précédente (`LANDLINE_LE_FIRST…`, `LANDLINE_HFP_ABSENT_SECONDS`,
+`LANDLINE_HFP_CONNECT_PROFILE`, `LANDLINE_OBEX_ABSENT_BACKOFF`) ne jouent qu'en mode complet : en mode sobre
+il n'y a ni retenue, ni recyclage, ni cycle mains-libres, ni recul des tentatives.
 
 ## 12. À vérifier avec l'iPhone
 
@@ -971,3 +1154,206 @@ quoi la carte d'appel entrant garde un seul « Answer ».
 Les trois ajouts de la branche `moteur-quotidien` sont compilés et couverts par des tests unitaires
 (règles pures), mais **aucun n'a tourné face à l'iPhone**. La liste des essais réels, avec ce qu'on doit
 observer, est dans `moteur-quotidien.md`, section 5.
+
+## 13. Mode sobre : le lien classique à la demande (branche `moteur-sobre`)
+
+Conception : `iphone-link-study/11-classique-a-la-demande.md`. Mécanique et journal : `moteur-reconnexion.md`
+§12. Essais à faire avec l'iPhone : `essai-reconnexion.md`, série « mode sobre » (E1 à E9). Écarts par
+rapport à la conception : `moteur-sobre-ecarts.md`.
+
+### Les deux modes
+
+| Mode | Valeur | Ce que fait le moteur |
+|---|---|---|
+| **Sobre** (défaut) | `lean` | Le lien LE est le seul lien permanent. Le lien classique (BR/EDR) est fermé au repos et ouvert quand quelque chose en a besoin : relève des messages, envoi, appel, musique de l'iPhone ici, parcours des interrupteurs. Il est refermé peu après. |
+| **Complet** | `full` | Les deux liens sont tenus en permanence, comme avant : « LE d'abord », cycle mains-libres, reculs. Seule différence avec l'ancien moteur : la relève des messages est déclenchée par la notification (section 5). |
+
+Le mode **appliqué** peut différer du mode **réglé** : le mode sobre repose sur le LE et sur les
+notifications, et retombe sur le mode complet sans eux.
+
+| `link_mode_reason` | Quand | Durée |
+|---|---|---|
+| `""` | le mode appliqué est le mode réglé | — |
+| `no_le` | le contrôleur ou l'appairage ne peut pas porter le LE (`capability.mode` autre que `full`, ou appairage sans moitié LE) | tant que c'est le cas |
+| `notifications_off` | notifications coupées (`bt_set_ancs`, `bt_hold ancs`), ou jamais accordées par l'iPhone sur cet appairage, ou retirées (le LE est monté depuis 75 s sans que l'iPhone offre le service) | jusqu'à la première session de notifications prête ; l'accord est mémorisé d'un démarrage à l'autre |
+| `phone_keeps_link` | l'iPhone a rouvert le lien classique moins de 60 s après que le moteur l'a fermé, deux fois en 15 min | 30 min, puis nouvel essai |
+
+### Commandes
+
+| Message | Paramètres | Réponse | Effet |
+|---|---|---|---|
+| `bt_set_link_mode` | `mode` : `lean` ou `full` | `OK`, puis `bt_status` ; `bt_connection_changed` suit dès que le superviseur a appliqué le mode (dans la seconde) | Écrit `link_mode` dans `bluetooth.json`. Une autre valeur ne change rien. Sans effet visible si `LANDLINE_LINK_MODE` est posée |
+| `bt_lease` | `name` : `reading` ou `setup` ; `held` : booléen (vrai par défaut) | `OK` | Le client tient le lien classique ouvert : `reading` pendant qu'une conversation ou la saisie d'un message est à l'écran, `setup` pendant le parcours des interrupteurs de l'iPhone. **Expire seul après 300 s** : le renouveler (toutes les 4 min) tant qu'il sert, le rendre (`held:false`) à la fermeture. Un autre nom est ignoré. Sans effet en mode complet |
+| `bt_call_cancel` | `operation_id` (facultatif : sans lui, la composition en cours) | `OK` | Arrête l'attente d'un `bt_call_dial`. Sans effet une fois `dialing` atteint : raccrocher passe alors par `bt_call_action` `hangup` |
+| `bt_call_dial` (complétée) | `number` ; `audio` : `here` ou `phone` (facultatif) ; `operation_id` (facultatif) | `bt_call_progress` (zéro à trois), puis `bt_call_result` | Voir « Composer » |
+| `bt_call_action` (complétée) | `action` : s'ajoute `decline` ; `uid` (entier, facultatif) ; `path`, `audio` inchangés | `bt_call_result` avec `via` | Voir « Appel entrant » |
+| `bt_retry_profiles` (inchangée) | — | `OK` | En mode sobre, tient en plus le lien ouvert 30 s (bail `reading` court), le temps que les profils soient réessayés |
+
+### Champs ajoutés à `bt_connection_changed` et à `bt_status`
+
+| Champ | Valeurs | Sens |
+|---|---|---|
+| `link_mode` | `lean`, `full` | le réglage (ou `LANDLINE_LINK_MODE` si elle est posée) |
+| `link_mode_effective` | `lean`, `full` | le mode réellement appliqué |
+| `link_mode_reason` | `""`, `no_le`, `notifications_off`, `phone_keeps_link` | pourquoi il diffère du réglage |
+| `classic_state` | `idle`, `opening`, `open`, `lingering`, `closing`, `failed` | l'état du lien classique à la demande. En mode complet : `open` si le lien est monté, `idle` sinon |
+| `classic_leases` | tableau de `sync`, `arrival`, `send`, `reading`, `call`, `audio`, `hourly`, `setup`, `phone` | pourquoi le lien est ouvert. Vide en mode complet |
+| `classic_opened_by` | `engine`, `phone`, `""` | qui a ouvert le lien en place ; `phone` = l'iPhone l'a monté de lui-même, le moteur s'en sert puis le referme |
+| `messages` | `ready`, `on_demand`, `forbidden`, `unavailable`, `unknown` | ce que l'utilisateur peut attendre des messages |
+| `contacts` | idem | idem pour les contacts |
+| `calls_available` | `ready`, `on_demand`, `control_only`, `off` | idem pour les appels |
+| `last_sync` | secondes Unix ou `null` | dernière relève des messages réussie par ce démon |
+| `next_sync` | secondes Unix ou `null` | prochaine relève de fond (`last_sync` + 3 600 s en mode sobre) |
+
+`messages` et `contacts` :
+
+| Valeur | Sens | Ce que le client peut faire |
+|---|---|---|
+| `ready` | la session est ouverte | tout, tout de suite |
+| `on_demand` | accordé par l'iPhone à la dernière ouverture, lien fermé | proposer d'écrire : l'envoi ouvrira le lien (3 à 5 s) |
+| `forbidden` | l'interrupteur de l'iPhone est coupé (dernier verdict, gardé sur disque et revérifié à chaque ouverture) | montrer l'aide aux interrupteurs ; prendre le bail `setup` pendant qu'elle est à l'écran |
+| `unavailable` | pas possible maintenant : profil relâché (`bt_hold`), iPhone hors de portée (LE tombé), autre erreur | rien |
+| `unknown` | jamais essayé sur cet appairage | attendre la première ouverture (elle suit le retour du LE) |
+
+`calls_available` :
+
+| Valeur | Sens |
+|---|---|
+| `ready` | le mains-libres est là : décrocher ici, refuser, composer, son ici |
+| `on_demand` | mode sobre, LE monté : le lien sera ouvert à la sonnerie ou à la composition (7 à 9 s pour le son ici) |
+| `control_only` | décrocher sur l'iPhone et refuser par la notification, sans son ici : mode complet sans mains-libres, ou ouverture du lien en échec |
+| `off` | contrôle d'appel désactivé, ou iPhone hors de portée |
+
+Les champs d'avant gardent leur sens strict : en mode sobre, au repos, `classic_connected`, `map_open` et
+`pbap_open` sont **faux** et c'est normal. `link_reason` vaut alors « Messages and calls connect when
+needed. » et `profile_reason` « Messages and contacts connect when needed. ».
+
+### Les baux
+
+Le lien classique est ouvert tant qu'un bail est tenu, gardé un moment après le dernier, puis fermé.
+
+| Bail | Pris quand | Ouverture | Gardé après |
+|---|---|---|---|
+| `sync` | le LE revient et les notifications sont prêtes (au plus une fois par 10 min, sauf si la session annonce des notifications de Messages déjà présentes) ; un lien ouvert par l'iPhone alors que la dernière relève a plus de 10 min | données | 10 s |
+| `arrival` | 2 s après une notification de Messages non préexistante | données | 45 s |
+| `send` | `bt_send_message` | données | 90 s |
+| `reading` | `bt_lease`, `bt_retry_profiles` | données | 20 s |
+| `call` | une sonnerie (et 20 s après sa fin), une composition, puis toute la durée de l'appel | voix | 15 s |
+| `audio` | la musique de l'iPhone est voulue ici (`phone_audio:"here"`, ou `bt_set_phone_audio` ponctuel) | voix | 30 s |
+| `hourly` | une heure sans relève réussie | données | 0 s |
+| `setup` | fin d'un appairage réussi, `bt_lease` | voix | 0 s |
+| `phone` | l'iPhone a monté le lien lui-même ; publié, jamais pris par un client | — | fermé après 120 s sans appel, sans son et sans opération |
+
+« Données » : la session est ouverte par obexd seul, ce qui monte un lien sans profil audio. « Voix » : une
+vraie connexion (`Bearer.BREDR1.Connect`), la seule que le mains-libres suit. Rien n'est ouvert sans lien LE.
+Lien LE stable : les baux automatiques (`sync`, `arrival`, `hourly`) et le bail `audio` ne sont pris que sur
+un lien LE monté depuis 45 s sans coupure (`LANDLINE_LE_STABLE_SECONDS`), sauf si le lien classique est déjà
+là ; après une coupure LE imputée à une ouverture ou une fermeture, pas avant 300 s
+(`LANDLINE_CLASSIC_QUIET_SECONDS`). Les baux `call`, `send`, `reading`, `setup` ne sont jamais retenus. Journal :
+`the LE link is back; the classic link is not opened before it has held for 45s, the sync waits`.
+
+Garde-fous : 12 ouvertures automatiques (`sync`, `arrival`, `hourly`) par heure, au-delà la notification
+reste seule affichée ; un lien sans bail voix est fermé au bout de 5 min ; après un échec d'ouverture, 30 s,
+2 min, 10 min puis une heure d'attente pour les ouvertures automatiques (un geste de l'utilisateur réessaie
+aussitôt) ; avant la veille de l'ordinateur tout est fermé, sauf un appel en cours. Un lien que le partage de connexion de
+NetworkManager utilise (`org.bluez.Network1.Connected`) n'est jamais fermé : ni à la fin d'un bail, ni
+par une fermeture déjà demandée quand le partage l'a pris entre-temps (il est alors traité comme un lien
+ouvert par l'iPhone, refermé 2 min après la fin du partage), ni après une ouverture de données en
+échec.
+
+### Envoi d'un message : `bt_send_progress`
+
+`bt_send_message` → `OK`, puis :
+
+| Événement | Champs | Quand |
+|---|---|---|
+| `bt_send_progress` | `thread`, `stage:"connecting"`, `operation_id?` | mode sobre, pas de session : le lien est en cours d'ouverture pour l'envoi (20 s au plus) |
+| `bt_send_progress` | `thread`, `stage:"sending"`, `operation_id?` | la session est là, le message part. Émis dans les deux modes |
+| `bt_send_result` | inchangé | fin. En cas d'échec d'ouverture : `message` = « Couldn’t reach the iPhone to send. » ; interrupteur coupé : la phrase de `profile_reason` |
+
+À froid, compter 3 à 5 s entre `connecting` et `sending` ; moins d'une seconde si le lien est encore là (il
+est gardé 90 s après un envoi, 45 s après l'arrivée d'un message).
+
+### Appel entrant : `bt_incoming_call`
+
+Publié quand le contrôle d'appel est activé (`calls_enabled`), dans les deux modes, à partir de la
+notification ANCS de l'appel — donc avant que le mains-libres voie quoi que ce soit.
+
+| Champ | Type | Sens |
+|---|---|---|
+| `uid` | entier | la notification de l'appel ; à renvoyer dans `bt_call_action` |
+| `state` | `ringing`, `ended` | `ended` : la sonnerie est finie sans qu'un appel en cours prenne le relais |
+| `caller` | chaîne | l'appelant tel que l'iPhone l'affiche (titre de la notification) |
+| `can_answer_on_phone`, `can_decline` | booléens | les actions que la notification offre |
+| `answer_here` | `connecting`, `ready`, `unavailable` | « Answer here » : en préparation, possible, ou abandonné après 15 s sans mains-libres (il peut encore passer à `ready` ensuite) |
+| `path` | chaîne, absent tant que la passerelle ne voit pas l'appel | l'appel côté mains-libres |
+| `since` | secondes Unix | début de la sonnerie |
+
+Séquence en mode sobre, lien fermé : `ringing`/`connecting` dans la seconde ; le moteur ouvre le lien par une
+vraie connexion (un lien de données déjà ouvert est fermé et rouvert sur-le-champ) ; `ringing`/`ready` avec
+`path` quand la passerelle montre l'appel (7 à 9 s attendus) ; `unavailable` à 15 s sinon. En mode complet,
+mains-libres déjà là, `ready` arrive dans la seconde.
+
+Fin de la sonnerie :
+
+| Ce qui se passe | Ce que le client reçoit |
+|---|---|
+| Appel manqué (notification de catégorie « appel manqué ») | `ended` aussitôt |
+| Refusé d'ici par la notification | `ended` au retrait de la notification |
+| Notification retirée, la passerelle est là et ne montre plus d'appel | `ended` aussitôt |
+| Notification retirée, pas de passerelle | rien pendant 20 s au plus ; si la passerelle arrive et montre un appel en cours (décroché sur l'iPhone), **pas de `ended`** : `bt_calls` prend le relais ; sinon `ended` à 20 s |
+| Décroché d'ici par le mains-libres | pas de `ended` : `bt_calls` porte l'appel |
+| Rien pendant 90 s (lien LE perdu pendant la sonnerie) | `ended` |
+
+Gestes, par `bt_call_action` :
+
+| Geste | Commande | Sans mains-libres | Avec mains-libres |
+|---|---|---|---|
+| Refuser | `{"action":"decline","uid":…}` | action négative de la notification, `via:"ancs"` | `hangup` sur l'appel, `via:"hfp"` |
+| Décrocher sur l'iPhone | `{"action":"answer","uid":…,"audio":"phone"}` (ou sans `audio`) | action positive de la notification, `via:"ancs"` | `answer`, son réglé sur l'iPhone, `via:"hfp"` |
+| Décrocher ici | `{"action":"answer","uid":…,"audio":"here"}` | refusé : « This computer is not connected for the call yet. » | `answer`, son ici, `via:"hfp"` |
+
+`path` reste accepté et prioritaire pour désigner l'appel côté mains-libres. Sans `uid` et sans sonnerie
+suivie, `bt_call_action` se comporte exactement comme avant. `bt_call_result` : `{action, success, message?,
+via?}`. Un client qui s'abonne pendant la sonnerie lit l'appel dans `bt_list_calls` → `incoming`.
+
+### Composer : `bt_call_dial`, `bt_call_progress`, `bt_call_cancel`
+
+`{"command":"bt_call_dial","number":"+41791234567","audio":"here","operation_id":"d1"}`
+
+| Événement | Champs | Sens |
+|---|---|---|
+| `bt_call_progress` | `number`, `stage:"connecting"`, `operation_id?` | mode sobre : le lien classique est en cours d'ouverture |
+| `bt_call_progress` | `stage:"hands_free"` | le lien est monté, le mains-libres est attendu |
+| `bt_call_progress` | `stage:"dialing"` | la passerelle est prête, le numéro est composé |
+| `bt_call_result` | `action:"dial"`, `success`, `message?`, `operation_id?`, `reason?` | fin de la composition. Réussi : `bt_calls` suit (états `dialing` puis `alerting`) |
+| `bt_call_progress` | `stage:"no_call"`, `number`, `operation_id?` | **après** un résultat réussi : l'iPhone a accepté le numéro et aucun appel n'est apparu en 20 s ; le lien est rendu |
+| `bt_call_progress` | `stage:"audio_here"` ou `"audio_failed"` + `reason` | où est le son de l'appel voulu ici (section 8) ; sans `number` ni `operation_id` |
+
+`audio` absent : le son va sur l'ordinateur (section 8). Lien fermé, `call_audio_switchable` est faux ;
+`audio` est accepté quand même et s'applique dès que le mains-libres est là.
+
+`reason` en cas d'échec :
+
+| `reason` | Sens |
+|---|---|
+| `no_link` | le lien classique n'est pas monté en 20 s |
+| `no_hands_free` | le lien est là, pas le mains-libres 15 s après (mode sobre) ; pas de mains-libres du tout (mode complet : échec immédiat, comme avant) |
+| `refused` | numéro non composable, ou l'iPhone a refusé la composition (`message` dit quoi) |
+| `cancelled` | `bt_call_cancel` avant `dialing` |
+| `busy` | une autre composition est en cours : une seule à la fois |
+| `calls_off` | contrôle d'appel désactivé |
+
+Mains-libres déjà là (mode complet, ou lien encore ouvert) : un seul `bt_call_progress` `dialing`, puis le
+résultat, en moins d'une seconde. Si l'appel n'apparaît pas dans les 20 s qui suivent une composition
+acceptée, `bt_call_progress` `no_call` est publié, le bail `call` est rendu et le lien se referme. Le bail
+`call` tient de la demande à la fin de l'appel ; un appel listé empêche de toute façon toute fermeture.
+
+### Ce qui est gardé sur disque
+
+| Fichier | Contenu | Remarque |
+|---|---|---|
+| `$XDG_CONFIG_HOME/landline/bluetooth.json` | `link_mode` (`config_version` 4) | un fichier sans le champ est lu `lean` |
+| `$XDG_STATE_HOME/landline/link.json` | l'adresse de l'iPhone, si les notifications ont été accordées, le dernier verdict MAP et PBAP avec sa date | ni message ni contact ; sert à publier `on_demand` / `forbidden` lien fermé et à démarrer directement en mode sobre |
+| `$XDG_DATA_HOME/landline/call_history.json(.enc)` | le journal d'appels tel que relu de l'iPhone | même protection et même rétention que le carnet ; relu seulement après un appel ou une notification d'appel |
+

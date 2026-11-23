@@ -9,7 +9,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-import {LOCAL_HELPER, LOG_PREFIX, ROOT_HELPER} from './names.js';
+import {LOCAL_HELPERS, LOG_PREFIX, ROOT_HELPER} from './names.js';
 import {run} from './subprocess.js';
 
 Gio._promisify(Gio.File.prototype, 'query_info_async');
@@ -86,14 +86,18 @@ export class SetupHelper {
         return rootHelper(this._cancellable);
     }
 
-    // Where `status` is asked: the copy of root, else the one a local
+    // Where `status` is asked: the copy of root, else one the engine's
     // install leaves in the home directory (never elevated).
     async _statusPath() {
         const root = await this._rootCopy();
         if (root)
             return root;
-        const local = GLib.build_filenamev([GLib.get_home_dir(), ...LOCAL_HELPER]);
-        return await executable(local, this._cancellable) ? local : null;
+        for (const parts of LOCAL_HELPERS) {
+            const local = GLib.build_filenamev([GLib.get_home_dir(), ...parts]);
+            if (await executable(local, this._cancellable))
+                return local;
+        }
+        return null;
     }
 
     // Resolves to {experimental, ertm, ready, persistent: {…}, required: {…},

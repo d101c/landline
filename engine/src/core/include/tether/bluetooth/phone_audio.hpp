@@ -4,6 +4,7 @@
 #include "tether/bluetooth/objects.hpp"
 
 #include <chrono>
+#include <functional>
 #include <gio/gio.h>
 #include <mutex>
 #include <nlohmann/json.hpp>
@@ -86,19 +87,49 @@ namespace tether::bluetooth {
     // later change made on the iPhone or asked for by a client.
     class PhoneAudioFollower {
     public:
+        // Told whenever the route wanted becomes "here" or stops being it:
+        // in the lean link mode this is what holds the classic link open
+        // for the sound (the Audio lease). Returns whether a link will be
+        // opened for it. Called with the follower's lock released.
+        using LeaseFn = std::function<bool(bool here)>;
+        void set_lease_handler(LeaseFn handler);
+
+        // True while the stream must be left as it is: a call is being
+        // placed, is ringing or is in progress, and closing the stream then
+        // puts one more exchange on a link that is setting up the voice. The
+        // close is made once it turns false. Called from a worker thread.
+        using HoldFn = std::function<bool()>;
+        void set_hold(HoldFn hold);
+
         void configure(const std::string& address, PhoneAudio choice);
         // Main loop, on every snapshot change.
         void update(const BluezObjects& objects, GDBusConnection* conn);
         // Moves the audio now, to the remembered choice or to `here` when
         // given, and leaves the stream alone for the rest of the connection.
         // False when the phone is not connected or there is nothing to apply.
+        // With no link, a one-off "here" is kept for the link the lease
+        // handler says it is opening, and is then true.
         bool apply_now(GDBusConnection* conn, std::optional<bool> here = std::nullopt);
+
+        // Whether the sound is wanted here: the remembered choice, or the
+        // one-off route asked for this connection.
+        bool wants_here() const;
 
     private:
         // `settle` waits for a stream the iPhone just opened to finish opening first.
         void act(GDBusConnection* conn, bool here, bool settle = false);
 
-        std::mutex mutex_;
+        // Tells the lease handler when wants_here() has changed.
+        bool notify_lease();
+        PhoneAudio effective_choice() const;
+
+        mutable std::mutex mutex_;
+        LeaseFn lease_handler_;
+        HoldFn hold_;
+        // What the handler was last told, unset before the first time.
+        std::optional<bool> lease_told_;
+        // A route asked for this connection only, forgotten when it ends.
+        std::optional<bool> once_;
         std::string address_;
         PhoneAudio choice_ = PhoneAudio::Auto;
         std::string device_path_;

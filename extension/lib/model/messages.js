@@ -7,11 +7,17 @@ import {
     MAX_SEEN,
     MESSAGE_PILL_MS,
     NOTICE_PILL_MS,
+    PROVISIONAL_MS,
     RECENT_MESSAGE_MS,
     SEND_TIMEOUT_MS,
     SENT_PILL_MS,
 } from './constants.js';
 import {digits, formatNumber, sender} from './format.js';
+import {FIELD, SEND_STAGE, SERVICE} from './protocol.js';
+
+// The handle of a message known by its notification only.
+const PROVISIONAL = 'ancs:';
+const squeeze = text => String(text ?? '').replace(/\s+/g, ' ').trim();
 
 export const withMessages = Base => class extends Base {
     _preview(body) {
@@ -70,13 +76,23 @@ export const withMessages = Base => class extends Base {
 
         // The first read of a session replays the whole history: only what
         // is unread, incoming and recent may show up.
-        if (known || message.outgoing || message.read)
+        if (known || message.outgoing)
             return;
+        if (message.read) {
+            // Read on the iPhone before it got here: its notification goes.
+            const key = this._provisionalOf(message);
+            if (key !== null && this._thread !== this._provisional.get(key).message.thread)
+                this._forgetProvisional(key, this._provisional.get(key));
+            return;
+        }
         if (this._now() - (message.timestamp ?? 0) * 1000 > RECENT_MESSAGE_MS)
             return;
 
         const entry = {handle: message.handle, body: String(message.body ?? ''), timestamp: message.timestamp ?? 0};
         this._tourProof(message.name || message.address, message.body);
+        // Already shown from its notification: it takes that place.
+        if (this._mergeProvisional(message, entry))
+            return;
         if (this._cardOpen && this._thread === message.thread) {
             // The card is open on this conversation: the message joins it.
             this._threadMessages = [...this._threadMessages ?? [], entry].slice(-FRESH_MESSAGES);
@@ -88,6 +104,9 @@ export const withMessages = Base => class extends Base {
         // before this session with the engine began (the Shell was locked,
         // or just started): it is told by the count, not played again.
         const before = (message.timestamp ?? 0) * 1000 < (this._connectedAt ?? 0) - 5000;
+        // Just arrived: the icon moves for a minute.
+        if (!before && !this._hush())
+            this._attentionAt = this._now();
         if (this._busy() || this._cardOpen || this._pending || this._hush() || before) {
             this._unread.set(message.handle, message.thread);
             return;
@@ -96,6 +115,148 @@ export const withMessages = Base => class extends Base {
         if (shown?.kind === 'message')
             this._unread.set(shown.message.handle, shown.message.thread);
         this._transient = {kind: 'message', message, until: this._now() + MESSAGE_PILL_MS};
+    }
+
+    // --- shown from the notification, before the message itself ----------------
+
+    // With the classic link on demand, the message itself comes a few
+    // seconds after its notification: the pill shows the notification at
+    // once, and the message takes its place when it arrives, bringing the
+    // conversation with it. True when the pill took the notification.
+    _provisionalFrom(n) {
+        if (this._service(FIELD.messages) === null || !this._messagesUsable())
+            return false;
+        const key = `${PROVISIONAL}${n.uid}`;
+        if (this._seen.has(key))
+            return true;
+        this._seen.add(key);
+        const name = squeeze(n.title);
+        const message = {
+            handle: key, thread: this._threadNamed(name) ?? key, name, address: '',
+            body: String(n.body ?? ''), timestamp: n.timestamp || Math.floor(this._now() / 1000),
+        };
+        this._provisional.set(key, {
+            message, note: n, at: this._now(), seen: false, group: squeeze(n.subtitle) !== '',
+        });
+        const entry = {handle: key, body: message.body, timestamp: message.timestamp};
+        this._fresh.set(message.thread, [...this._fresh.get(message.thread) ?? [], entry].slice(-FRESH_MESSAGES));
+        if (!this._hush())
+            this._attentionAt = this._now();
+        if (this._busy() || this._cardOpen || this._pending || this._hush()) {
+            this._unread.set(key, message.thread);
+            return true;
+        }
+        const shown = this._transient;
+        if (shown?.kind === 'message')
+            this._unread.set(shown.message.handle, shown.message.thread);
+        this._transient = {kind: 'message', message, until: this._now() + MESSAGE_PILL_MS};
+        return true;
+    }
+
+    // The one conversation with someone of that name, or with that number.
+    _threadNamed(name) {
+        if (!name)
+            return null;
+        const number = /^\+?[\d\s().\-/]{5,}$/.test(name) ? digits(name) : '';
+        const found = [...this._threads.values()].filter(t =>
+            t.name === name || (number.length >= 5 && digits(t.address).endsWith(number.slice(-9))));
+        return found.length === 1 ? found[0].thread : null;
+    }
+
+    _provisionalOf(message) {
+        const body = squeeze(message.body);
+        for (const [key, entry] of this._provisional) {
+            const shown = squeeze(entry.message.body);
+            // A notification may be cut short: the beginning decides.
+            const length = Math.min(shown.length, body.length, 60);
+            if (length === 0 ? shown.length !== body.length : shown.slice(0, length) !== body.slice(0, length))
+                continue;
+            const title = entry.message.name;
+            const number = digits(title);
+            if (entry.group || entry.message.thread === message.thread || title === squeeze(message.name) ||
+                (number.length >= 5 && digits(message.address).endsWith(number.slice(-9))))
+                return key;
+        }
+        return null;
+    }
+
+    _mergeProvisional(message, entry) {
+        const key = this._provisionalOf(message);
+        if (key === null)
+            return false;
+        const provisional = this._provisional.get(key);
+        this._provisional.delete(key);
+        const was = provisional.message.thread;
+        const others = (this._fresh.get(was) ?? []).filter(m => m.handle !== key);
+        this._fresh.delete(was);
+        const open = this._thread === was;
+        if (open) {
+            // The card is showing it: it becomes the real conversation.
+            this._thread = message.thread;
+            this._threadMessages = (this._threadMessages ?? []).map(m => m.handle === key ? entry : m);
+        } else if (!provisional.seen) {
+            this._fresh.set(message.thread,
+                [...this._fresh.get(message.thread) ?? [], ...others, entry].slice(-FRESH_MESSAGES));
+        }
+        if (this._transient?.kind === 'message' && this._transient.message.handle === key)
+            this._transient.message = message;
+        if (this._unread.delete(key))
+            this._unread.set(message.handle, message.thread);
+        if (open || provisional.seen)
+            this._send({command: 'bt_mark_read', handles: [message.handle], read: true});
+        return true;
+    }
+
+    // Read on the iPhone, or cleared there, before the message came.
+    _dropProvisional(uid) {
+        const key = `${PROVISIONAL}${uid}`;
+        const provisional = this._provisional.get(key);
+        if (!provisional || this._thread === provisional.message.thread)
+            return;
+        this._forgetProvisional(key, provisional);
+    }
+
+    _forgetProvisional(key, provisional) {
+        this._provisional.delete(key);
+        const thread = provisional.message.thread;
+        const left = (this._fresh.get(thread) ?? []).filter(m => m.handle !== key);
+        if (left.length > 0)
+            this._fresh.set(thread, left);
+        else
+            this._fresh.delete(thread);
+        this._unread.delete(key);
+        if (this._transient?.kind === 'message' && this._transient.message.handle === key)
+            this._transient = null;
+    }
+
+    // The message did not follow its notification. One that belongs to a
+    // known conversation stays there; one that belongs nowhere, and that
+    // nobody opened, goes to the desktop like any other notification.
+    _provisionalExpire() {
+        const now = this._now();
+        for (const [key, provisional] of [...this._provisional]) {
+            if (now - provisional.at < PROVISIONAL_MS || this._thread === provisional.message.thread)
+                continue;
+            if (provisional.message.thread !== key) {
+                this._provisional.delete(key);
+                continue;
+            }
+            this._forgetProvisional(key, provisional);
+            if (!provisional.seen)
+                this._desktopNotification(provisional.note, false, true);
+        }
+    }
+
+    _onSendProgress(event) {
+        const pending = this._pending;
+        if (!pending || !Object.values(SEND_STAGE).includes(event.stage))
+            return;
+        if (event.operation_id !== undefined ? event.operation_id !== pending.operationId
+            : event.thread !== pending.thread)
+            return;
+        pending.stage = event.stage;
+        // The engine is at work: the wait starts over.
+        pending.until = this._now() + SEND_TIMEOUT_MS;
     }
 
     _onSendResult(event) {
@@ -216,13 +377,20 @@ export const withMessages = Base => class extends Base {
             this._transient = null;
         if (!failed)
             this._replyError = '';
-        const handles = [...this._unread].filter(([, thread]) => thread === key).map(([h]) => h);
+        const all = [...this._unread].filter(([, thread]) => thread === key).map(([h]) => h);
         for (const m of fresh) {
-            if (!handles.includes(m.handle))
-                handles.push(m.handle);
+            if (!all.includes(m.handle))
+                all.push(m.handle);
         }
-        for (const handle of handles)
+        for (const handle of all) {
             this._unread.delete(handle);
+            // Known by its notification only: read here, marked on the
+            // iPhone once the message itself is there.
+            const provisional = this._provisional.get(handle);
+            if (provisional)
+                provisional.seen = true;
+        }
+        const handles = all.filter(handle => !handle.startsWith(PROVISIONAL));
         if (handles.length > 0)
             this._send({command: 'bt_mark_read', handles, read: true});
     }
@@ -243,7 +411,12 @@ export const withMessages = Base => class extends Base {
             return false;
         const operationId = `reply-${++this._sequence}`;
         this._send({command: 'bt_send_message', thread, body, operation_id: operationId});
-        this._pending = {operationId, thread, body, until: this._now() + SEND_TIMEOUT_MS};
+        this._pending = {
+            operationId, thread, body, until: this._now() + SEND_TIMEOUT_MS,
+            // The classic link is closed: the engine opens it first. Its
+            // bt_send_progress says how far it is.
+            stage: this._service(FIELD.messages) === SERVICE.onDemand ? SEND_STAGE.connecting : null,
+        };
         this._drafts.delete(thread);
         for (const [handle, t] of [...this._unread]) {
             if (t === thread)

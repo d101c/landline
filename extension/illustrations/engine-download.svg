@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 240 160" font-family="sans-serif">
+  <!-- Download: the engine comes down from the internet. Drawn for Landline (Phone Settings › Engine); no artwork of anyone else. -->
+  <rect x="0" y="0" width="240" height="160" rx="18" fill="#1d1d20"/>
+  <rect x="72" y="70" width="96" height="62" rx="6" fill="#2c2c2e" stroke="#77777c" stroke-width="2"/>
+  <rect x="78" y="76" width="84" height="50" rx="2" fill="#141416"/>
+  <path d="M62 132 h116 l-6 7 h-104 z" fill="#3a3a3c" stroke="#77777c" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M88 44 a14 14 0 0 1 4 -27 a20 20 0 0 1 38 -4 a14 14 0 0 1 22 18 a10 10 0 0 1 -4 13 z" fill="#3a3a3c" stroke="#77777c" stroke-width="1.5"/>
+  <g transform="translate(102 58)">
+    <path d="M0 8 L18 0 L36 8 L36 30 L18 38 L0 30 Z" fill="#f2b45c"/>
+    <path d="M0 8 L18 16 L36 8 M18 16 V38" fill="none" stroke="#9a6a24" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>
+  <path d="M120 40 v14 m-6 -6 l6 6 l6 -6" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

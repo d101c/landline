@@ -595,3 +595,25 @@ TEST(TelephonyClientSources, PollingReturnsTheCallsEvenWhenTheSwitchCannotBeWrit
     EXPECT_EQ(client->poll_calls().size(), 1u);
     EXPECT_EQ(client->poll_calls(), client->calls());
 }
+
+// A gateway object can be there before its service level connection is: a
+// Dial sent then goes nowhere.
+TEST(TelephonyClientSources, DialIsRefusedWhileTheGatewayIsStillConnecting) {
+    std::vector<std::unique_ptr<TelephonySource>> sources;
+    sources.push_back(gateway_source("/gw", "connecting"));
+    auto client = client_of(std::move(sources));
+    EXPECT_TRUE(client->present());
+    EXPECT_FALSE(client->available());
+    std::string err;
+    EXPECT_FALSE(client->dial("+41791234567", err));
+    EXPECT_NE(err.find("still connecting"), std::string::npos) << err;
+}
+
+TEST(TelephonyClientSources, DialStillRefusesWhatCannotBeDialledFirst) {
+    std::vector<std::unique_ptr<TelephonySource>> sources;
+    sources.push_back(gateway_source("/gw", "connecting"));
+    auto client = client_of(std::move(sources));
+    std::string err;
+    EXPECT_FALSE(client->dial("not a number", err));
+    EXPECT_EQ(err.find("still connecting"), std::string::npos) << err;
+}

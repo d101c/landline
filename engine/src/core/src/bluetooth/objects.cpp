@@ -265,6 +265,7 @@ namespace tether::bluetooth {
             if (d.adapter_path.empty())
                 d.adapter_path = parent_path(path);
             d.address = get_string(props, "Address");
+            d.address_type = get_string(props, "AddressType");
             d.name = get_string(props, "Alias");
             if (d.name.empty())
                 d.name = get_string(props, "Name");

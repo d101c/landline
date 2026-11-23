@@ -67,6 +67,11 @@ namespace tether::bluetooth {
         // This process's connection to the session bus is closed, or there is
         // no session bus: obexd cannot be reached, whatever the phone allows.
         BusClosed,
+        // obexd is on its way back, or was asked to come back: its name has no
+        // owner, it holds the name without answering, or a CreateSession went
+        // unanswered until the D-Bus timeout. Transient, nothing to do on the
+        // phone nor any re-pairing: retried on the usual schedule.
+        DaemonDown,
         Other,
     };
 
@@ -80,6 +85,38 @@ namespace tether::bluetooth {
     // names the local cause of a NoRecord that would otherwise blame the phone.
     std::string obex_error_advice(ObexError error, const std::string& profile, bool ertm_disabled = false);
 
+    // obexd as seen from the session bus, before a CreateSession is risked.
+    enum class ObexDaemonState {
+        // Answered org.freedesktop.DBus.Peer.Ping.
+        Alive,
+        // Nobody owns org.bluez.obex.
+        Absent,
+        // The name is owned but the ping went unanswered: obexd is stuck, as
+        // BlueZ 5.87's obexd is for 60 s when it starts before logind calls
+        // the session active, before it exits with "obex_server_init failed".
+        Silent,
+        // Anything else (bus closed, access denied...): CreateSession is
+        // tried as before and its own error says what happened.
+        Unknown,
+    };
+
+    const char* to_string(ObexDaemonState state);
+
+    // The ping is answered by obexd's bus library, not by its code, so a
+    // healthy daemon answers in milliseconds. Kept short: a silent daemon
+    // holds the supervising thread for this long at each attempt.
+    inline constexpr int OBEX_PING_TIMEOUT_MS = 2000;
+    // obex.service is started or restarted at most this often.
+    inline constexpr int OBEX_DAEMON_RECOVERY_SECONDS = 60;
+    // Next look at obexd after finding it down: it starts in about a second.
+    inline constexpr int OBEX_DAEMON_RETRY_SECONDS = 3;
+    // What systemd is asked to start or restart.
+    inline constexpr const char* OBEX_UNIT = "obex.service";
+
+    // Maps the error text of a failed ping (sent with NO_AUTO_START) onto the
+    // states above. Pure so it can be pinned down against real bus messages.
+    ObexDaemonState classify_obex_ping(const std::string& message);
+
     // Session operations on obexd.
     class ProfileOps {
     public:
@@ -88,6 +125,22 @@ namespace tether::bluetooth {
         // Returns the new session's object path, or an empty string with err set.
         virtual std::string create_session(const std::string& target, std::string& err) = 0;
         virtual void remove_session(const std::string& path) = 0;
+
+        // A quick look at obexd before a CreateSession that could block for
+        // CONNECT_TIMEOUT_MS. The defaults keep a double that does not care
+        // reading as a healthy obexd.
+        virtual ObexDaemonState probe_daemon() { return ObexDaemonState::Alive; }
+        // Asks the user's systemd to start, or restart, obex.service without
+        // waiting for the job. False with err set when systemd could not be
+        // asked (no user manager, no such unit...).
+        virtual bool start_daemon(std::string& err) {
+            err = "not supported";
+            return false;
+        }
+        virtual bool restart_daemon(std::string& err) {
+            err = "not supported";
+            return false;
+        }
     };
 
     struct ProfileStatus {
@@ -143,6 +196,20 @@ namespace tether::bluetooth {
         // the link itself is still up. The next tick reopens it.
         void drop_map();
 
+        // The lean link mode: sessions are opened only while something needs
+        // them. Off, the default, keeps both open for the daemon's lifetime.
+        void set_on_demand(bool on_demand);
+        // `want_data`: sessions may be opened now. `keep_open`: those already
+        // open stay; false removes them at once, and what the phone last
+        // answered (map_error, pbap_error) is left as it was. Neither is
+        // published as map_held or pbap_held. Ignored in the full mode.
+        void set_demand(bool want_data, bool keep_open);
+        // Both profiles were tried since sessions were last wanted and
+        // neither opened.
+        bool demand_refused() const;
+        // Whether a profile was tried since sessions were last wanted.
+        bool demand_attempted() const { return demand_attempted_; }
+
         // A held profile has its session removed and is not reopened until the
         // hold is lifted. `by_inactivity` only changes the reason shown.
         void set_held(bool map, bool pbap, bool by_inactivity);
@@ -151,7 +218,21 @@ namespace tether::bluetooth {
         const std::string& map_session() const { return map_path_; }
         const std::string& pbap_session() const { return pbap_path_; }
 
+        // When obex.service was last started or restarted by this supervisor,
+        // -1 if never.
+        int64_t daemon_recovery_at() const { return recovery_at_; }
+
     private:
+        // Whether obexd may be asked for a session in this tick. False when it
+        // is absent or silent, after asking systemd to bring it back.
+        bool daemon_ready(int64_t now);
+        // Starts or restarts obex.service, at most once per
+        // OBEX_DAEMON_RECOVERY_SECONDS. Returns whether a start is under way
+        // (requested now or within the window).
+        bool recover_daemon(int64_t now, ObexDaemonState state);
+        // obexd is restarting: the sessions it held are gone with it, and
+        // nothing can be removed through it.
+        void forget_sessions();
         bool open_profile(
             const std::string& target, std::string& path, ObexError& error, bool& retried, int64_t& logged_at);
         void update_reason(bool reachable);
@@ -183,6 +264,16 @@ namespace tether::bluetooth {
         int64_t map_logged_at_ = -1;
         int64_t pbap_logged_at_ = -1;
         std::function<void()> on_opened_;
+        // obexd's recovery: when systemd was last asked, whether that request
+        // went through, and whether this tick already found obexd down.
+        int64_t recovery_at_ = -1;
+        bool recovery_requested_ = false;
+        bool daemon_down_this_tick_ = false;
+
+        bool on_demand_ = false;
+        bool want_data_ = false;
+        bool demand_attempted_ = false;
+        void close_sessions();
     };
 
 } // namespace tether::bluetooth

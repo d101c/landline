@@ -112,8 +112,11 @@ async function main() {
     // disabled while the password is being asked
     helper._rootCopy = async () => fake;
     helper._statusPath = async () => fake;
+    check('before apply: the steadier link is not set up, and that alone is not "ready"',
+        (await helper.status()).le_params, false);
     check('apply: done', await helper.apply(), 'done');
     check('apply: the settings are in place', (await helper.status()).ready, true);
+    check('apply: the steadier link is set up in the same pass', (await helper.status()).le_params, true);
     GLib.spawn_command_line_sync(`${fake} revert`);
     check('put back for the next check', (await helper.status()).ready, false);
     GLib.file_set_contents(hold, '');

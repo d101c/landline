@@ -28,7 +28,7 @@ function fit(text, max) {
     return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : chars.join('');
 }
 
-const TEMPLATES = ['bluetooth', 'request', 'info', 'lock'];
+const TEMPLATES = ['bluetooth', 'request', 'info', 'lock', 'hotspot'];
 
 export class Illustrations {
     // dir: the Gio.File of illustrations/. onLoaded() is called when the
@@ -117,6 +117,11 @@ export class Illustrations {
             values[`r${letter}`] = on || forget || (bare && letter !== 'n') ? '0' : '1';
         }
         return this._icon('info', values);
+    }
+
+    // Settings › Personal Hotspot, Allow Others to Join off and ringed.
+    hotspot() {
+        return this._icon('hotspot', {});
     }
 
     // The lock screen with a message on it.

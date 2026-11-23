@@ -134,6 +134,10 @@ d'un fichier. `net.cpp:2697-2772` lance la même fenêtre pour l'appairage rése
 
 ### 4.3 Le presse-papiers est appelé depuis le serveur local
 
+**Fait (issue #19)** : le client Wayland (`wayland.cpp`, `wayland_protocols/`, `clipboard.hpp`) est retiré,
+`session_inactive()` réduit à logind, le bouton « Copy Code » des bulles du démon supprimé. Ce qui suit
+décrit l'état d'avant.
+
 `net.cpp` utilise le global `g_wayland` (commandes `clipboard_*`, lignes 1715-1744 ; capacité `clipboard`,
 ligne 415 ; instantané, ligne 986) et `src/daemon/main.cpp:188-204`, `:219-224` l'initialise. Le bouton
 « copier le code » des bulles du démon passe aussi par lui.
@@ -145,6 +149,10 @@ réduire `session_inactive()` à sa branche logind, et de retirer `wayland-clien
 (`CMakeLists.txt`, ligne 32).
 
 ### 4.4 mDNS, TLS et secrets dans les dépendances de construction
+
+**État après l'issue #19** : `wayland-client` n'est plus exigé. OpenSSL reste (libcrypto chiffre le journal
+des messages dans `secret_store.cpp` ; libssl sert la partie réseau) et Avahi aussi (partie réseau) ; dans
+l'archive portable, OpenSSL est lié statiquement et Avahi embarqué (`docs/release.md`).
 
 `CMakeLists.txt` exige `avahi-client`, OpenSSL, `wayland-client` et `libsecret-1` pour **toute** la
 bibliothèque (lignes 31-36). Avahi et OpenSSL partent avec le Wi-Fi ; `libsecret` reste (chiffrement du

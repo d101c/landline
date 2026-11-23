@@ -1,6 +1,7 @@
 add_subdirectory(core)
 add_subdirectory(daemon)
 add_subdirectory(cli)
+add_subdirectory(le_params)
 
 # Tether's own front ends. Landline is driven by its GNOME Shell extension and
 # ships none of them; the sources are kept as received.

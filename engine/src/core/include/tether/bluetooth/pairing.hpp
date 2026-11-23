@@ -150,6 +150,12 @@ namespace tether::bluetooth {
     // supervise_ancs_solicitation() registers it again on its next call.
     void forget_ancs_solicitation(BluezMonitor& monitor);
 
+    // Has supervise_ancs_solicitation() register the advertisement again on
+    // its next call even though it reads as on air: after the computer woke
+    // up, or when something suggests the controller is no longer sending what
+    // BlueZ believes it is.
+    void renew_ancs_solicitation();
+
     // Holds the solicitation on air for exactly as long as `want`
     // and at the advertising interval asked for: a change of interval registers
     // the advert again.

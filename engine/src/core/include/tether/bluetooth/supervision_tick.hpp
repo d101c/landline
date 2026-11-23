@@ -12,6 +12,10 @@ namespace tether::bluetooth {
         virtual void links() = 0;
         // ANCS subscription and queued notification packets. Rides LE alone.
         virtual void notifications() = 0;
+        // The classic link on demand: leases taken and returned, the link
+        // opened or closed accordingly. Does nothing in the full link mode,
+        // which is the default here. Never blocks for long.
+        virtual void demand() {}
         // Calls in progress.
         virtual void calls() = 0;
         // Status to the subscribed clients; a payload equal to the last is dropped.
@@ -37,6 +41,7 @@ namespace tether::bluetooth {
     inline void run_quick_steps(SupervisionSteps& steps) {
         steps.links();
         steps.notifications();
+        steps.demand();
         steps.calls();
         steps.publish();
     }

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="440" viewBox="0 0 200 220" font-family="sans-serif">
+  <!-- iPhone (iOS 26), Settings › Personal Hotspot, top to bottom as on the
+       real page: the explanation, Allow Others to Join (switch) and Wi-Fi
+       Password, Family Sharing, Maximize Compatibility (switch). Allow Others
+       to Join is off and ringed in amber: the one thing to turn on so that
+       this computer may use the connection over Bluetooth. {{L_…}} are the
+       words of the iPhone, in its language (lib/phoneLabels.js). -->
+  <rect x="10" y="6" width="180" height="260" rx="27" fill="#1c1c1e" stroke="#77777c" stroke-width="3"/>
+  <rect x="79" y="15" width="42" height="11" rx="5.5" fill="#000000"/>
+  <text x="22" y="44" font-size="8" fill="#0a84ff">‹ {{L_settings}}</text>
+  <text x="22" y="62" font-size="15" font-weight="bold" fill="#ffffff">{{L_hotspot}}</text>
+  <g font-size="5.600" fill="#98989f">
+    <text x="22" y="76">{{L_hotspotAbout1}}</text>
+    <text x="22" y="83">{{L_hotspotAbout2}}</text>
+  </g>
+  <rect x="20" y="90" width="160" height="48" rx="7" fill="#2c2c2e"/>
+  <text x="28" y="104.900" font-size="7.800" fill="#ffffff">{{L_allowOthers}}</text>
+  <rect x="150" y="95.500" width="22" height="13" rx="6.500" fill="#48484a"/>
+  <circle cx="156.500" cy="102" r="5" fill="#ffffff"/>
+  <rect x="146" y="92" width="30" height="20" rx="10" fill="#f2b45c" fill-opacity="0.180" stroke="#f2b45c" stroke-width="2"/>
+  <path d="M28 114H180" stroke="#3a3a3c" stroke-width="0.800"/>
+  <text x="28" y="128.900" font-size="7.800" fill="#ffffff">{{L_wifiPassword}}</text>
+  <text x="161" y="129" font-size="7" text-anchor="end" fill="#98989f">••••••••</text>
+  <path d="M167 123l3 3-3 3" fill="none" stroke="#98989f" stroke-width="1.100" stroke-linecap="round" stroke-linejoin="round"/>
+  <g opacity="0.550">
+    <rect x="20" y="146" width="160" height="24" rx="7" fill="#2c2c2e"/>
+    <text x="28" y="160.900" font-size="7.800" fill="#ffffff">{{L_familySharing}}</text>
+    <path d="M167 155l3 3-3 3" fill="none" stroke="#98989f" stroke-width="1.100" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="20" y="178" width="160" height="24" rx="7" fill="#2c2c2e"/>
+    <text x="28" y="192.900" font-size="7.800" fill="#ffffff">{{L_maxCompatibility}}</text>
+    <rect x="150" y="183.500" width="22" height="13" rx="6.500" fill="#48484a"/>
+    <circle cx="156.500" cy="190" r="5" fill="#ffffff"/>
+  </g>
+</svg>

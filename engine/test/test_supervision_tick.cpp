@@ -165,3 +165,44 @@ TEST(SupervisionTick, LongReadsAreSkippedWhileNotificationsComeBack) {
         EXPECT_EQ(std::count(tick.order.begin(), tick.order.end(), kept), 1) << kept;
     EXPECT_EQ(tick.order.back(), "publish");
 }
+
+namespace {
+    // The same, with the lean link mode's step recorded.
+    struct DemandRecorder : Recorder {
+        void demand() override { order.push_back("demand"); }
+    };
+} // namespace
+
+// The classic link is decided on what links() has just read and before
+// anything can wait on OBEX: a lease taken by a notification is acted on in
+// the same pass.
+TEST(SupervisionTick, TheDemandStepFollowsNotificationsInTheQuickSteps) {
+    DemandRecorder steps;
+    run_supervision_tick(steps);
+    ASSERT_GE(steps.order.size(), 5u);
+    EXPECT_EQ(steps.order[0], "links");
+    EXPECT_EQ(steps.order[1], "notifications");
+    EXPECT_EQ(steps.order[2], "demand");
+    EXPECT_EQ(steps.order[3], "calls");
+    EXPECT_EQ(steps.order[4], "publish");
+    EXPECT_LT(steps.first("demand"), steps.first("profiles"));
+}
+
+TEST(SupervisionTick, TheDemandStepRunsAgainAfterALongRead) {
+    DemandRecorder steps;
+    steps.messages_held = true;
+    run_supervision_tick(steps);
+    EXPECT_EQ(steps.count("demand"), 2u);
+    const auto after = steps.after("messages");
+    ASSERT_GE(after.size(), 3u);
+    EXPECT_EQ(after[0], "links");
+    EXPECT_EQ(after[1], "notifications");
+    EXPECT_EQ(after[2], "demand");
+}
+
+TEST(SupervisionTick, AnImplementationWithoutADemandStepIsUnchanged) {
+    Recorder steps;
+    run_supervision_tick(steps);
+    EXPECT_EQ(steps.count("demand"), 0u);
+    EXPECT_EQ(steps.order[2], "calls");
+}

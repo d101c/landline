@@ -12,8 +12,9 @@ namespace tether {
     // no desktop offers a call for it that would not also dismiss the lock.
     bool wake_session(const std::string& command);
 
-    // Locked or idle: logind's LockedHint or IdleHint, or the compositor's idle
-    // notification. False when none of them can be asked.
+    // Locked or idle: logind's LockedHint or IdleHint (GNOME has no
+    // ext-idle-notify; gnome-session sets IdleHint). False when logind cannot
+    // be asked.
     bool session_inactive();
 
 } // namespace tether

@@ -3,9 +3,9 @@
 //
 // Do Not Disturb, a shared or recorded screen, or "Mute iPhone on this
 // computer": nothing pops up. No pill that grows, no name, no text, no
-// card that comes down, no battery warning. The indicator keeps its shape
-// at rest; unread messages add up behind a bare count; the menu, which
-// only opens when the user asks, still shows everything. Coming out of it
+// card that comes down, no battery warning. The icon stays as it is at
+// rest, still, with no bubble; unread messages are counted in the menu,
+// which only opens when the user asks and still shows everything. Coming out of it
 // replays nothing.
 
 export const withQuiet = Base => class extends Base {

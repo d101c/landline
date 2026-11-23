@@ -5,6 +5,7 @@
 
 #include <tether/log.hpp>
 
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -140,6 +141,36 @@ namespace {
         }
 
         void remove_session(const std::string& path) override { removed.push_back(path); }
+
+        // obexd on the bus, as the ping finds it, and what systemd was asked.
+        // `daemon_seq` is answered first, one look at a time, then `daemon`.
+        ObexDaemonState daemon = ObexDaemonState::Alive;
+        std::vector<ObexDaemonState> daemon_seq;
+        int probes = 0;
+        int starts = 0;
+        int restarts = 0;
+        bool systemd_answers = true;
+        ObexDaemonState probe_daemon() override {
+            ++probes;
+            if (!daemon_seq.empty()) {
+                const ObexDaemonState next = daemon_seq.front();
+                daemon_seq.erase(daemon_seq.begin());
+                return next;
+            }
+            return daemon;
+        }
+        bool start_daemon(std::string& err) override {
+            ++starts;
+            if (!systemd_answers)
+                err = "GDBus.Error:org.freedesktop.systemd1.NoSuchUnit: Unit obex.service not found.";
+            return systemd_answers;
+        }
+        bool restart_daemon(std::string& err) override {
+            ++restarts;
+            if (!systemd_answers)
+                err = "GDBus.Error:org.freedesktop.systemd1.NoSuchUnit: Unit obex.service not found.";
+            return systemd_answers;
+        }
     };
 
 } // namespace
@@ -2234,4 +2265,518 @@ TEST(ProfileSupervisor, ALostBusLeavesAHeldProfileHeld) {
     EXPECT_EQ(sup.status().map_error, ObexError::None);
     EXPECT_EQ(sup.status().pbap_error, ObexError::BusClosed);
     EXPECT_NE(sup.status().reason.find("session bus"), std::string::npos);
+}
+
+// --- The lean link mode: the LE link is the only one kept, BR/EDR is opened
+// --- by leases (classic_demand.hpp) and nothing here keeps it up.
+
+namespace {
+
+    // An iPhone in range, LE up, the way the lean mode finds it at rest.
+    struct LeanBench {
+        FakeBearer ops;
+        BearerSupervisor supervisor{ops, true};
+
+        LeanBench() {
+            ops.le = true;
+            // Hands-free missing is what makes the full mode cut the link.
+            ops.telephony = false;
+            supervisor.set_calls_enabled(true);
+            supervisor.set_link_mode(true);
+        }
+
+        void run(int64_t from, int64_t until) {
+            for (int64_t now = from; now <= until; ++now)
+                supervisor.tick(now);
+        }
+    };
+
+} // namespace
+
+TEST(BearerSupervisorLean, NothingIsAskedOverBrEdrWithoutAVoiceLease) {
+    LeanBench bench;
+    bench.run(0, 900);
+    EXPECT_EQ(bench.ops.classic_attempts, 0);
+    EXPECT_EQ(bench.ops.classic_disconnects, 0);
+    EXPECT_EQ(bench.ops.hands_free_requests, 0);
+    EXPECT_EQ(bench.ops.le_attempts, 0);
+    EXPECT_TRUE(bench.ops.bearer_writes.empty());
+    EXPECT_FALSE(bench.supervisor.status().holding_for_le);
+    EXPECT_FALSE(bench.supervisor.status().le_settling);
+    EXPECT_EQ(bench.supervisor.planned_drops(), 0);
+    EXPECT_EQ(bench.supervisor.status().reason, "Messages and calls connect when needed.");
+}
+
+TEST(BearerSupervisorLean, WithoutTheLeLinkNothingIsAskedEither) {
+    LeanBench bench;
+    bench.ops.le = false;
+    bench.run(0, 900);
+    EXPECT_EQ(bench.ops.classic_attempts, 0);
+    EXPECT_EQ(bench.ops.le_attempts, 0);
+    EXPECT_FALSE(bench.supervisor.status().holding_for_le);
+    EXPECT_EQ(bench.supervisor.status().classic_backoff, 0);
+}
+
+TEST(BearerSupervisorLean, ADataOpeningIsLeftToObex) {
+    LeanBench bench;
+    bench.run(0, 5);
+    bench.supervisor.set_demand(DemandAction::OpenData, 6);
+    bench.run(6, 60);
+    EXPECT_EQ(bench.ops.classic_attempts, 0);
+}
+
+TEST(BearerSupervisorLean, AVoiceLeaseConnectsOnceAndTheLinkIsNotCycled) {
+    LeanBench bench;
+    bench.run(0, 5);
+    bench.supervisor.set_demand(DemandAction::OpenVoice, 6);
+    EXPECT_EQ(bench.ops.classic_attempts, 1);
+    // Hands-free never comes: in the full mode this is a request, then a cut.
+    bench.run(6, 300);
+    EXPECT_TRUE(bench.supervisor.status().classic_connected);
+    EXPECT_EQ(bench.ops.classic_attempts, 1);
+    EXPECT_EQ(bench.ops.classic_disconnects, 0);
+    EXPECT_EQ(bench.ops.hands_free_requests, 0);
+    EXPECT_EQ(bench.supervisor.hfp_cycles(), 0);
+    EXPECT_TRUE(bench.ops.bearer_writes.empty());
+}
+
+TEST(BearerSupervisorLean, ARefusedConnectIsMadeAgainWithinTheOpening) {
+    LeanBench bench;
+    bench.ops.classic_succeeds = false;
+    bench.run(0, 5);
+    bench.supervisor.set_demand(DemandAction::OpenVoice, 6);
+    EXPECT_EQ(bench.ops.classic_attempts, 1);
+    bench.run(7, 6 + DEMAND_CONNECT_RETRY_SECONDS - 1);
+    EXPECT_EQ(bench.ops.classic_attempts, 1);
+    bench.run(6 + DEMAND_CONNECT_RETRY_SECONDS, 6 + DEMAND_CONNECT_RETRY_SECONDS);
+    EXPECT_EQ(bench.ops.classic_attempts, 2);
+    // The lease given up: no more attempts.
+    bench.supervisor.set_demand(DemandAction::Close, 12);
+    bench.run(12, 100);
+    EXPECT_EQ(bench.ops.classic_attempts, 2);
+}
+
+TEST(BearerSupervisorLean, AVoiceLeaseOnALinkInPlaceAsksForHandsFree) {
+    LeanBench bench;
+    bench.ops.classic = true;
+    bench.run(0, 2);
+    bench.supervisor.set_demand(DemandAction::OpenVoice, 3);
+    EXPECT_EQ(bench.ops.hands_free_requests, 1);
+    EXPECT_EQ(bench.ops.classic_attempts, 0);
+}
+
+TEST(BearerSupervisorLean, CloseAndRecycleDropBrEdrAlone) {
+    for (const DemandAction action : {DemandAction::Close, DemandAction::RecycleForVoice}) {
+        LeanBench bench;
+        bench.ops.classic = true;
+        bench.run(0, 2);
+        bench.supervisor.set_demand(action, 3);
+        EXPECT_EQ(bench.ops.classic_disconnects, 1);
+        EXPECT_TRUE(bench.ops.le);
+        // Already down: nothing more is asked.
+        bench.supervisor.set_demand(action, 4);
+        EXPECT_EQ(bench.ops.classic_disconnects, 1);
+    }
+}
+
+TEST(BearerSupervisorLean, ABondLeftPreferringBrEdrIsHandedBackToLe) {
+    LeanBench bench;
+    bench.ops.le = false;
+    bench.ops.bearer_pref = "bredr";
+    bench.run(0, 30);
+    EXPECT_EQ(bench.ops.bearer_writes, std::vector<std::string>{"le"});
+}
+
+TEST(BearerSupervisorLean, TheFullModeIgnoresDemandAndSupervisesAsBefore) {
+    FakeBearer ops;
+    ops.classic = true;
+    ops.le = true;
+    BearerSupervisor supervisor(ops, true);
+    supervisor.tick(0);
+    supervisor.set_demand(DemandAction::Close, 1);
+    EXPECT_EQ(ops.classic_disconnects, 0);
+    supervisor.set_demand(DemandAction::OpenVoice, 1);
+    EXPECT_EQ(ops.hands_free_requests, 0);
+    EXPECT_FALSE(supervisor.on_demand());
+}
+
+TEST(BearerSupervisorLean, GoingBackToFullBringsBrEdrUpAgain) {
+    LeanBench bench;
+    bench.run(0, 60);
+    ASSERT_EQ(bench.ops.classic_attempts, 0);
+    bench.supervisor.set_link_mode(false);
+    bench.run(61, 70);
+    EXPECT_GE(bench.ops.classic_attempts, 1);
+    EXPECT_TRUE(bench.supervisor.status().classic_connected);
+}
+
+TEST(ProfileSupervisorOnDemand, NothingIsOpenedUntilWanted) {
+    FakeProfiles ops;
+    ProfileSupervisor supervisor(ops);
+    supervisor.set_on_demand(true);
+    for (int64_t now = 0; now < 200; ++now)
+        supervisor.tick(now, true);
+    EXPECT_EQ(ops.map_attempts, 0);
+    EXPECT_EQ(ops.pbap_attempts, 0);
+    EXPECT_EQ(supervisor.status().reason, "Messages and contacts connect when needed.");
+    EXPECT_FALSE(supervisor.status().map_held);
+}
+
+TEST(ProfileSupervisorOnDemand, WantedSessionsOpenAtTheNextTick) {
+    FakeProfiles ops;
+    ProfileSupervisor supervisor(ops);
+    supervisor.set_on_demand(true);
+    for (int64_t now = 0; now < 200; ++now)
+        supervisor.tick(now, true);
+    supervisor.set_demand(true, true);
+    supervisor.tick(200, true);
+    EXPECT_TRUE(supervisor.status().map_open);
+    EXPECT_TRUE(supervisor.status().pbap_open);
+    EXPECT_TRUE(supervisor.demand_attempted());
+    EXPECT_FALSE(supervisor.demand_refused());
+}
+
+TEST(ProfileSupervisorOnDemand, ClosingRemovesTheSessionsWithoutCallingThemReleased) {
+    FakeProfiles ops;
+    ProfileSupervisor supervisor(ops);
+    supervisor.set_on_demand(true);
+    supervisor.set_demand(true, true);
+    supervisor.tick(0, true);
+    ASSERT_TRUE(supervisor.status().map_open);
+    supervisor.set_demand(false, false);
+    EXPECT_EQ(ops.removed.size(), 2u);
+    EXPECT_FALSE(supervisor.status().map_open);
+    EXPECT_FALSE(supervisor.status().pbap_open);
+    EXPECT_FALSE(supervisor.status().map_held);
+    EXPECT_FALSE(supervisor.status().pbap_held);
+    EXPECT_EQ(supervisor.status().map_error, ObexError::None);
+    // And it stays closed.
+    for (int64_t now = 1; now < 100; ++now)
+        supervisor.tick(now, true);
+    EXPECT_EQ(ops.map_attempts, 1);
+}
+
+TEST(ProfileSupervisorOnDemand, SessionsKeptThroughTheLingerAreNotReopenedNorRemoved) {
+    FakeProfiles ops;
+    ProfileSupervisor supervisor(ops);
+    supervisor.set_on_demand(true);
+    supervisor.set_demand(true, true);
+    supervisor.tick(0, true);
+    supervisor.set_demand(false, true);
+    for (int64_t now = 1; now < 60; ++now)
+        supervisor.tick(now, true);
+    EXPECT_TRUE(supervisor.status().map_open);
+    EXPECT_TRUE(ops.removed.empty());
+    EXPECT_EQ(ops.map_attempts, 1);
+    EXPECT_EQ(supervisor.status().reason, "Messages and contacts are connected.");
+}
+
+TEST(ProfileSupervisorOnDemand, ARefusalIsStillSaidWhileTheLinkIsClosed) {
+    FakeProfiles ops;
+    ops.map_error = "OBEX Forbidden (0x43)";
+    ProfileSupervisor supervisor(ops);
+    supervisor.set_on_demand(true);
+    supervisor.set_demand(true, true);
+    supervisor.tick(0, true);
+    ASSERT_EQ(supervisor.status().map_error, ObexError::Forbidden);
+    ASSERT_TRUE(supervisor.status().pbap_open);
+    supervisor.set_demand(false, false);
+    supervisor.tick(1, true);
+    EXPECT_EQ(supervisor.status().map_error, ObexError::Forbidden);
+    EXPECT_NE(supervisor.status().reason.find("Show Message Notifications"), std::string::npos);
+}
+
+TEST(ProfileSupervisorOnDemand, BothProfilesFailingIsReportedAfterOneAttempt) {
+    FakeProfiles ops;
+    ops.map_error = "Host is down";
+    ops.pbap_error = "Host is down";
+    ProfileSupervisor supervisor(ops);
+    supervisor.set_on_demand(true);
+    supervisor.set_demand(true, true);
+    EXPECT_FALSE(supervisor.demand_refused());
+    supervisor.tick(0, true);
+    EXPECT_TRUE(supervisor.demand_refused());
+    // Asked again later: judged on the new attempt, not the old one.
+    supervisor.set_demand(false, false);
+    supervisor.set_demand(true, true);
+    EXPECT_FALSE(supervisor.demand_refused());
+}
+
+TEST(ProfileSupervisorOnDemand, TheFullModeKeepsBothSessionsAsBefore) {
+    FakeProfiles ops;
+    ProfileSupervisor supervisor(ops);
+    supervisor.set_demand(false, false);
+    supervisor.tick(0, true);
+    EXPECT_TRUE(supervisor.status().map_open);
+    EXPECT_TRUE(supervisor.status().pbap_open);
+    EXPECT_TRUE(ops.removed.empty());
+}
+
+// The cut made for hands-free would drop the link a call command has just
+// been sent over.
+TEST(BearerSupervisor, TheHandsFreeCycleWaitsOutACallCommand) {
+    FakeBearer ops;
+    ops.classic = true;
+    ops.le = true;
+    ops.telephony = false;
+    BearerSupervisor supervisor(ops, true);
+    supervisor.set_calls_enabled(true);
+    supervisor.tick(0);
+    supervisor.note_call_command(5);
+    for (int64_t now = 1; now < 5 + HFP_CYCLE_AFTER_CALL_COMMAND_SECONDS; ++now)
+        supervisor.tick(now);
+    EXPECT_EQ(ops.classic_disconnects, 0);
+    supervisor.tick(5 + HFP_CYCLE_AFTER_CALL_COMMAND_SECONDS);
+    EXPECT_EQ(ops.classic_disconnects, 1);
+}
+
+TEST(BearerSupervisor, WithoutACallCommandTheCycleComesWhenItAlwaysDid) {
+    FakeBearer ops;
+    ops.classic = true;
+    ops.le = true;
+    ops.telephony = false;
+    BearerSupervisor supervisor(ops, true);
+    supervisor.set_calls_enabled(true);
+    for (int64_t now = 0; now < HFP_ABSENT_SECONDS; ++now)
+        supervisor.tick(now);
+    EXPECT_EQ(ops.classic_disconnects, 0);
+    supervisor.tick(HFP_ABSENT_SECONDS);
+    EXPECT_EQ(ops.classic_disconnects, 1);
+}
+
+// --- obexd at the start of a session (17 November 2026): BlueZ 5.87's obexd
+// held its name for 60 s without answering, then exited; the engine waited
+// 30 s on a CreateSession and never got obexd back.
+
+TEST(ObexDaemon, AbsentNameAsksSystemdOnceAndSkipsCreateSession) {
+    FakeProfiles ops;
+    ops.daemon = ObexDaemonState::Absent;
+    ProfileSupervisor sup(ops);
+
+    sup.tick(0, true);
+    EXPECT_EQ(ops.starts, 1);
+    EXPECT_EQ(ops.restarts, 0);
+    EXPECT_EQ(ops.probes, 1) << "one look per tick, not one per profile";
+    EXPECT_EQ(ops.map_attempts, 0) << "no CreateSession while obexd is absent";
+    EXPECT_EQ(ops.pbap_attempts, 0);
+    EXPECT_EQ(sup.status().map_error, ObexError::DaemonDown);
+    EXPECT_EQ(sup.status().pbap_error, ObexError::DaemonDown);
+    EXPECT_EQ(sup.daemon_recovery_at(), 0);
+    EXPECT_EQ(sup.status().reason.find("re-pair"), std::string::npos);
+
+    // Still starting: not asked again within the window.
+    sup.tick(PROFILE_INITIAL_POLL_SECONDS, true);
+    sup.tick(2 * PROFILE_INITIAL_POLL_SECONDS, true);
+    EXPECT_EQ(ops.starts, 1);
+    EXPECT_EQ(ops.map_attempts, 0);
+    EXPECT_EQ(sup.status().map_error, ObexError::DaemonDown);
+
+    // Back: the next attempt opens both, as before.
+    ops.daemon = ObexDaemonState::Alive;
+    sup.tick(3 * PROFILE_INITIAL_POLL_SECONDS, true);
+    EXPECT_TRUE(sup.status().map_open);
+    EXPECT_TRUE(sup.status().pbap_open);
+    EXPECT_EQ(sup.status().map_error, ObexError::None);
+    EXPECT_EQ(ops.starts, 1);
+}
+
+// 18 November, 01:13: the hourly sync found obexd absent, asked systemd for
+// it, and the opening was called refused one second later. obexd starting is
+// not a refusal; it is looked at again within the opening's window.
+TEST(ObexDaemon, AnOpeningWaitsForObexdInsteadOfFailing) {
+    FakeProfiles ops;
+    ops.daemon = ObexDaemonState::Absent;
+    ProfileSupervisor sup(ops);
+    sup.set_on_demand(true);
+    sup.set_demand(true, true);
+    sup.tick(0, true);
+    EXPECT_EQ(ops.starts, 1);
+    EXPECT_EQ(sup.status().map_error, ObexError::DaemonDown);
+    EXPECT_FALSE(sup.demand_refused()) << "obexd starting is not the phone refusing";
+
+    ops.daemon = ObexDaemonState::Alive;
+    sup.tick(OBEX_DAEMON_RETRY_SECONDS - 1, true);
+    EXPECT_FALSE(sup.status().map_open);
+    sup.tick(OBEX_DAEMON_RETRY_SECONDS, true);
+    EXPECT_TRUE(sup.status().map_open);
+    EXPECT_TRUE(sup.status().pbap_open);
+    EXPECT_LT(OBEX_DAEMON_RETRY_SECONDS, CLASSIC_OPEN_TIMEOUT_SECONDS);
+}
+
+// Review of 18 November: obexd silent while the phone is away. The attempts
+// keep the backoff for an absent phone instead of coming back every pass.
+TEST(ObexDaemon, ASilentDaemonWithThePhoneAwayKeepsTheBackoff) {
+    FakeProfiles ops;
+    ops.daemon = ObexDaemonState::Silent;
+    ProfileSupervisor sup(ops);
+    for (int64_t t = 0; t < 120; ++t)
+        sup.tick(t, false);
+    EXPECT_LE(ops.probes, 4) << "not a ping per pass";
+    EXPECT_EQ(ops.map_attempts, 0);
+}
+
+// The same with a CreateSession that runs out its timeout: not repeated
+// every pass while the phone is away.
+TEST(ObexDaemon, ATimeoutWithThePhoneAwayKeepsTheBackoff) {
+    FakeProfiles ops;
+    ops.map_error = "Timeout was reached";
+    ProfileSupervisor sup(ops);
+    for (int64_t t = 0; t < 120; ++t)
+        sup.tick(t, false);
+    EXPECT_LE(ops.map_attempts, 4);
+}
+
+TEST(ObexDaemon, AbsentNameAskedAgainAfterTheWindow) {
+    FakeProfiles ops;
+    ops.daemon = ObexDaemonState::Absent;
+    ProfileSupervisor sup(ops);
+    sup.tick(0, true);
+    sup.tick(OBEX_DAEMON_RECOVERY_SECONDS - 1, true);
+    EXPECT_EQ(ops.starts, 1);
+    sup.tick(OBEX_DAEMON_RECOVERY_SECONDS + 5, true);
+    EXPECT_EQ(ops.starts, 2);
+}
+
+// No user systemd, or obexd not installed: CreateSession goes through D-Bus
+// activation as it always did, and a missing obexd is still named as such.
+TEST(ObexDaemon, AbsentNameWithoutSystemdFallsBackToCreateSession) {
+    FakeProfiles ops;
+    ops.daemon = ObexDaemonState::Absent;
+    ops.systemd_answers = false;
+    ops.map_error = "GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable";
+    ops.pbap_error = ops.map_error;
+    ProfileSupervisor sup(ops);
+
+    sup.tick(0, true);
+    EXPECT_EQ(ops.starts, 1);
+    EXPECT_EQ(ops.map_attempts, 1);
+    EXPECT_EQ(ops.pbap_attempts, 1);
+    EXPECT_EQ(sup.status().map_error, ObexError::NoDaemon);
+
+    // Within the window systemd is not asked again, and the fallback stays.
+    sup.tick(PROFILE_INITIAL_POLL_SECONDS, true);
+    EXPECT_EQ(ops.starts, 1);
+    EXPECT_EQ(ops.map_attempts, 2);
+}
+
+TEST(ObexDaemon, SilentDaemonRestartedAtMostOncePerWindow) {
+    FakeProfiles ops;
+    ops.daemon = ObexDaemonState::Silent;
+    ProfileSupervisor sup(ops);
+
+    sup.tick(0, true);
+    EXPECT_EQ(ops.restarts, 1);
+    EXPECT_EQ(ops.starts, 0);
+    EXPECT_EQ(ops.map_attempts, 0) << "a silent obexd would hold the thread for the full timeout";
+    EXPECT_EQ(sup.status().map_error, ObexError::DaemonDown);
+    EXPECT_EQ(sup.status().pbap_error, ObexError::DaemonDown);
+
+    for (int t = PROFILE_INITIAL_POLL_SECONDS; t < OBEX_DAEMON_RECOVERY_SECONDS; t += PROFILE_INITIAL_POLL_SECONDS)
+        sup.tick(t, true);
+    EXPECT_EQ(ops.restarts, 1) << "restarted again inside the window";
+    EXPECT_EQ(ops.map_attempts, 0);
+
+    sup.tick(OBEX_DAEMON_RECOVERY_SECONDS, true);
+    EXPECT_EQ(ops.restarts, 2);
+}
+
+TEST(ObexDaemon, TimeoutIsDaemonDownAndSparesTheOtherProfile) {
+    FakeProfiles ops;
+    // Verbatim from the journal, 17 November 22:51.
+    ops.map_error = "Timeout was reached";
+    ProfileSupervisor sup(ops);
+
+    // The ping before the call passed, and so does the one after it.
+    sup.tick(0, true);
+    EXPECT_EQ(ops.map_attempts, 1);
+    EXPECT_EQ(ops.pbap_attempts, 0) << "a second CreateSession would wait out the same timeout";
+    EXPECT_EQ(sup.status().map_error, ObexError::DaemonDown);
+    EXPECT_EQ(sup.status().pbap_error, ObexError::DaemonDown);
+    EXPECT_EQ(ops.probes, 2) << "looked at again after the timeout";
+    EXPECT_EQ(ops.restarts, 0) << "obexd still answers: the timeout alone restarts nothing";
+
+    // Next attempt, obexd answering again: both are tried.
+    ops.map_error.clear();
+    sup.tick(PROFILE_INITIAL_POLL_SECONDS, true);
+    EXPECT_TRUE(sup.status().map_open);
+    EXPECT_TRUE(sup.status().pbap_open);
+}
+
+TEST(ObexDaemon, TimeoutWithSilentDaemonRestartsItAndForgetsItsSessions) {
+    FakeProfiles ops;
+    ops.map_error = "Forbidden";
+    ProfileSupervisor sup(ops);
+    sup.tick(0, true);
+    ASSERT_TRUE(sup.status().pbap_open);
+    const std::string pbap_before = sup.pbap_session();
+
+    // obexd answered the look before the call, then froze on MAP.
+    ops.map_error = "GDBus.Error:org.freedesktop.DBus.Error.NoReply: Timeout was reached";
+    ops.daemon_seq = {ObexDaemonState::Alive, ObexDaemonState::Silent};
+    sup.retry_now(PROFILE_INITIAL_POLL_SECONDS);
+    sup.tick(PROFILE_INITIAL_POLL_SECONDS, true);
+    EXPECT_EQ(sup.status().map_error, ObexError::DaemonDown);
+    EXPECT_EQ(ops.restarts, 1);
+    // The restart takes the PBAP session with it: reopened, not removed through obexd.
+    EXPECT_FALSE(sup.status().pbap_open);
+    EXPECT_TRUE(sup.pbap_session().empty());
+    EXPECT_EQ(std::count(ops.removed.begin(), ops.removed.end(), pbap_before), 0);
+
+    // Back after the restart: both open.
+    ops.map_error.clear();
+    ops.daemon = ObexDaemonState::Alive;
+    sup.tick(2 * PROFILE_INITIAL_POLL_SECONDS + PROFILE_STEADY_POLL_SECONDS, true);
+    EXPECT_TRUE(sup.status().map_open);
+    EXPECT_TRUE(sup.status().pbap_open);
+    EXPECT_EQ(ops.restarts, 1);
+}
+
+TEST(ObexDaemon, HealthyDaemonChangesNothing) {
+    FakeProfiles ops;
+    ProfileSupervisor sup(ops);
+    sup.tick(0, true);
+    EXPECT_TRUE(sup.status().map_open);
+    EXPECT_TRUE(sup.status().pbap_open);
+    EXPECT_EQ(ops.map_attempts, 1);
+    EXPECT_EQ(ops.pbap_attempts, 1);
+    EXPECT_EQ(ops.starts + ops.restarts, 0);
+    EXPECT_EQ(sup.daemon_recovery_at(), -1);
+
+    // An inconclusive look (bus trouble, access denied) does not stop a session either.
+    FakeProfiles unsure;
+    unsure.daemon = ObexDaemonState::Unknown;
+    ProfileSupervisor sup2(unsure);
+    sup2.tick(0, true);
+    EXPECT_TRUE(sup2.status().map_open);
+    EXPECT_EQ(unsure.starts + unsure.restarts, 0);
+}
+
+TEST(ObexDaemon, DaemonDownIsTransientAndNamedAsSuch) {
+    EXPECT_EQ(classify_obex_error("Timeout was reached"), ObexError::DaemonDown);
+    EXPECT_EQ(classify_obex_error("GDBus.Error:org.freedesktop.DBus.Error.NoReply: Timeout was reached"),
+              ObexError::DaemonDown);
+    // obexd stopped while the call was in flight (real text, 18 November).
+    EXPECT_EQ(classify_obex_error("GDBus.Error:org.freedesktop.DBus.Error.NoReply: Remote peer disconnected"),
+              ObexError::DaemonDown);
+    // The phone's own timeouts keep their meaning.
+    EXPECT_EQ(classify_obex_error("Page Timeout"), ObexError::Unavailable);
+    EXPECT_NE(classify_obex_error("org.bluez.Error.Failed: Connection timed out"), ObexError::DaemonDown);
+    EXPECT_STREQ(to_string(ObexError::DaemonDown), "daemon_down");
+
+    const std::string advice = obex_error_advice(ObexError::DaemonDown, "map");
+    EXPECT_NE(advice.find("Messages"), std::string::npos);
+    EXPECT_EQ(advice.find("re-pair"), std::string::npos);
+    EXPECT_EQ(advice.find("iPhone's Settings"), std::string::npos);
+}
+
+TEST(ObexDaemon, ClassifiesRealPingErrors) {
+    // Verbatim from the session bus (dbus-broker), 18 November.
+    EXPECT_EQ(classify_obex_ping("GDBus.Error:org.freedesktop.DBus.Error.NameHasNoOwner: Destination does not exist"),
+              ObexDaemonState::Absent);
+    EXPECT_EQ(classify_obex_ping("Timeout was reached"), ObexDaemonState::Silent);
+    EXPECT_EQ(classify_obex_ping("GDBus.Error:org.freedesktop.DBus.Error.NoReply: Timeout was reached"),
+              ObexDaemonState::Silent);
+    EXPECT_EQ(classify_obex_ping("The connection is closed"), ObexDaemonState::Unknown);
+    EXPECT_EQ(classify_obex_ping(""), ObexDaemonState::Alive);
+    EXPECT_STREQ(to_string(ObexDaemonState::Silent), "silent");
 }

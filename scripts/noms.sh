@@ -20,6 +20,11 @@ ENGINE_LOG="${NAME_PREFIX}d.log"
 SETUP_NAME="$NAME_PREFIX-setup"
 SYSTEM_HELPER="/usr/local/libexec/$NAME_PREFIX/$SETUP_NAME"
 AUDIO_RULE="zz-$NAME_PREFIX-phone-audio.conf"
+# Complément de l'unité obex.service (relance d'obexd) : source dans system/,
+# posé sous ~/.config/systemd/user/$OBEX_DROPIN_DIR/$OBEX_DROPIN.
+OBEX_DROPIN_SRC="obex-$NAME_PREFIX.conf"
+OBEX_DROPIN_DIR="obex.service.d"
+OBEX_DROPIN="$NAME_PREFIX.conf"
 
 # Les noms d'avant, reconnus pour la migration d'une installation existante :
 # l'extension et le service s'appelaient « iphone-link », le moteur gardait

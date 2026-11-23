@@ -1,5 +1,4 @@
 #include "tether/session_lock.hpp"
-#include "tether/wayland.hpp"
 
 #include <tether/log.hpp>
 
@@ -129,8 +128,6 @@ namespace tether {
     }
 
     bool session_inactive() {
-        if (wayland_idle())
-            return true;
         GDBusConnection* connection = bus();
         // GNOME has no ext-idle-notify, but gnome-session sets IdleHint.
         return connection && (bool_property(connection, "LockedHint") || bool_property(connection, "IdleHint"));

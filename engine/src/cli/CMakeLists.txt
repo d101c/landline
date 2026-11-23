@@ -11,6 +11,8 @@ set_target_properties(tether_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
+landline_portable_runtime(tether_cli)
+
 install(TARGETS tether_cli
         RUNTIME DESTINATION bin)
 

@@ -21,6 +21,20 @@ bluetoothd, et le lien LE n'est pas revenu après trois relances alors que BR/ED
 plantage, correction, stratégie « LE d'abord », survie au redémarrage de bluetoothd et revue des cadences :
 section 10, résumée en section 1 bis. Compilé et testé, **pas essayé avec l'iPhone**.
 
+**Mise à jour (branche `moteur-le-apres-veille`).** Le 17 novembre, le lien LE n'est pas revenu après trois
+sorties de veille de l'ordinateur. Le journal montre qu'il manquait déjà depuis la veille au soir ; il
+montre aussi deux défauts du moteur (une retenue qui ne retenait rien, un lien LE à peine revenu mis en
+concurrence avec un appel BR/EDR) et une annonce restée lente aux moments utiles. Analyse des trois pistes,
+corrections et état publié `le_state` : section 11, résumée en section 1 bis. Compilé et testé, **pas
+essayé avec l'iPhone**.
+
+**Mise à jour (branche `moteur-trois-fautes`).** L'étude documentaire `iphone-link-study/12-ios-bluetooth-accessoires.md`
+(guide de conception d'Apple R32 Update 1 lu directement, code de Pebble, forums) contredit trois
+affirmations de la section 13 et précise le blocage de l'iPhone : iOS compte les liens LE morts **avant
+d'avoir servi** et se retire au troisième. Règle des fautes, lien rendu utile plus vite, demande de
+paramètres de connexion préparée (désactivée) : section 14. Les passages corrigés de la section 13 sont
+marqués « corrigé le 17 novembre ». Compilé et testé, **pas essayé avec l'iPhone**.
+
 **Mise à jour (branche `moteur-bluetooth-seul`).** Les corrections 5.1, 5.2, 5.4, 5.5 et 5.6 sont écrites
 et couvertes par des tests unitaires ; leur état est en section 1 bis et rappelé en tête de chaque
 correction. Les sections 1 à 4 décrivent le comportement **d'avant**, tel que mesuré : elles restent la
@@ -77,9 +91,16 @@ attentes. Les corrections de la section 5 visent à les ramener à quelques seco
 | 10.4 Redémarrage de bluetoothd : nom suivi, annonce réenregistrée, sessions reconstruites | fait | `BluezMonitor::bluez_generation()`, `ConnectionState::bluez_restarted()`, `forget_ancs_solicitation()` | — |
 | 10.5 Journal recréé si son dossier disparaît | fait | `log_file.hpp`, `keep_log_file()` dans `src/daemon/main.cpp` | — |
 | 10.6 Sonde ANCS sans réponse : 5 s pendant 5 min, puis 60 s ; relève des messages réglable | fait | `unanswered_seconds()`, `message_poll_seconds()` | `LANDLINE_MESSAGE_POLL_SECONDS` |
+| 11.2 Retenue sans fuite : sessions d'un lien tombé oubliées avant le superviseur | fait ; course **prouvée par le journal** | `Tick::links()`, `session_outlived_link()` dans `le_first.hpp` | `LANDLINE_LE_FIRST_STRICT=0` |
+| 11.3 Lien LE venu en premier : BR/EDR et OBEX attendent 5 s | fait, **hypothèse non vérifiée** | `settle_le_before_classic()`, `BearerStatus::le_settling` | `LANDLINE_LE_SETTLE_SECONDS=0` |
+| 11.4 Réveil de l'ordinateur vu (deux horloges) : annonce réenregistrée, retenue et recyclage réarmés | fait, **effet sur l'iPhone inconnu** | `SleepWatch` dans `le_after_sleep.hpp`, `ConnectionState::watch_sleep()`, `BearerSupervisor::resumed()`, `renew_ancs_solicitation()` | `LANDLINE_RESUME_WATCH=0` |
+| 11.4 Annonce à 20 ms pendant 60 s quand tous les liens tombent, après un recyclage, au réveil | fait | `advert_interval_for()`, `BearerSupervisor::advert_rearmed_at()` | `LANDLINE_ADVERT_FAST_SECONDS=0` |
+| 11.5 Lien LE d'un appareil non appairé à adresse privée résolvable : journalisé, annonce réenregistrée | fait ; hypothèse **peu probable, non exclue** | `BluezMonitor::le_stranger()`, `may_be_unresolved_phone()`, `ConnectionState::watch_strangers()` | `LANDLINE_LE_STRANGER=0` |
+| 11.7 État publié `le_state`, `le_cause`, `le_detail` | fait | `le_state_for()`, `ConnectionState::refresh_status()` | — |
 | 7.3 Annonce : 20 ms pendant 180 s, puis 152,5 ms sans limite ; renouvellement avant expiration | fait | `advert_interval_for()`, `advert_renewal_due()`, `supervise_ancs_solicitation()` | `LANDLINE_ADVERT_FAST_SECONDS=30` |
 | 7.4 Tentatives OBEX espacées sans lien | fait | `ProfileSupervisor::tick()` | `LANDLINE_OBEX_ABSENT_BACKOFF=0` |
 | 7.5 État publié à jour dans le tour | fait | `run_supervision_tick()`, `run_quick_steps()` | — |
+| 16 obexd vérifié avant `CreateSession`, relancé par systemd ; motif `daemon_down` | fait, **démarrage de session réel à vérifier** | `ProfileSupervisor::daemon_ready()`, `recover_daemon()`, `ObexProfileOps::probe_daemon()` ; complément `system/obex-landline.conf` | aucun (complément : `uninstall-local.sh`) |
 
 Tests unitaires ajoutés : `test/test_pending_connect.cpp`, `test/test_supervision_tick.cpp`,
 `test/test_advert.cpp`, `test/test_reconnect_policy.cpp` (seconde série), et des cas dans
@@ -1238,3 +1259,1023 @@ arrive par le LE) pour espacer la relève à plusieurs minutes ; mesurer le cour
 7. Le comportement réel au retour de bluetoothd : ordre des signaux, délai avant que l'adaptateur accepte
    l'annonce, retour du son.
 8. L'effet sur la batterie de l'iPhone, dans un sens ou dans l'autre.
+
+## 11. Le LE absent après la veille de l'ordinateur (branche `moteur-le-apres-veille`)
+
+Compilé et testé (927 tests), **pas essayé avec l'iPhone**. Sources lues : journal du moteur installé
+(`~/.local/state/tether/tetherd.log`, version `ff0efbd-dirty`), `journalctl -u bluetooth` et `journalctl -k`
+des 16 et 17 novembre, l'arbre d'objets de BlueZ (lecture seule), le source de BlueZ 5.87
+(`plugins/policy.c`, `src/device.c`, `src/advertising.c`, `src/main.conf`), le noyau (branche principale,
+`net/bluetooth/hci_event.c`, `hci_sync.c`, lus en ligne et non sur l'étiquette 7.3), les notes d'Apple
+(QA1931, forum développeurs). Aucun essai n'a été fait pour écrire cette section ; le protocole est dans
+`essai-reconnexion.md`, scénarios M à P.
+
+### 11.1 Ce que le journal prouve
+
+**Le LE n'a pas été perdu à la sortie de veille. Il l'était depuis la veille au soir.**
+
+| Heure | Fait (journal) |
+|---|---|
+| 16 nov. 22:23:25 | recyclage « LE d'abord » après 760 s de BR/EDR sans LE |
+| 22:25:05 – 22:27:11 | le LE revient **cinq fois** (`the LE link came first`), et retombe à chaque fois en moins d'une seconde à quelques secondes (`Reason.Timeout`, `Reason.Unknown`) ; pendant ce temps BlueZ reconnecte BR/EDR de lui-même (`policy.c:reconnect_timeout() … Device or resource busy`, à répétition) |
+| 22:27:11 | **dernier lien LE**. Ensuite : BR/EDR, MAP, PBAP montés, annonce en ondes, aucun LE |
+| 22:34 → 08:08 | 9 h 30, ordinateur **éveillé** (aucune ligne `PM: suspend` au noyau avant 08:08:23 ; `soliciting ANCS` toutes les 2 min 40 sans trou) : pas de LE |
+| 17 nov. 08:08:23–30, 08:08:59–08:18:08, 08:26:35–10:36:12 | trois veilles. À chaque réveil : `Reason.Suspend`, BR/EDR de retour en 17 à 40 s, pas de LE |
+| 10:54:11 | un appareil LE inconnu, `4A:1B:2C:3D:4E:5F`, se connecte et repart dans la seconde ; au même instant le noyau écrit `hci0: Opcode 0x200e failed: -16` |
+| 12:23:07 | coupure à la main ; BR/EDR revient en 2 s. 12:23:21 recyclage ; BR/EDR revient en 3 s. Pas de LE |
+
+La veille de l'ordinateur n'est donc pas la cause : elle n'a fait que ne rien réparer. Ce qui est établi,
+c'est que **depuis 22:27 l'iPhone ne répond plus à l'annonce**, quoi que fasse l'ordinateur (liens tous
+coupés ou non, annonce à 20 ms ou à 152,5 ms), et que la veille au soir couper puis rallumer le Bluetooth de
+l'iPhone a tout rétabli en moins de 10 s.
+
+**Deux défauts de notre moteur sont prouvés par le même journal**, indépendamment de la cause :
+
+1. *La retenue ne retenait rien* (11.2).
+2. *Le lien LE revenu en premier était aussitôt mis en concurrence avec un appel BR/EDR* (11.3) — et c'est
+   dans cette séquence, répétée cinq fois en deux minutes, que le LE a été vu pour la dernière fois.
+
+### 11.2 Piste 1 — la course dans « LE d'abord » : prouvée, corrigée
+
+**Observé**, à chaque perte complète avec une session OBEX ouverte (08:08:31, 08:18:09, 10:36:13,
+12:23:08, 12:23:24) :
+
+```
+10:36:12.821  Device1 disconnected … Reason.Suspend
+10:36:13.849  asking BlueZ for the BR/EDR link (Device1.Connect)
+10:36:13.853  no link to the iPhone; leaving BR/EDR alone for up to 10s …
+10:36:13.862  BlueZ answered the BR/EDR connect: … br-connection-busy
+```
+
+**Lu dans le code.** `Tick::links()` calculait `obex_up` *avant* d'oublier les sessions du lien tombé. Le
+superviseur recevait donc « une session est ouverte », la prenait pour un lien, ne commençait pas la retenue
+et demandait BR/EDR. Les sessions étaient oubliées juste après ; `profiles()` signalait un changement,
+`links()` repassait dans le même tour — 4 ms plus tard — et commençait une retenue devenue sans objet. Le
+même premier passage laissait aussi `ProfileSupervisor` rouvrir MAP, donc obexd appeler l'iPhone.
+
+**Corrigé, à deux endroits.** `links()` oublie les sessions d'un lien BR/EDR tombé avant d'appeler le
+superviseur ; et le superviseur lui-même ignore une session dont le lien vient de tomber
+(`session_outlived_link()`), ce qui est testable sans BlueZ. Une machine qui n'offre aucun profil à
+l'iPhone, où BlueZ ne lit jamais BR/EDR monté, n'est pas touchée : rien n'y « tombe ». Retour arrière :
+`LANDLINE_LE_FIRST_STRICT=0`.
+
+**Ce qui rouvre BR/EDR sans nous, et qu'on ne peut pas empêcher sans root.**
+
+- *La politique de BlueZ* (`plugins/policy.c`, lu). `disconnect_cb()` n'arme la reconnexion que pour deux
+  motifs. `MGMT_DEV_DISCONN_TIMEOUT` (perte de portée) : première tentative **1 s** après la perte, puis 2,
+  4, 8, 16, 32, 64 s (`ReconnectIntervals`), pour tout appareil qui a un service de `ReconnectUUIDs` —
+  l'iPhone en a deux (`111f`, `110a`). `MGMT_DEV_DISCONN_LOCAL_HOST_SUSPEND` (veille) : seulement si
+  l'appareil a un service A2DP *sink* (`110b`) ; l'iPhone n'en a pas, donc **BlueZ ne reconnecte pas
+  l'iPhone au réveil**. Rien dans ce fichier ne regarde `Trusted` : retirer la confiance ne change rien, et
+  aucune propriété de `Device1` ne règle cette politique. Seul `main.conf` le peut (`[Policy]
+  ReconnectAttempts=0`, ou `ReconnectUUIDs=` sans les UUID de l'iPhone), pour tous les appareils, en root.
+  La retenue est donc sans effet après une perte de portée, et ce n'est pas réparable d'ici.
+- *L'iPhone lui-même.* Au réveil, BlueZ répond `br-connection-busy` 1 s après la reprise, alors que ni la
+  politique ni (désormais) le moteur n'ont rien demandé : `device.c` rend cette erreur quand une connexion
+  ou une **découverte de services** est en cours, ce que provoque un lien BR/EDR entrant. L'iPhone rappelle
+  ses accessoires connus de son propre chef. **Déduit**, à confirmer au `btmon` (scénario M).
+- *obexd* ne se connecte que si le moteur ouvre une session : couvert par la retenue.
+- `AutoEnable` ne concerne que la mise sous tension de l'adaptateur.
+
+La retenue garantit donc seulement que *nous* ne demandons rien. Si l'iPhone rouvre BR/EDR dans la seconde,
+la retenue est levée (un lien est là) et c'est le recyclage qui prend la suite, 12 s plus tard.
+
+### 11.3 Le lien LE revenu en premier, perdu dans la seconde : prouvé, corrigé par hypothèse
+
+**Observé**, quatre fois sur cinq le 16 au soir :
+
+```
+22:25:57.004  the LE link came first, 2s after every link was down; BR/EDR follows
+22:25:57.004  asking BlueZ for the BR/EDR link (Bearer.BREDR1.Connect)
+22:25:57.007  BlueZ answered the BR/EDR connect: … br-connection-busy
+22:25:57.768  Bearer.LE1 disconnected … Reason.Timeout (Connection timeout)
+```
+
+Mêmes écarts à 22:25:05 (0,4 s), 22:26:13 (0,2 s), 22:26:57 (0,8 s). La cinquième fois (22:07:55) le lien
+a tenu. Le moteur demandait BR/EDR dans le tour même où il voyait le LE ; BlueZ en avait déjà une en cours
+(`busy` : la politique, après les `Reason.Timeout`).
+
+**Déduit.** Une seule radio : appeler l'iPhone en BR/EDR (*page*) occupe l'antenne au moment où un lien LE
+âgé de quelques intervalles doit tenir ses rendez-vous, et il tombe sur son délai de supervision. Non
+prouvé — il faudrait le `btmon` de ces secondes — mais c'est la seule action de notre part dans la fenêtre.
+
+**Corrigé.** Quand le LE monte seul, ni connexion BR/EDR ni session MAP/PBAP pendant 5 s (`le_settling`,
+`settle_le_before_classic()`). Coût : messages et appels 5 s plus tard après une perte complète. Retour
+arrière : `LANDLINE_LE_SETTLE_SECONDS=0`. La politique de BlueZ, elle, continue d'appeler après une perte
+de portée.
+
+### 11.4 Piste 3 — l'annonce après la veille
+
+**BlueZ ne retire pas l'annonce à la mise en veille** (lu : `src/advertising.c` ne contient aucun traitement
+de la veille ; une annonce n'est retirée qu'au départ du client, à l'expiration de son `Timeout` ou sur
+`UnregisterAdvertisement`). C'est le noyau qui la suspend et la reprend (`hci_suspend_sync` /
+`hci_resume_sync`, lus en ligne) ; ce chemin a eu deux correctifs en 2025. Relevé le 17 à 12:40 :
+`LEAdvertisingManager1.ActiveInstances = 1` — BlueZ tient l'annonce pour enregistrée. **Qu'elle soit en
+ondes après le réveil n'est pas établi** : seul `btmon` le dit (scénario M).
+
+**Notre moteur ne voyait pas la veille.** Il n'écoute pas logind, et son horloge (`steady_clock`,
+`CLOCK_MONOTONIC`) s'arrête pendant la veille : au réveil rien n'a changé pour lui, sauf un lien tombé.
+Conséquences lues au journal : l'annonce n'était pas réenregistrée ; le recyclage, déjà fait la veille au
+soir, restait « dépensé » ; et **l'annonce restait à 152,5 ms pendant toute la retenue**, parce que la
+cadence rapide ne dépendait que de l'âge de la perte du LE (ici 12 h). Elle ne repassait à 20 ms que 17 s
+plus tard, quand BR/EDR revenait, pour 30 s (`10:36:30 … 20-20 ms`, `10:37:00 … 152-153 ms`). Le moment
+où l'iPhone a le plus de chances de répondre — plus aucun lien, annonce seule — se jouait donc à la cadence
+lente.
+
+**Corrigé.**
+
+- *Réveil vu par deux horloges* (`SleepWatch`) : l'écart entre `CLOCK_BOOTTIME` et `CLOCK_MONOTONIC` ne
+  grandit que pendant une veille. Pas de bus, pas de logind, et une veille pendant laquelle aucun lien
+  n'était monté est vue aussi. Seuil : 3 s.
+- Au réveil (`ConnectionState::watch_sleep()`) : une ligne `the computer slept for Ns…` ; l'annonce est
+  **réenregistrée** (`renew_ancs_solicitation()`) ; retenue et recyclage repartent de zéro
+  (`BearerSupervisor::resumed()`) ; refus de connexion mémorisé oublié ; découverte ANCS relancée.
+  L'application GATT et l'agent ne sont pas concernés : la première n'existe que partie réseau activée,
+  le second que le temps d'un `bt_pair` (10.4).
+- *Cadence* : 20 ms pendant 60 s (`ADVERT_REARM_FAST_SECONDS`) chaque fois que tous les liens viennent de
+  tomber, après un recyclage, et au réveil, quel que soit l'âge de la perte du LE.
+
+Retour arrière : `LANDLINE_RESUME_WATCH=0` ; `LANDLINE_ADVERT_FAST_SECONDS=0` coupe toute cadence rapide.
+
+### 11.5 Piste 2 — l'adresse privée non résolue : peu probable, non exclue
+
+**Observé.** Un seul événement en 14 h : 10:54:11, `Bearer.LE1 disconnected from …/dev_4A_1B_2C_3D_4E_5F:
+Reason.Unknown`, 18 min après le réveil et sans rapport d'heure avec nos annonces. `49` = `01001001` : les
+deux bits de poids fort valent `01`, c'est une adresse privée **résolvable**. L'objet a disparu depuis
+(appareil temporaire de BlueZ, 30 s). `/var/lib/bluetooth` n'est pas lisible sans root : la présence de la
+clé d'identité (IRK) de l'iPhone n'est pas vérifiable d'ici ; BlueZ n'expose pas les clés sur D-Bus.
+
+**Ce qui va contre l'hypothèse.**
+
+- Dans le noyau, la résolution d'une adresse privée à l'arrivée d'une connexion se fait **côté hôte**
+  (`le_conn_complete_evt` → `hci_get_irk`), dans les deux rôles, sans dépendre de la liste de résolution du
+  contrôleur ni de `ll-privacy`. Une liste de résolution perdue au réveil ne suffit donc pas à produire un
+  appareil inconnu : il faudrait que le noyau n'ait plus l'IRK, ou que l'iPhone en ait changé. (Lu en ligne
+  sur la branche principale, pas sur 7.3.)
+- `Opcode 0x200e` est *LE Create Connection Cancel*, que le noyau n'envoie que quand **l'ordinateur** ouvre
+  une connexion LE en tant que central ; `-16` est « commande refusée ». À cet instant l'ordinateur se
+  connectait donc à quelqu'un (souris, clavier, manette appairés en LE se reconnectent ainsi), ce qui
+  désigne plutôt un autre appareil du voisinage ou une collision entre deux connexions.
+- Le LE manquait déjà 11 h avant le premier réveil.
+- Recherche : aucun rapport trouvé pour cette combinaison (BlueZ, noyau, ancs4linux). Le plus proche : un
+  périphérique BlueZ 5.50 qui ne résolvait plus l'adresse d'un iPhone appairé après redémarrage, guéri en
+  relançant bluetoothd.
+
+**Ce qui la laisse ouverte.** Tout appareil peut se connecter à une annonce connectable ; un iPhone utilise
+toujours une adresse résolvable ; et l'événement n'a pas été capturé. Un seul `btmon` tranche : rôle de la
+connexion (`Role: Peripheral` ou `Central`) et adresse d'identité résolue ou non (scénario N).
+
+**Fait.** Le moniteur compte les liens LE qui se ferment sur un appareil sans appairage
+(`BluezMonitor::le_stranger()`). Si l'adresse est privée résolvable, que l'iPhone appairé n'a pas de LE,
+qu'il a déjà offert ANCS et que l'annonce est enregistrée (`may_be_unresolved_phone()`), le moteur écrit
+`[WARN] an LE device BlueZ holds no pairing for (…) connected and left…`, publie la cause
+`unresolved_address` pendant 15 min, et réenregistre l'annonce, pas plus d'une fois par 5 min. Retour
+arrière : `LANDLINE_LE_STRANGER=0`.
+
+**Ce qui n'est pas fait, et pourquoi.** Couper puis rallumer l'adaptateur (`Adapter1.Powered`) ferait
+recharger les clés au contrôleur, mais coupe le clavier, la souris et le son de l'utilisateur pour une
+hypothèse peu probable. Redémarrer bluetoothd demande root. Si le scénario N confirme l'hypothèse, la
+réponse sera l'un des deux, proposé à l'utilisateur et non fait d'office.
+
+### 11.6 Cause la plus probable
+
+| Explication | Pour | Contre | Jugement |
+|---|---|---|---|
+| L'iPhone ne rouvre plus le LE de son côté (« coincé »), depuis la série de liens LE avortés de 22:25–22:27 | guéri la veille en basculant son Bluetooth ; annonce enregistrée ; rien ne change quoi que fasse l'ordinateur ; Apple (forum développeurs) : pour un accessoire double mode, se reconnecter ne rétablit que le côté classique et l'accès à ANCS « n'est pas garanti » | mécanisme interne à iOS, invérifiable | **la plus probable, ≈ 65 %** |
+| Notre annonce n'est plus réellement en ondes (ou plus connectable) alors que BlueZ la croit active | expliquerait tout aussi bien ; jamais vérifié au `btmon` depuis 22:27 ; l'annonce est renouvelée toutes les 160 s par retrait puis remise | elle l'était à 22:25–22:27 (l'iPhone y a répondu cinq fois) | ≈ 20 %, **tranché par le scénario M en 2 min** |
+| Adresse privée non résolue | l'appareil de 10:54 | 11.5 | ≈ 10 % |
+| La veille de l'ordinateur | — | le LE manquait déjà 9 h 30, ordinateur éveillé | écartée comme cause ; aggravante seulement (11.4) |
+
+Les corrections de cette branche ne guérissent pas un iPhone coincé : elles retirent ce qui, de notre côté,
+a pu le coincer (11.3), cessent de gâcher les occasions qu'il a de revenir (11.2, 11.4), et disent à
+l'utilisateur que les notifications sont en pause et pourquoi (11.7).
+
+### 11.7 État publié : `le_state`, `le_cause`, `le_detail`
+
+`bt_connection_changed` porte trois champs de plus (`le_state_for()`, détail dans `moteur-api.md`,
+section 3). `le_state` vaut `connected`, `waiting` (lien perdu depuis moins de 180 s, ou retenue en cours),
+`paused` (au-delà), `unavailable` ou `off`. En pause, `le_cause` vaut `after_resume`, `phone_silent`,
+`phone_away`, `unresolved_address`, `advert_off_air` ou `phone_backoff` (§13), et `le_detail` est une phrase prête à afficher.
+En attente, `le_cause` peut valoir `holding_off` (annonce retirée exprès après un lien mort avant service, §14.2).
+Chaque changement écrit une ligne `notification link <état>: <cause>`.
+
+### 11.8 Ce qui reste hypothétique sans iPhone
+
+1. Que l'annonce soit en ondes, connectable, à l'intervalle demandé, après un réveil (M).
+2. Qui rouvre BR/EDR une seconde après le réveil (M).
+3. Que 5 s d'installation suffisent au lien LE, et que ce soit bien l'appel BR/EDR qui le faisait tomber (O).
+4. Que le réenregistrement de l'annonce au réveil change quoi que ce soit pour l'iPhone (M, P).
+5. L'identité de l'appareil à adresse privée (N).
+6. Que `CLOCK_BOOTTIME` avance bien pendant la veille sur cette machine (M : la ligne `the computer slept`).
+7. Qu'un iPhone coincé le reste après un redémarrage de bluetoothd ou de l'ordinateur (P).
+
+## 12. Mode sobre : le LE seul lien permanent, le classique à la demande (branche `moteur-sobre`)
+
+Compilé et testé (1 073 tests), **pas essayé avec l'iPhone**. Conception et preuves :
+`iphone-link-study/11-classique-a-la-demande.md`. Socket : `moteur-api.md`, section 13. Écarts :
+`moteur-sobre-ecarts.md`. Essais à faire : `essai-reconnexion.md`, série « mode sobre » (E1 à E9).
+
+### 12.1 Pourquoi
+
+Le journal des 16 et 17 novembre (§11) dit deux choses : sur cette machine le LE ne revient pas tant que le
+BR/EDR est monté, et c'est BlueZ lui-même qui remonte le BR/EDR au réveil dès qu'un profil audio était
+connecté à la veille. Les mécanismes des sections 5 à 11 (retenue, recyclage, cycle mains-libres,
+`PreferredBearer`) coordonnent deux liens qui se gênent. Le mode sobre ne les coordonne plus : il n'en tient
+qu'un.
+
+### 12.2 Ce qui change dans la supervision
+
+| Mécanisme du mode complet | En mode sobre |
+|---|---|
+| Connexion BR/EDR permanente, reculs 5…300 s | aucune tentative au repos ; une connexion seulement quand un bail voix la demande, réessayée toutes les 3 s pendant l'ouverture (20 s) |
+| Retenue « LE d'abord » (10 s), installation du LE (5 s) | sans objet : rien n'est demandé sur BR/EDR sans LE |
+| Recyclage de tous les liens après 12 s | jamais |
+| Demande puis cycle mains-libres (5 s, 8 s) | jamais au repos ; une seule variante, dans la machine à baux : bail voix sur un lien de données → demande du profil sur le lien en place, puis fermeture et réouverture par vraie connexion si le mains-libres n'est pas venu en 8 s, une fois (tout de suite pour une sonnerie) |
+| Écriture de `PreferredBearer` | jamais pour ouvrir. Remis une fois à `le` s'il est trouvé à `bredr` (écart 20) |
+| Sessions MAP et PBAP tenues en permanence, reculs iPhone absent | ouvertes seulement sous bail ; fermées (`RemoveSession`) avant le lien ; le dernier verdict est gardé |
+| Relève des messages toutes les 15 s | à la notification, à l'ouverture, une fois par heure (aussi en mode complet, étape M1) |
+| Lecture du carnet à chaque session, différée de 5 min | nombre de fiches seul ; relecture s'il change ou une fois par jour |
+| Reconnexion par BlueZ au réveil | plus de prise : le lien classique est fermé avant la veille (annonce `PrepareForSleep` de logind, inhibiteur de 3 s au plus) |
+
+Le code du mode complet n'est pas modifié : `BearerSupervisor::supervise()` bifurque vers
+`supervise_on_demand()` après la lecture des liens et l'examen de l'appairage, communs aux deux modes ; un
+appairage cassé ou partiel est traité de la même façon. Tout ce qui concerne le LE (annonce, intervalle
+rapide, détection du réveil, appareil inconnu, garde de l'abonnement ANCS, `le_state`) est inchangé et
+devient le seul point à soigner.
+
+### 12.3 La machine à baux (`classic_demand.hpp`)
+
+```
+          bail, LE monté               dernier bail rendu
+ idle ───────────────► opening ──► open ───────────► lingering ──► closing ──► idle
+   ▲       échec          │          ▲   nouveau bail     │ délai
+   └──── failed ◄─────────┘          └────────────────────┘
+```
+
+Une fonction pure, `ClassicDemand::step(DemandFacts)`, appelée à chaque passage des étapes rapides, juste
+après `notifications()` (étape `demand()` de `supervision_tick.hpp`). Elle rend une action : `OpenData`
+(obexd ouvre les sessions, ce qui monte un lien sans profil audio), `OpenVoice` (`Bearer.BREDR1.Connect`,
+ou demande du mains-libres sur le lien en place), `RecycleForVoice`, `Close` (sessions retirées, puis
+`Bearer.BREDR1.Disconnect`). Baux, maintiens et garde-fous : `moteur-api.md`, section 13.
+
+Le lien **ouvert par l'iPhone** (BR/EDR monté sans qu'aucun bail ne l'ait demandé) est adopté : relève si la
+dernière a plus de 10 min, mains-libres utilisé s'il vient, fermeture après 120 s sans appel, sans son et
+sans opération. Garde-fou : une réouverture par l'iPhone moins de 60 s après une fermeture est comptée ; deux
+en 15 min, et le moteur repasse en mode complet pour 30 min (`link_mode_reason:"phone_keeps_link"`), puis
+réessaie. Jamais plus de quatre fermetures par heure d'un lien ouvert par l'iPhone.
+
+### 12.4 Ce qu'on lit dans le journal
+
+| Ligne | Sens |
+|---|---|
+| `bluetooth: link mode lean (LE kept, the classic link on demand)` | mode appliqué au démarrage ou après un changement |
+| `bluetooth: link mode full (both links kept), instead of lean: notifications_off` | repli, avec son motif |
+| `bluetooth: no LE link for 30s while the classic link is up; closing the classic link once so that the iPhone comes back over LE (its leases wait for it)` | #43 : le LE tombé sous un classique monté (18 novembre, 18:18) ; une fois par 10 min, jamais sous un appel, un son qui joue ou le partage de connexion (`moteur-quotidien.md`, section 1) |
+| `bluetooth: the iPhone's sound asked for here; the classic link is offered for 120s` | #43 : le son demandé ici ; le bail `audio` dure 120 s, puis tant que le son joue et 60 s après |
+| `bluetooth: sync wanted (the iPhone is back)` / `(notifications waiting on the iPhone)` | bail `sync` pris |
+| `bluetooth: message sync asked (ancs)` (DEBUG) | une notification de Messages demande la relève |
+| `bluetooth: inbox listed (session)` / `(request: ancs)` / `(retry: ancs)` / `(background)` (DEBUG) | chaque relève et sa cause : au repos, il ne doit plus y en avoir entre deux notifications |
+| `bluetooth: classic link opening; opening for data (leases: arrival; opened by engine)` | chaque changement d'état de la machine, avec les baux tenus |
+| `bluetooth: asking BlueZ for the BR/EDR link on demand (Bearer.BREDR1.Connect)` | ouverture voix |
+| `bluetooth: BR/EDR link closed on purpose (nothing needs it); the LE link stays` | fermeture |
+| `bluetooth: the iPhone opened the BR/EDR link itself; using it, then closing it` | lien adopté |
+| `bluetooth: a message arrived and the classic link is not opened for it (hourly ceiling reached)` | plafond des 12 ouvertures automatiques |
+| `bluetooth: incoming call ringing (answer here: connecting)` puis `(answer here: ready, seen by hands-free)` | étape M3 |
+| `bluetooth: dial accepted by the iPhone` / `dial not placed: no_hands_free` | étape M4 |
+| `sleep: logind says the computer is about to sleep` | suivi, si le lien est ouvert, de la fermeture |
+
+Les lignes du mode complet (`leaving BR/EDR alone`, `dropping every link on purpose`, `dropping the BR/EDR
+link on purpose, once`, `standing back`) **ne doivent plus apparaître** en mode sobre : en trouver une est un
+défaut.
+
+### 12.5 Retours arrière
+
+| Pour revenir sur | Faire |
+|---|---|
+| tout le mode sobre | `bt_set_link_mode full`, ou `LANDLINE_LINK_MODE=full` dans l'environnement du démon |
+| la relève déclenchée par ANCS | `LANDLINE_MESSAGE_POLL_SECONDS=15` |
+| la fermeture avant la veille | `LANDLINE_SLEEP_CLOSE=0` |
+| l'attente d'un LE stable avant d'ouvrir (§13) | `LANDLINE_LE_STABLE_SECONDS=0` |
+| l'espacement après une coupure LE imputée au classique (§13) | `LANDLINE_CLASSIC_QUIET_SECONDS=0` |
+| l'annonce retirée pendant une rafale de coupures LE (§13) | `LANDLINE_LE_BURST_PAUSE=0` (ne joue plus qu'avec `LANDLINE_LE_STRIKES=0`) |
+| la règle des fautes : liens LE morts avant service comptés, annonce rapide 30 s puis 152,5 ms (§14.2, §14.7) | `LANDLINE_LE_STRIKES=0` (l'ancienne règle des rafales reprend) |
+| l'annonce **laissée à l'antenne** après un lien mort avant service (#29, §14.7) | `LANDLINE_LE_STRIKE_PAUSE_SECONDS=15 LANDLINE_LE_STRIKE_LONG_PAUSE_SECONDS=30 LANDLINE_LE_STRIKE_SLOW=2 LANDLINE_LE_STRIKE_FAST_SECONDS=0` (retraits et ralenti d'avant le 18 novembre au soir) |
+| la passe de supervision déclenchée par le lien LE et par ANCS (§14.3) | `LANDLINE_LE_PROMPT=0` |
+| la demande de paramètres de connexion (§14.4) | désactivée par défaut ; `LANDLINE_LE_CONN_PARAMS=1` l'active |
+| l'ouverture à la sonnerie et `bt_incoming_call` | `LANDLINE_ANCS_CALLS=0` |
+| la passerelle « pas encore prête » | `LANDLINE_GATEWAY_STRICT=0` |
+
+Tant que E1, E2 et E7 ne sont pas passés, l'unité systemd d'essai peut porter `LANDLINE_LINK_MODE=full`.
+
+### 12.6 Ce qui reste hypothétique sans iPhone
+
+1. Que le LE seul tienne des heures sur l'Intel 9560, iPhone verrouillé en poche (E1).
+2. Que l'iPhone laisse le BR/EDR fermé quand l'ordinateur l'a fermé, et à quelle fréquence il le rouvre (E1).
+   Le garde-fou rend la réponse sans conséquence pour le fonctionnement, pas pour le gain.
+3. Que l'ouverture du classique ne fasse pas tomber le LE (E2) : les rafales de coupures LE du journal ont
+   toutes eu lieu pendant qu'un BR/EDR montait.
+4. Qu'une session ouverte par obexd alors que le LE est monté s'ouvre en 2 à 4 s (E2), et que
+   `Bearer.BREDR1.Connect` amène bien le mains-libres en 7 à 9 s (E4, E5) : une seule mesure à ce jour.
+5. Que `Bearer.BREDR1.Disconnect` ferme le lien que obexd a ouvert, sans effet sur le LE (E2).
+6. Que la notification de Messages précède de peu la présence du message dans MAP (E3) : l'anti-rebond de
+   2 s et les relances à +3 s et +10 s en dépendent.
+7. Que les actions de la notification d'appel décrochent et refusent (E4), et qu'un mains-libres ouvert
+   pendant la sonnerie voie l'appel (E4).
+8. Que logind accorde l'inhibiteur de veille au démon et attende sa libération (E7) ; à défaut la fermeture
+   avant la veille n'a pas le temps de se faire et BlueZ remonte le lien au réveil, comme avant.
+9. Que la passerelle PipeWire réponde bien à `GetManagedObjects` dès que la liaison mains-libres est
+   établie (E5) : sinon `calls_available` resterait à `on_demand` et la composition échouerait en
+   `no_hands_free` ; `LANDLINE_GATEWAY_STRICT=0` lève le doute.
+10. Que le profil réseau de l'iPhone (`org.bluez.Network1.Connected`) soit bien le signe d'un partage de
+    connexion en cours sur ce lien.
+
+## 13. Le LE fragile : coupures à l'ouverture du classique, iPhone qui ne répond plus (branche `moteur-le-fragile`)
+
+Compilé et testé (1 128 tests), **pas essayé avec l'iPhone, aucun `btmon`**. Sources : journal réel du 16 et
+du 17 novembre (`landlined.log`), source du noyau (`net/bluetooth/l2cap_core.c`, `hci_core.c`, `hci_event.c`)
+et de BlueZ (`src/gatt-database.c`, `src/main.conf`) lus en ligne, Accessory Design Guidelines d'Apple (par
+citations de seconde main : le PDF n'a pas pu être chargé), forums Apple et Nordic DevZone. Essais à faire :
+`essai-reconnexion.md`, série « LE fragile » (R1 à R5).
+
+**Corrigé le 17 novembre (étude 12, section 14).** Le guide d'Apple a depuis été lu directement (R32
+Update 1, 30 octobre 2026). Trois affirmations de cette section étaient fausses et sont rectifiées à leur
+place : les bornes du délai de supervision (6 à 18 s, et non 2 à 6 s), le « 420 ms » que le noyau
+demanderait, et l'effet du réglage `main.conf`. La mesure (d) de 13.4 est remplacée par la règle des fautes
+(14.2) ; le réglage root (e) et l'essai R4 sont abandonnés au profit de la demande HCI (14.4).
+
+### 13.1 Ce que le journal dit (17 novembre, mode sobre)
+
+| Heure | Fait |
+|---|---|
+| 17:43:41 – 17:44:15 | départ de l'utilisateur : le LE tombe et revient **9 fois en 35 s**, **sans aucun lien classique** (`Timeout` 1 à 4 s après chaque retour, 2 `Unknown`) |
+| 18:04:26 – 18:05:45 | retour : le LE revient et retombe **une vingtaine de fois en 80 s**, toujours **sans lien classique** (sessions de notification 11 à 25) |
+| 18:05:45,5 | LE monté ; 18:05:48,9 notifications actives |
+| 18:05:49,743 | bail `sync` → ouverture du classique (obexd, donc *page*) |
+| 18:05:50,462 | LE `Timeout`, **0,719 s** après l'ouverture |
+| 18:05:54,96 | classique monté (5,2 s d'ouverture) ; 18:05:55,58 LE revenu, classique monté |
+| 18:06:02,895 | LE `Timeout`, classique monté et au repos depuis 8 s |
+| 18:06:03,6 → 06,4 | fermeture du classique (`Reason.Local`, 2,8 s) |
+| ensuite | plus aucun lien LE ; annonce renouvelée toutes les 2 min 40 |
+
+Ouvertures et fermetures du classique en mode sobre le 17 (16:02 → 18:06) et sort du LE :
+
+- ouvertures par le moteur : 16:05:31, 16:06:46, 16:07:13 (voix), 16:31:32, 17:24:28 (données, 4,4 s et
+  5,7 s) : **LE intact** ; 18:05:49 : **LE perdu en 0,72 s**. Soit 1 sur 6.
+- fermetures : 16:06:20, 16:07:03, 16:08:05, 16:31:49, 17:09:01, 17:19:42, 17:24:45 : **LE intact** (7) ;
+  16:02:21 : LE perdu 1,2 s après, mais avec `Reason.Remote` — c'est **l'iPhone** qui a fermé le LE, 0,18 s
+  avant de fermer aussi le classique, et non un délai dépassé ; le partage des notifications venait d'être
+  activé (session ANCS pas encore établie). Revenu seul en 4 s. 18:06:03 : le LE était déjà tombé.
+
+Le 16 au soir (mode complet), mêmes écarts entre une demande BR/EDR et la coupure LE : 22:25:05 (0,42 s),
+22:25:57 (0,76 s), 22:26:13 (0,18 s), 22:26:57 (0,82 s) ; liste complète produite par un script sur le
+journal (34 coupures LE dans les 15 s suivant une demande, un recyclage ou une chute de BR/EDR).
+
+### 13.2 Q1 — pourquoi le LE tombe quand on ouvre le classique
+
+- **Établi (sources)** : iOS ouvre ses liens LE avec un intervalle de 30 ms, latence 0 et un **délai de
+  supervision de 720 ms** (relevé au renifleur publié sur Nordic DevZone ; fil du forum Apple d'août 2026,
+  `lsto: 72`). Un lien LE qui ne réussit aucun échange pendant 0,72 s est donc perdu.
+- **Probable** : 0,719 s entre l'ouverture et la coupure à 18:05, 0,76 s et 0,82 s le 16 : à partir du début
+  de la recherche de l'iPhone (*page*), **plus aucun rendez-vous LE n'a été servi**. Une seule radio ; le
+  contrôleur donne la priorité à la page. Quand l'iPhone répond vite à la page (à côté, 16:31, 17:24), elle
+  dure moins de 0,72 s et le LE survit ; quand il répond mal (arrivée, signal faible : 5,2 s d'ouverture à
+  18:05), le LE meurt. Aucune source publiée ne décrit ce défaut sur l'Intel 9560 : c'est une déduction,
+  à confirmer au `btmon`.
+- **Établi (journal)** : la plupart des coupures du 17 n'ont **rien à voir avec le classique** : 17:43 et
+  18:04–18:05, trente coupures sans aucun lien classique, en limite de portée. Avec 720 ms de délai, un lien
+  LE ne tient pas à la limite de portée, et notre annonce à 20 ms le fait renaître aussitôt.
+- **Fermeture** : pas de preuve qu'elle fasse tomber le LE (7 fermetures sans effet ; 16:02 est une
+  fermeture par l'iPhone, autre mécanisme).
+- **Paramètres plus tolérants** (*corrigé le 17 novembre*) : Apple **ne lit pas** la caractéristique PPCP et
+  attend une demande du périphérique. Ses règles, dans la révision en vigueur (R32 Update 1, §57.6) : délai
+  de supervision de **6 à 18 s** (la règle « 2 à 6 s » citée ici venait de la révision de 2017), intervalle
+  minimal multiple de 15 ms, intervalle maximal × (latence + 1) ≤ 6 s ; la procédure attendue est celle de
+  la couche liaison (*Connection Parameters Request*), pas seulement la demande L2CAP. Le noyau n'envoie sa
+  demande L2CAP que si l'intervalle sort de la fenêtre de l'adaptateur (30–50 ms) — or iOS choisit 30 ms,
+  donc rien n'est demandé. Et s'il la faisait, il y recopierait le délai de supervision **en cours** (720 ms,
+  `req.to_multiplier = hcon->le_supv_timeout`), pas celui de l'adaptateur : la phrase « il demanderait
+  420 ms » était fausse, 420 ms étant la valeur par défaut des liens que l'ordinateur ouvre lui-même. BlueZ
+  tient lui-même le service GAP et refuse qu'une application l'enregistre. **Aucune voie sans privilège**
+  (confirmé en 14.4). Le réglage root proposé ici — `/etc/bluetooth/main.conf`, section `[LE]`,
+  `ConnectionSupervisionTimeout=600` — **ne ferait pas demander 6 s** : pour un lien entrant, seuls les
+  intervalles viennent de ce fichier ; avec un intervalle sorti de la fenêtre, la demande partirait avec
+  720 ms, qu'iOS refuserait. Il est abandonné. La voie qui reste est la commande HCI *LE Connection Update*
+  (14.4).
+
+### 13.3 Q2 — pourquoi l'iPhone ne répond plus
+
+- **Établi (journal)** : l'annonce est en ondes et connectable (le 16, bascule du Bluetooth de l'iPhone →
+  LE en quelques secondes sans que l'ordinateur change rien). Le blocage est côté iPhone.
+- **Probable, non prouvé** (*précisé le 17 novembre, 14.1*) : iOS cesse de se reconnecter à un accessoire
+  dont trois liens LE de suite se terminent **sans qu'il ait utilisé un service** — ce n'est pas le nombre
+  de coupures qui compte (console d'un iPhone publiée sur StackOverflow en 2015, « did not use any built-in
+  service, strike #3 » ; phrase du guide d'Apple §57.12.4 ; aucun seuil ni délai documenté par Apple). Les deux épisodes (16 nov. 22:25–22:27,
+  17 nov. 18:04–18:06) suivent une rafale ; mais la rafale de 17:43 (9 liens) n'a pas empêché le retour à
+  18:04, 20 min après.
+- Le 17 à 13:16 le LE est revenu seul, 14 h 50 après le blocage de 22:27 (cause inconnue, à demander à
+  l'utilisateur).
+- Aucune parade publiée (annonce retirée puis remise, annonce dirigée — déconseillée par Apple —, changement
+  d'adresse). La défense est la **prévention** : ne pas laisser l'iPhone enchaîner des liens LE avortés.
+- Geste utilisateur, le seul sûr : Réglages › Bluetooth de l'iPhone, couper puis rallumer (pas le centre de
+  contrôle, qui ne coupe pas vraiment). Le moteur le dit dans `le_detail`.
+
+### 13.4 Corrections (`le_health.hpp`, `LeHealth`)
+
+Une classe pure, alimentée une fois par tour (`watch_le_health()`, juste après la lecture des liens) par le
+compte des signaux `Disconnected` de `Bearer.LE1` — elle voit donc aussi les liens nés et morts entre deux
+tours — et par ce que la machine à baux vient de faire au classique.
+
+| # | Mesure | Détail | Retour arrière |
+|---|---|---|---|
+| a | **Classique seulement sur un LE stable** | Les ouvertures que personne n'a demandées (bail `sync` au retour, `arrival` d'un message, `hourly`, et le bail `audio` permanent) attendent un lien LE monté depuis **45 s sans coupure**, notifications actives. Les liens des rafales du 17 ont vécu 1 à 8 s ; 45 s laissent aussi passer la négociation des paramètres par iOS. Un lien classique déjà là (ouvert par l'iPhone, ou pour un appel) est utilisé tout de suite : il ne coûte pas de *page*. Appel, envoi d'un message, lecture demandée par l'interface : **jamais retenus**. Le retard n'est pas une perte : les messages arrivés sont déjà annoncés par ANCS | `LANDLINE_LE_STABLE_SECONDS=0` (0 à 3600) |
+| b | **Cause à effet** | Une coupure LE dans les 10 s qui suivent une ouverture ou une fermeture du classique lui est imputée : `[WARN] the LE link dropped Ns after the classic link was opened; the classic link is not opened again for 300s unless a call or the user asks for it`. 300 s, doublés à chaque récidive dans l'heure, plafond 1 800 s. Avec (a), il n'y a de toute façon pas de deuxième ouverture dans la minute | `LANDLINE_CLASSIC_QUIET_SECONDS=0` (0 à 1800) |
+| c | **Fermeture** | Non modifiée : 7 fermetures sur 7 sans effet sur le LE, et celle de 16:02 est une fermeture par l'iPhone. Elle est couverte par (b) : si une fermeture fait tomber le LE, c'est dit au journal et les ouvertures s'espacent | — |
+| d | **Rafale** (*remplacée par la règle des fautes, 14.2 ; ne s'applique plus qu'avec `LANDLINE_LE_STRIKES=0`*) | 3 coupures LE en 60 s : l'annonce est **retirée 30 s** (60 puis 120 s si la rafale reprend), `[WARN] the LE link dropped 3 times within 60s; the advertisement is taken off air for 30s…`. Oublié quand un lien a tenu 45 s (`the LE link has held`). Le soir du 17, cela aurait offert à l'iPhone 6 à 8 liens au lieu de 20. **Hypothèse** : que ce soit le nombre de liens avortés qui « coince » l'iPhone | `LANDLINE_LE_BURST_PAUSE=0` (la rafale reste journalisée) |
+| d | **État publié** | `le_cause:"unsteady"` (état `waiting`) pendant une rafale ; `le_cause:"phone_backoff"` (état `paused`) quand le LE est perdu depuis 180 s **à la suite d'une rafale** et que le classique a joint l'iPhone depuis — il est donc là. Sans cette preuve de présence la cause reste `phone_away`, avec une phrase qui dit les deux possibilités | — |
+| e | **Paramètres LE** | Rien de possible sans privilège (13.2). Le réglage `main.conf` (R4) ne marcherait pas ; demande HCI préparée et désactivée (14.4) | `LANDLINE_LE_CONN_PARAMS` |
+
+Hors mode sobre, (d) s'applique aussi ; (a) et (b) ne concernent que la machine à baux.
+
+### 13.5 Ce qui est prouvé, probable, hypothétique
+
+| Affirmation | Degré |
+|---|---|
+| iOS ouvre ses liens LE à 30 ms / 720 ms de supervision | établi (sources), non relevé sur cette machine |
+| La majorité des coupures LE du 17 ont lieu sans aucun lien classique, au départ et à l'arrivée | **prouvé** (journal) |
+| Le LE tombe 0,72 s après le début d'une ouverture du classique quand l'iPhone tarde à répondre | **prouvé** pour les délais (5 cas), **probable** pour le mécanisme (page prioritaire sur l'unique radio) |
+| La fermeture du classique fait tomber le LE | **non** : 0 cas sur 7 ; 16:02 est une fermeture par l'iPhone |
+| L'annonce est bien en ondes pendant le silence de l'iPhone | prouvé le 16 (bascule du Bluetooth de l'iPhone → LE en secondes) ; **non vérifié le 17** |
+| iOS cesse de rouvrir le LE après une rafale de liens avortés | **probable**, témoignages seulement, aucune règle publiée, un contre-exemple partiel (17:43 → 18:04) |
+| Retirer l'annonce pendant une rafale évite le blocage | **hypothèse** |
+| Ce qui débloque sans toucher à l'iPhone | **inconnu** : le 17 à 13:16 le LE est revenu seul après 14 h 50 ; rien de ce que l'ordinateur a fait entre-temps (recyclages, veilles, relances) n'a eu d'effet immédiat |
+| 6 s de supervision via `main.conf` feraient tenir le LE | **faux** (*corrigé le 17 novembre*) : le noyau ne porte pas ce délai dans sa demande (13.2). Par la commande HCI (14.4) : **hypothèse**, iOS peut refuser ou répondre par d'autres valeurs |
+
+## 14. Les « trois fautes », le lien vite utile, les paramètres de connexion (branche `moteur-trois-fautes`)
+
+Compilé et testé (1 174 tests), **pas essayé avec l'iPhone, aucun `btmon`, aucune commande privilégiée**.
+Sources : `iphone-link-study/12-ios-bluetooth-accessoires.md` (étude 12) ; source de BlueZ 5.87 (copie
+locale : `src/device.c`, `src/gatt-client.c`, `src/shared/gatt-client.c`, `profiles/battery/battery.c`) ;
+noyau v7.3 lu en ligne (`net/bluetooth/hci_sock.c`, `l2cap_sock.c`, `mgmt.c`) ; pages de manuel
+`org.bluez.*` de la 5.87 installée ; journal réel du 17 novembre. Variables : `moteur-api.md`, section 11.
+Essais : `essai-reconnexion.md`, section 0 (P1 à P3).
+
+### 14.1 Ce que dit l'étude 12, et ce qui en est appliqué
+
+L'essentiel, en quatre points :
+
+1. **iOS compte les liens LE qui meurent avant d'avoir servi.** Console d'un iPhone (2015, iOS 8) :
+   « *Peripheral … did not use any built-in service, strike #1* », puis #2, #3, après quoi l'iPhone ne
+   revient plus sans un geste. Le guide d'Apple dit la même chose à l'endroit (§57.12.4) : l'iPhone garde
+   le lien « *as long as it is paired and uses one of the available services* » (Batterie, Heure, ANCS).
+   Ancien, recoupé par notre journal, **non vérifié sous iOS 26**.
+2. **Notre lien LE vit avec 720 ms de délai de supervision** parce que nous ne demandons rien ; les
+   fabricants demandent autre chose quelques secondes après la connexion (Pebble : 150–180 ms, latence 0,
+   6 s). Apple admet 6 à 18 s. C'est la cause première des rafales en limite de portée et de la chute du
+   LE pendant la recherche de l'iPhone en classique.
+3. **Le réglage `main.conf` ne marcherait pas** ; il faut la commande HCI *LE Connection Update*.
+4. Annonce, ordre des liens, classique à la demande : conformes.
+
+Les onze changements que l'étude recommande, et leur sort dans cette branche :
+
+| # | Changement recommandé | Ici |
+|---|---|---|
+| 1 | Demander 6 s de supervision après chaque lien LE | **préparé, désactivé** (14.4) ; l'essai manuel P1 passe d'abord. Rectification : la capacité requise est `CAP_NET_RAW`, pas `CAP_NET_ADMIN` |
+| 2 | Compter les liens morts avant l'abonnement, retirer l'annonce dès le premier | **fait** (14.2), puis **le retrait abandonné** après deux essais réels (14.7, #29) : le compte reste |
+| 3 | Raccourcir le délai entre le lien et l'usage d'un service | **fait pour ce qui dépend du moteur** (14.3) ; le reste est dans BlueZ et l'iPhone |
+| 4 | Preuve côté iPhone (console, « strike ») | protocole écrit (essai P3) ; demande un Mac |
+| 5 | Sortir du blocage sans l'interrupteur Bluetooth | non fait ; l'essai R5 reste le protocole |
+| 6 | ANCS par le lien classique comme repli | non fait |
+| 7 | Intervalle de repos à 150–180 ms | compris dans le n° 1 (valeurs par défaut de la demande) |
+| 8 | Alléger la retenue de 45 s avant le classique | non fait : attend que le n° 1 soit validé |
+| 9 | Vérifications de conformité au `btmon` (sniff, `AT+XAPL`, annonce étendue) | non fait |
+| 10 | Corriger nos documents | fait ici (13.2, 13.3, 13.4, 13.5) et dans `essai-reconnexion.md` (R4) ; l'étude 02 n'a pas été touchée |
+| 11 | Annonce : ne rien changer au régime normal | respecté ; après une faute, 20 ms 30 s puis 152,5 ms (14.7) ; l'intervalle lent ne sert plus qu'aux liens servis qui tombent en boucle (15.8) |
+
+### 14.2 La règle des fautes (`le_strikes.hpp`, `LeStrikes`)
+
+**Ce qui n'allait pas.** La mesure (d) de 13.4 retirait l'annonce après 3 coupures LE en 60 s : à la
+troisième coupure, la troisième faute est déjà comptée par l'iPhone. Et elle comptait les coupures, alors
+qu'iOS compte les liens **morts sans avoir servi** : un lien abonné qui tombe n'est pas une faute.
+
+> **Depuis le 18 novembre au soir (#29), l'annonce n'est plus retirée** : voir 14.7. Le tableau ci-dessous
+> décrit la règle d'origine, que les variables d'environnement rétablissent ; le compte, lui, est inchangé.
+
+**La règle.** Une classe pure, alimentée une fois par passe (`watch_le_strikes()`, dans l'étape `links()`,
+donc **avant** que le client ANCS apprenne la coupure : son état décrit encore le lien qui vient de finir).
+
+| Fait | Décision |
+|---|---|
+| Un lien LE se termine alors que le service de notifications **a répondu** dessus (`ancs_ready`, c'est-à-dire une réponse de l'iPhone sur la *Data Source*) | pas une faute |
+| Un lien LE se termine **avant** | faute. Plusieurs signaux `Disconnected` dans la même passe : le premier lien est jugé sur l'état du service, les autres, nés et morts entre deux passes, sont des fautes |
+| 1re faute | annonce **retirée tout de suite, 15 s** (`supervise_ancs_solicitation(false)` dans la passe même), puis remise à son rythme normal |
+| 2e faute sans lien servi entre-temps | retirée **30 s** (120 s avant le 18 novembre), puis remise à **1022,5 ms** (le plus long intervalle de la liste d'Apple) tant qu'aucun lien n'a servi |
+| 3e et suivantes | retirée 60 s, puis 120 s (plafond) ; avant le 18 novembre 240, 480, 600 s — l'iPhone s'est relié 1 s après une pause de 4 min (`journal-essais.md`) |
+| Notifications actives **10 s de suite** sur un lien | compte remis à zéro, annonce de nouveau normale |
+| Lien servi moins de 10 s puis perdu | ni faute, ni remise à zéro |
+| 15 min sans nouvelle faute, hors retrait | compte oublié (l'iPhone est parti ; son retour repart à 20 ms) |
+| Réveil de l'ordinateur, retour de bluetoothd | compte remis à zéro (ces coupures ne sont pas celles de l'iPhone) |
+
+Pourquoi « le service a répondu » et non « l'abonnement est accepté » : `StartNotify` réussit et `Notifying`
+lit vrai sur un lien déjà mort (BlueZ ne remet pas `Notifying` à faux à la coupure ; le journal du 17 montre
+des « notification session N started » 10 ms **après** un `Disconnected`). Seule une réponse de l'iPhone
+prouve que le lien a servi. Ce critère est plus sévère que celui d'iOS (qui a vu l'écriture de
+l'abonnement avant de répondre) : une faute comptée ici peut ne pas en être une pour l'iPhone, jamais
+l'inverse. Le coût d'une faute comptée à tort est un retrait de 15 s.
+
+Garde : le compte n'est tenu que si les notifications sont voulues, l'appairage sain, et si l'iPhone a déjà
+offert ANCS sur cet appairage (`Device1.UUIDs`). Un appairage en cours, qui coupe et rouvre le lien, n'est
+pas concerné ; pendant qu'il tient l'annonce, le retrait ne s'applique pas non plus.
+
+**Ce qui est publié.** Depuis #29, sans retrait : `unsteady` (état `waiting`) tant que le compte n'est pas à
+zéro et que le lien LE est perdu depuis moins de 180 s (14.7). Avec les retraits rétablis :
+`le_cause:"holding_off"` (état `waiting`) pendant le retrait, avec une phrase dans
+`le_detail` ; cette cause passe avant toutes les autres, y compris au-delà de 180 s : le silence est alors
+le nôtre, pas celui de l'iPhone. Ensuite `unsteady` tant que le compte n'est pas à zéro. `le_strikes` donne
+le compte. Après deux fautes, une perte durable est attribuée au retrait de l'iPhone (`phone_backoff` s'il
+est joint par le classique, sinon `phone_away` avec la phrase à deux possibilités), comme après une rafale.
+
+**Sur le journal du 17 novembre.** Arrivée de 18:04 : une vingtaine de liens en 80 s. Avec la règle (test
+`LeStrikes.TheArrivalOfTheSeventeenthWithThePausesOfBefore`) : quatre liens offerts dans les deux premières
+minutes. Depuis #29 l'iPhone se voit offrir un lien dès qu'il en veut : ce sont les essais du 18 qui ont
+montré qu'il ne s'en lasse pas.
+
+**Choix à connaître.**
+- Un lien **servi** qui tombe ne retire pas l'annonce : le lien suivant est donc la première occasion de
+  faute. L'étude ne demande pas plus ; un retrait bref après toute coupure retarderait de plusieurs secondes
+  les reprises banales (dont les coupures de 720 ms).
+- Le doublement au-delà de la deuxième faute et l'oubli après 15 min sont des ajouts ; l'étude dit seulement
+  « 2 min, puis reprise lente ».
+- Coût (règle d'origine) : un iPhone posé en limite de portée attendait ses notifications jusqu'à 2 min
+  après être revenu à portée franche, tant qu'aucun lien n'avait servi 10 s. C'est ce coût, mesuré le
+  18 novembre, qui a fait abandonner le retrait (14.7).
+- L'ancienne règle des rafales reste dans le code (`LeHealth`) : elle journalise encore (`dropped 3 times
+  within 60s`) mais ne retire plus l'annonce, sauf avec `LANDLINE_LE_STRIKES=0`.
+
+### 14.3 Du lien à l'usage : ce qui retardait, ce qui est raccourci
+
+**Le « 3,4 s » du 17 novembre.** Le journal ne datait pas la montée du lien LE : les 3,4 s (18:05:45,5 →
+18:05:48,9) séparent « notification session 25 started » de « Notification mirroring is active », donc
+l'abonnement **déjà accepté** de la première réponse de l'iPhone. Lu dans le code, ce délai était presque
+entièrement le nôtre :
+
+| Cause (lue) | Coût | Maintenant |
+|---|---|---|
+| La première question (`GetAppAttributes`) était mise en file dans la passe de l'abonnement mais **écrite à la passe suivante** | 1 s | écrite dans la même passe |
+| La réponse, reçue sur le fil GLib, n'était **lue qu'à la passe suivante** | jusqu'à 1 s | un paquet ANCS déclenche une passe (au plus une toutes les 100 ms) |
+| Après une reconstruction de session, la date de la question n'était pas remise à zéro | jusqu'à 5 s (18:05:31,0 → 33,1) | remise à zéro |
+| Les demandes d'attributs des notifications que l'iPhone liste à l'abonnement passaient **avant** la question, une par passe, et leur réponse ne valait pas preuve | 1 s par notification en attente | une par aller-retour radio ; toute réponse de la *Data Source* vaut preuve |
+| La montée du lien n'était vue qu'après l'anti-rebond de l'instantané (250 ms) puis à la passe suivante | 0,25 à 1,25 s | `Bearer.LE1.Connected` rafraîchit l'instantané et déclenche une passe tout de suite |
+| Les dates d'essai (découverte, abonnement) avaient grandi pendant l'absence : 5 s après 5 min | jusqu'à 5 s | remises à zéro à chaque nouveau lien |
+| La chute du lien n'était vue qu'à la passe suivante : l'annonce, encore enregistrée, laissait l'iPhone se reconnecter entre-temps | jusqu'à 1 s, un lien de plus | le signal `Disconnected` déclenche une passe |
+
+Rien de cela n'ajoute d'appel à BlueZ : aucune séquence `StopNotify` / `StartNotify`, les règles de
+`subscription_guard.hpp` (§10.2) sont intactes. Le délai de 4 s de `StartNotify` est un **délai d'attente
+maximal** d'un appel, pas un retard : il n'est pas modifié. Retour arrière : `LANDLINE_LE_PROMPT=0`.
+
+**Ce que l'iPhone voit, lui, ne dépendait déjà presque pas de nous** (lu dans BlueZ 5.87) :
+- à l'attachement du canal ATT, quand le cache GATT existe, `gatt_client_init()` appelle
+  `device_accept_gatt_profiles()` — le greffon Batterie **lit le niveau de batterie** puis s'y abonne — puis
+  `btd_gatt_client_connected()`, qui **réécrit l'abonnement de chaque abonné gardé** (`register_notify`),
+  sans attendre `ServicesResolved` ni notre fil ;
+- cela vaut tant que BlueZ tient encore notre abonné. Il le retire si l'iPhone refuse l'écriture
+  (`register_notify_cb` avec une erreur) ou s'il a redémarré : c'est alors notre `StartNotify` qui abonne,
+  et c'est là que la seconde gagnée compte pour l'iPhone.
+
+**Lire un service intégré plus tôt ?** Non : BlueZ lit déjà la batterie au tout premier instant possible, et
+une lecture par D-Bus exigerait les mêmes préalables qu'un abonnement (client GATT prêt, lien chiffré) ; le
+service Batterie, pris par le greffon, n'est d'ailleurs pas exporté sur D-Bus. **Qu'une lecture compte comme
+« usage » pour iOS n'est pas établi** : si elle comptait, la lecture de BlueZ nous protégerait déjà à chaque
+lien. C'est la console de l'iPhone qui le dira (essai P3 : un lien coupé juste après la lecture de la
+batterie est-il compté ?).
+
+**Mesure.** Trois lignes nouvelles au journal datent chaque lien :
+`org.bluez.Bearer.LE1 connected to …`, `notification subscription confirmed Nms after the LE link came up`,
+`notification service in use Nms after the LE link came up, Nms after the subscription`. Ce qui reste dans
+ce temps : le chiffrement du lien, la relecture de l'arbre par BlueZ, la réponse de l'iPhone.
+
+### 14.4 Paramètres de connexion LE (`le_conn_params.hpp`, `le_conn_update.cpp`)
+
+> **Remplacé par la section 15** (essai réel du 17 novembre 2026, intégration) : la demande est désormais
+> **active par défaut** dès que l'auxiliaire est en place, avec **45–60 ms, latence 0, 6 s**, faite **dès que
+> le lien est chiffré** et à **chaque** nouveau lien ; relances de Pebble (collisions 2 s × 10, 3 essais à
+> 5 s) ; l'auxiliaire est posé par `landline-setup apply`. Ce qui suit est la conception d'avant l'essai,
+> gardée pour l'inventaire des voies sans privilège et les risques de la voie B.
+
+**Ce que faisait le moteur avant l'essai.** Sur chaque lien LE, une fois les notifications actives et au
+moins 5 s après la montée du lien (`TGAP(conn_pause_peripheral)`), il envoie la commande HCI *LE Connection
+Update* : **150–180 ms, latence 0, supervision 6 s** (valeurs de Pebble ; 6 s est la seule valeur admise à
+la fois par la règle de 2017 et par celle de 2026). Les valeurs réglées sont vérifiées contre les règles
+d'Apple (§57.6) avant tout envoi ; un jeu refusé par ces règles n'est jamais envoyé. Le résultat est lu sur
+le même socket (*Command Status*, puis *LE Connection Update Complete*, 8 s au plus), dans un fil à part.
+Trois demandes au plus par lien, à 15 s d'intervalle, jamais deux à la fois ; une réponse dont le délai de
+supervision est plus court que celui demandé est redemandée. **Jamais de coupure du lien sur un refus.**
+Publié : `le_conn_params` (`off`, `no_right`, `waiting`, `asking`, `applied`, `refused`).
+
+**Voies sans privilège : aucune.** Vérifié une par une :
+
+| Voie | Verdict | Source |
+|---|---|---|
+| Propriété ou méthode D-Bus de BlueZ 5.87 | aucune ne porte intervalle, latence ou délai de supervision | pages de manuel `org.bluez.Device`, `Bearer.LE`, `Adapter` installées |
+| Socket L2CAP sur le canal de signalisation LE (CID 5) | refusé : en LE, seul le CID de l'ATT est permis à un socket (« *We only allow ATT user space socket* ») ; un socket L2CAP brut exige `CAP_NET_RAW` et parlerait sur le CID 1 du classique | `l2cap_sock.c`, `l2cap_sock_bind`, `l2cap_sock_create` |
+| `setsockopt` sur un socket L2CAP ATT | options existantes : `BT_SECURITY`, `BT_DEFER_SETUP`, `BT_FLUSHABLE`, `BT_POWER`, `BT_CHANNEL_POLICY`, `BT_SNDMTU`, `BT_RCVMTU`, `BT_PHY`, `BT_MODE` — aucune ne touche aux paramètres de connexion | `l2cap_sock.c`, `l2cap_sock_setsockopt` |
+| API de gestion (mgmt) sans privilège | un socket non privilégié n'a droit qu'aux lectures (`READ_INDEX_LIST`, `READ_INFO`…) | `mgmt.c`, `mgmt_untrusted_commands[]` |
+| API de gestion **avec** `CAP_NET_ADMIN` (`Load Connection Parameters`) | ne met à jour un lien existant que si l'ordinateur en est le **central** (`conn->role == HCI_ROLE_MASTER`) ; nous sommes périphérique | `mgmt.c`, `load_conn_param`, `conn_update_sync` |
+| `main.conf` `[LE]` | ne porte pas le délai de supervision d'un lien entrant (13.2) | étude 12 §4.3 |
+| Commande HCI *LE Connection Update* sur un socket HCI brut | **marche, avec `CAP_NET_RAW`** : toute commande d'un groupe au-delà de 5 (le LE est le groupe 8) est refusée par `EPERM` sans cette capacité. `CAP_NET_ADMIN` seul n'y suffit pas | `hci_sock.c`, `hci_sock_sendmsg`, `hci_sec_filter` |
+
+Lire la liste des liens du contrôleur (pour trouver le *handle*) ne demande aucun droit (`HCIGETCONNLIST`,
+comme `hcitool con`). L'étude 12 parlait de `CAP_NET_ADMIN` : c'est `CAP_NET_RAW`.
+
+**Sans droit.** Le moteur le constate au démarrage (capacités du processus, présence de l'auxiliaire), écrit
+**une** ligne `[INFO]` (`LE connection parameters are wanted … but this process may not ask for them`),
+publie `le_conn_params:"no_right"` et ne tente rien. Ce n'est pas une erreur.
+
+**Ce que l'assistant système (`landline-setup`) devrait accorder.** Deux façons ; la première est
+recommandée.
+
+*A. Un auxiliaire à capacité (recommandé).* `landline-le-params`, compilé avec le moteur
+(`engine/build/local/landline-le-params`, 360 ko, lié à la seule libc, sans RUNPATH) : il prend un
+contrôleur, une adresse et quatre valeurs, refuse tout jeu hors des règles d'Apple, envoie cette seule
+commande sur un lien LE qui existe déjà, n'en coupe jamais. Le démon le lance à chaque demande.
+
+```sh
+sudo install -d -o root -g root -m 0755 /usr/local/libexec/landline
+sudo install -o root -g root -m 0755 landline-le-params /usr/local/libexec/landline/
+sudo setcap cap_net_raw+ep /usr/local/libexec/landline/landline-le-params
+getcap /usr/local/libexec/landline/landline-le-params        # cap_net_raw=ep
+```
+
+puis, dans l'unité utilisateur du démon, `Environment=LANDLINE_LE_CONN_PARAMS=1`. Retrait :
+`sudo rm /usr/local/libexec/landline/landline-le-params`. Risques : tout processus local peut lancer
+l'auxiliaire, donc changer les paramètres d'un lien LE existant **dans les bornes d'Apple** (intervalle
+15 ms à 2 s, supervision 6 à 18 s) — nuisance faible, et réductible en donnant le fichier à un groupe
+(`-m 0750 -g <groupe>`). Un défaut dans l'auxiliaire donnerait `CAP_NET_RAW` à qui l'exploite : ses
+arguments sont des nombres de six chiffres au plus et une adresse de 17 caractères, sa sortie est une ligne.
+Le système de fichiers ne doit pas être monté `nosuid` (les capacités de fichier y sont ignorées).
+La capacité est à reposer après chaque mise à jour du fichier (toute écriture l'efface).
+
+*B. La capacité sur le démon lui-même.* `sudo setcap cap_net_raw+p <chemin>/landlined` (« permise »
+suffit : le démon ne la lève que dans le fil éphémère qui écrit la commande). Plus simple, **déconseillé** :
+- un binaire à capacité tourne en « mode sécurisé » (`AT_SECURE`) : la glibc ignore `LD_LIBRARY_PATH` et
+  consorts, GLib se met en mode privilégié (certaines variables d'environnement ne sont plus lues, dont
+  l'adresse du bus de session, retrouvée alors par `XDG_RUNTIME_DIR`) — **effets non essayés** sur un démon
+  qui dépend du bus de session (obexd, notifications) ;
+- le processus n'est plus « dumpable » : plus de vidage mémoire, plus de `gdb` par l'utilisateur ;
+- `CAP_NET_RAW` vaut pour tout le démon : sockets bruts de toute famille (écoute du trafic réseau, paquets
+  forgés) et **toute** commande HCI, y compris celles du fabricant. Tout code injecté dans le démon — il
+  charge des bibliothèques par un RUNPATH qui, dans la compilation locale, pointe vers le dossier personnel
+  — en hériterait ;
+- la capacité saute à chaque recompilation ou mise à jour du binaire : mot de passe à chaque fois ; et elle
+  est ignorée si `/home` est monté `nosuid`.
+
+*C. `AmbientCapabilities=CAP_NET_RAW` dans l'unité : impossible ici.* Le démon est une unité **utilisateur**.
+Le gestionnaire `systemd --user` tourne sans aucune capacité et ne peut en donner aucune : une capacité
+ambiante doit déjà être permise et héritable chez celui qui lance le processus. La directive n'a d'effet que
+dans une unité **système** (avec `User=`). Faire du démon une unité système le sortirait de la session de
+l'utilisateur (bus de session, obexd, PipeWire, `XDG_RUNTIME_DIR`), ce sur quoi tout le reste repose : à
+exclure pour un seul appel HCI.
+
+**Risques de la demande elle-même.**
+- Une procédure de couche liaison à laquelle l'iPhone ne répond pas ferme le lien au bout de 40 s (délai de
+  réponse de la spécification) : d'où l'essai manuel d'abord, et trois demandes au plus par lien.
+- iOS peut répondre par d'autres valeurs, ou refuser. Un iPhone qui ne connaît pas la procédure de couche
+  liaison renverrait « fonction non prise en charge » (0x1a) ; la demande L2CAP de repli n'est accessible
+  qu'au noyau.
+- Avec 6 s de supervision, **le départ de l'iPhone est vu 6 s plus tard** (présence, verrouillage à
+  l'éloignement) au lieu de 0,7 s.
+- À 150–180 ms, chaque question ANCS et sa réponse prennent 0,3 à 0,5 s au lieu de 0,1 s : la liste des
+  notifications présentes au retour arrive plus lentement. Pebble redescend à 15 ms le temps d'un
+  transfert ; le moteur ne le fait pas. `LANDLINE_LE_CONN_INTERVAL_MS=30-45` garde le débit d'aujourd'hui
+  avec 6 s de supervision.
+- Si iOS propose ensuite lui-même d'autres paramètres, le noyau refuse tout intervalle maximal au-dessus de
+  celui de l'adaptateur (50 ms par défaut) : à chercher dans une capture (*LE Remote Connection Parameter
+  Request* suivi d'une réponse négative).
+- L'arrêt du démon attend la fin d'une demande en cours (8 s au plus).
+
+### 14.5 Ce qu'on lit dans le journal
+
+| Ligne | Sens |
+|---|---|
+| `bluetooth: org.bluez.Bearer.LE1 connected to …` | montée du lien LE, datée à la réception du signal |
+| `bluetooth: notification subscription confirmed Nms after the LE link came up` | abonnement confirmé par BlueZ |
+| `bluetooth: notification service in use Nms after the LE link came up, Nms after the subscription` | première réponse de l'iPhone : à partir de là, une coupure n'est plus une faute |
+| `[WARN] bluetooth: the LE link ended before the notification service had answered (unused links in a row: N); the advertisement stays on air, fast for 30s then at 152.5 ms, and the iPhone is called again` | une faute (défaut depuis #29) : l'annonce reste à l'antenne |
+| `[WARN] bluetooth: the LE link ended … ; the advertisement is taken off air for Ns…` | une faute et un retrait, seulement si les retraits sont rétablis par l'environnement ; `, then put back at its slow interval` avec `LANDLINE_LE_STRIKE_SLOW` |
+| `[WARN] bluetooth: N LE links in a row ended before the notification service had answered, none served in between; the advertisement stays on air at 152.5 ms, with no fast phase, until a link serves (LANDLINE_LE_STRIKE_BRAKE=N)` | frein (#41, §14.7) : une fois par série, plus de phase rapide jusqu'à un lien servi |
+| `bluetooth: the notification service has been live on the LE link for 10s; the N unused link(s) before it are forgotten` | compte remis à zéro |
+| `bluetooth: no unused LE link for 900s; the N counted before that are forgotten` | oubli après 15 min sans nouvelle faute |
+| `bluetooth: notification link waiting: unsteady` | liens qui échouent, nouvel essai en cours (défaut) |
+| `bluetooth: notification link waiting: holding_off` | état publié pendant un retrait (retraits rétablis seulement) |
+| `bluetooth: soliciting ANCS for 180s, advertising every 20-20 ms` puis `every 152-153 ms` | annonce après une faute : rapide 30 s, puis 152,5 ms |
+| `bluetooth: soliciting ANCS for 180s, advertising every 1022-1023 ms` | annonce au ralenti : liens servis qui tombent en boucle (15.8), ou `LANDLINE_LE_STRIKE_SLOW` |
+| `bluetooth: LE connection parameters are wanted … but this process may not ask for them…` | demande activée, pas de droit : une fois, au démarrage |
+| `bluetooth: asking the iPhone for LE connection parameters 150-180 ms, latency 0, supervision 6000 ms (attempt 1 of 3, by helper)` | demande envoyée (`by capability` si le démon a lui-même le droit) |
+| `bluetooth: LE connection parameters now in force: interval 165 ms, latency 0, supervision 6000 ms (handle N)` | ce que l'iPhone a appliqué |
+| `[WARN] bluetooth: LE connection parameters not obtained (refused, HCI status 59…), attempt N of 3` | refus (59 = 0x3b, paramètres inacceptables ; 26 = 0x1a, procédure non prise en charge ; 12 = 0x0c, commande refusée par le contrôleur) |
+
+### 14.6 Ce qui reste hypothétique sans iPhone
+
+1. Que la règle des « trois fautes » existe encore sous iOS 26, avec quel seuil et quelle fenêtre (P3).
+   **Deux essais réels (18 novembre) disent que non, du moins pas à trois** : l'iPhone est revenu après
+   trois liens morts à la suite, les deux fois (14.7).
+2. ~~Que retirer l'annonce 15 s puis 30 s suffise à ne pas atteindre la troisième faute~~ : sans objet
+   depuis #29, l'annonce n'est plus retirée.
+3. Qu'une réponse sur la *Data Source* soit bien postérieure à ce qu'iOS tient pour « usage » (sinon des
+   fautes nous échappent) ; qu'une lecture de la batterie compte ou non.
+4. Que `Bearer.LE1` émette `PropertiesChanged` pour `Connected` à chaque montée de lien sur cette machine (lu
+   dans `src/bearer.c`, pas vu au journal) : sans lui, pas de ligne `connected to`, pas de passe immédiate,
+   et le comportement est celui d'avant.
+5. Les délais réels après ces changements (les trois lignes de 14.5 les donneront).
+6. Tout 14.4 : que le contrôleur Intel 9560 accepte la commande en rôle périphérique, que l'iPhone accepte
+   150–180 ms / 6 s, que les coupures cessent, que la recherche en classique ne tue plus le LE (P1).
+7. Que le noyau liste le lien LE sous l'adresse d'identité de l'iPhone (sinon l'unique lien LE est pris).
+8. Le comportement d'un démon portant une capacité de fichier (voie B) : non essayé, déconseillé.
+
+### 14.7 L'annonce reste à l'antenne après un lien inutilisé (18 novembre, #29)
+
+**Ce qu'ont montré les essais.** Deux allers-retours à pied (#1). Le second, au retour : premier contact
+16:17:32, entrée dans l'appartement **16:18:00**, notifications **16:20:58**. Trois liens LE morts avant
+service, en 1,4 s, 0,7 s et 0,7 s (16:17:32, 16:17:50, puis **16:19:43, à l'intérieur**), avant même qu'une
+supervision de 6 s ait pu être négociée. Avec la règle d'origine, l'annonce a été retirée 15 s, 30 s, puis
+60 s, et remise à 1022,5 ms à partir de la deuxième faute. Décomposé après l'arrivée : **~80 s** avant que
+l'iPhone réponde à l'annonce lente, puis **60 s** hors antenne après la troisième faute, puis le lien de
+16:20:56 qui a tenu. Les deux fois, l'iPhone est revenu **après trois fautes à la suite** : la règle
+d'iOS de 2015 ne s'applique pas, ou pas à ce seuil. Les deux attentes étaient les nôtres.
+
+**Ce qui change (défaut).**
+
+| Fait | Avant | Depuis #29 |
+|---|---|---|
+| un lien LE meurt avant service | annonce retirée 15 s (1re), 30 s doublé jusqu'à 120 s (suivantes) | **annonce laissée à l'antenne** |
+| intervalle après une faute | 1re : rythme d'une perte ordinaire (20 ms 180 s) ; dès la 2e : 1022,5 ms | **20 ms pendant 30 s** après chaque faute, **puis 152,5 ms** tant qu'aucun lien n'a servi |
+| liens servis qui tombent en boucle (Pebble, 15.8) | 1022,5 ms une minute | inchangé |
+| un lien sert (même quelques secondes, sans effacer le compte) puis tombe après une faute | — | **perte ordinaire** : 20 ms pendant 180 s depuis la perte, puis 152,5 ms (#40) ; les fautes restent comptées |
+| 8 fautes à la suite ou plus, aucun lien servi entre elles | — | **frein** : plus de phase rapide, 152,5 ms, une ligne de journal (#41) |
+| compte des fautes, `le_strikes`, journal, `phone_backoff` après deux fautes | — | inchangés |
+| état publié | `holding_off` pendant le retrait, puis `unsteady` | `unsteady` tout de suite (pas de retrait) |
+
+**Pourquoi ces intervalles.** Apple (*Accessory Design Guidelines*, annonce LE) demande 20 ms pendant au
+moins les 30 premières secondes, puis l'un des intervalles 152,5 / 211,25 / 318,75 / 417,5 / 546,25 / 760 /
+852,5 / 1022,5 / 1285 ms. L'iPhone verrouillé n'écoute que par courtes fenêtres : plus l'intervalle est
+long, plus il en rate à la suite. Le 1022,5 ms a coûté ~80 s le 18 ; on garde donc le plus court de la
+liste, 152,5 ms, qui est déjà le régime de fond du moteur (environ 2 ms de radio toutes les 152,5 ms).
+La phase rapide est **de 30 s** (le minimum d'Apple), relancée à chaque faute, et non les 180 s qui suivent
+une perte ordinaire : en limite de portée, 20 ms pendant trois minutes offrirait à l'iPhone un lien voué à
+mourir toutes les une ou deux secondes, sans rien gagner sur un iPhone déjà entré (30 s couvrent le pas de
+la porte). Les fenêtres rapides « tous liens tombés » et « réveil » ne sont pas données pendant les fautes
+(chaque faute est une telle perte, elles maintiendraient les 20 ms) ; celle « classique joint, LE absent »
+l'est (`advert_interval_with_strikes()`, `le_strikes.hpp`). Un réveil ou un retour de bluetoothd remettent
+le compte à zéro : le rythme ordinaire reprend.
+
+**Ce que le 18 aurait donné.** Test `LeStrikesOnAir.TheReturnHomeOfTheEighteenth` : les trois liens morts
+rejoués à la seconde ; l'annonce est à l'antenne à chaque passe, jamais à 1022,5 ms, à 20 ms de 16:17:34 à
+16:18:20 et de 16:19:44 à 16:20:13, à 152,5 ms entre les deux ; l'état publié est `waiting` / `unsteady`
+sur toute la durée ; le lien qui tient remet le compte à zéro 10 s après la première notification. Combien
+de secondes cela fait gagner en vrai : à mesurer au prochain retour (#1). Attendu : le lien de 16:19:43
+dès l'entrée (plus d'annonce lente), et pas de minute hors antenne après lui.
+
+**Un lien qui a servi rend le rythme ordinaire (#40).** Un lien sur lequel l'iPhone a répondu, ne
+serait-ce qu'un instant, puis qui tombe avant les 10 s qui effacent le compte, n'est pas une faute : c'est
+une perte de lien servi. Avant la correction, les fautes d'avant gardaient la main sur le rythme pendant
+15 min et l'annonce passait directement à 152,5 ms (sans `le_down_since`). Désormais, dès qu'un lien a
+servi après la dernière faute, `sets_rhythm()` est faux : la règle ordinaire reprend (20 ms pendant 180 s
+après la perte, puis 152,5 ms). Le compte reste pour le journal, `le_strikes` et `le_state` (`unsteady`),
+jusqu'à ce qu'un lien serve 10 s ou que 15 min passent sans faute ; une nouvelle faute rend la main aux
+fautes. Test `LeStrikesOnAir.ALinkServedBrieflyAfterAStrikeIsAnOrdinaryLoss` : faute, lien servi 5 s,
+perte → 20 ms.
+
+**Un frein sur une boucle sans fin (#41).** Sans retrait ni ralenti, un iPhone qui se relierait et
+tomberait indéfiniment sans jamais répondre recevrait 30 s à 20 ms après chaque faute, pour toujours (l'oubli
+de 15 min n'arrive jamais tant que les fautes continuent, et le ralenti « Pebble » ne compte que les liens
+servis). À partir de **8 fautes à la suite sans aucun lien servi entre elles** (3 lors des retours réels),
+l'annonce reste à l'antenne à **152,5 ms sans aucune phase rapide** (ni celle des fautes, ni « classique
+joint, LE absent »), et le journal le dit une fois :
+`[WARN] bluetooth: 8 LE links in a row ended before the notification service had answered, none served in
+between; the advertisement stays on air at 152.5 ms, with no fast phase, until a link serves
+(LANDLINE_LE_STRIKE_BRAKE=8)`. Un lien qui sert, même brièvement, lève le frein ; un réveil ou un retour de
+bluetoothd aussi (remise à zéro), de même que 15 min sans nouvelle faute. Réglage : `LANDLINE_LE_STRIKE_BRAKE=<n>` (0 à 99, 0 : pas de frein ;
+`moteur-api.md`). Tests `LeStrikesOnAir.EightUnusedLinksInARowAndTheFastPhaseStops`,
+`TheBrakeCanBeMovedOrTurnedOff`.
+
+**Revenir en arrière.** `LANDLINE_LE_STRIKE_PAUSE_SECONDS=15 LANDLINE_LE_STRIKE_LONG_PAUSE_SECONDS=30
+LANDLINE_LE_STRIKE_SLOW=2 LANDLINE_LE_STRIKE_FAST_SECONDS=0` rétablit exactement la règle d'origine
+(`moteur-api.md`, variables). Chacune se règle seule : par exemple `LANDLINE_LE_STRIKE_FAST_SECONDS=0` seul
+garde l'annonce à l'antenne au rythme d'une perte ordinaire.
+
+**Ce qui reste à vérifier.** Qu'aucun seuil d'iOS ne se manifeste avec plus de liens morts à la suite
+(l'annonce laissée à l'antenne en offre davantage en limite de portée qu'avant) : si l'iPhone cessait de
+revenir après N fautes, le journal le dirait (`unused links in a row: N` suivi d'un silence), et l'état
+passerait à `paused` / `phone_backoff` ou `phone_away` 180 s après la dernière.
+
+## 15. Paramètres de connexion LE : l'essai réel du 17 novembre et l'intégration (branche `tolerance`)
+
+### 15.1 L'essai
+
+Contrôleur Intel 9560 en périphérique, BlueZ 5.87, noyau 7.3, iPhone sous iOS 26. Script
+`essais/lecup-suivi.sh` (root, hors dépôt) : il lit `hcitool con` toutes les 200 ms et, une seconde après
+chaque nouveau lien LE de l'iPhone, envoie `hcitool lecup <handle> 0x0024 0x0030 0x0000 0x0258`
+(45–60 ms, latence 0, supervision 6000 ms). Relevés `essais/lecup-auto.txt.btmon` (20:40) et
+`essais/lecup-suivi.txt.btmon` (20:55–21:25), `btmon` en route.
+
+| Constat | Où |
+|---|---|
+| La puce prend la commande en rôle périphérique (*Command Status* 0x00) et lance la procédure de couche liaison | `lecup-auto` 20:40:14, `lecup-suivi` #59, #111 |
+| L'iPhone applique **exactement** la demande : *LE Connection Update Complete* 60 ms, latence 0, 6000 ms | `lecup-suivi` lignes 26–31, 2546–2551 |
+| Avant : liens morts en 1 à 2 s (5 coupures en 5 min, *Connection Timeout* 0x08). Après : un lien tenu près d'une heure sans coupure | relevé de l'utilisateur, 20:58 → 21:53 |
+| Un lien est tombé **1,05 s** après sa montée (145,436 → 146,469), avant que la demande, partie à +1,2 s, ne s'applique : *Unknown Connection Identifier* (0x02) | `lecup-suivi` 1711–1917 |
+| À une reconnexion, l'iPhone renégocie lui-même **avant** le chiffrement : *LE Remote Connection Parameter Request* puis *Update Complete* **45 ms / 720 ms** ; notre demande juste après impose 6 s, sur le **même handle** 3585 | `lecup-suivi` 2370–2394, 2447–2551 |
+| Chiffrement 0,92 s après la montée du lien (161,668 → 162,590) | `lecup-suivi` 2167, 2408 |
+
+Deux règles en sortent : **demander le plus tôt possible** ; **redemander à chaque nouveau lien**, même s'il
+reprend le même handle.
+
+### 15.2 Ce que fait le moteur
+
+`le_conn_params.hpp` (décisions), `le_conn_update.{hpp,cpp}` (système), `src/le_params/main.cpp`
+(auxiliaire).
+
+- **Activé par défaut** quand l'auxiliaire *opérationnel* est là (`/usr/local/libexec/landline/landline-le-params`,
+  à root, non inscriptible par d'autres, portant une capacité de fichier) ou que le démon a lui-même
+  `CAP_NET_RAW`. Sinon : une ligne `[INFO]` au démarrage, `le_conn_params:"no_right"`, rien d'autre — le
+  comportement d'avant. `LANDLINE_LE_CONN_PARAMS=0` éteint tout (`off`).
+- **Valeurs** : 45–60 ms (0x24–0x30), latence 0, supervision 6 s — celles de l'essai, celles de Pebble
+  (octobre 2026) sans la latence (§14.1, étude 13 §3.3). Réglables (`LANDLINE_LE_CONN_INTERVAL_MS`,
+  `…_LATENCY`, `…_TIMEOUT_MS`), toujours vérifiées contre les règles d'Apple ; un jeu refusé n'est pas
+  envoyé, les valeurs par défaut le sont.
+- **Moment** : dans la passe qui voit le lien monter (réveillée par le signal `Bearer.LE1`), sans attendre
+  ANCS ni les 5 s de TGAP. Un fil à part regarde la liste des liens du contrôleur toutes les **50 ms**
+  jusqu'à ce que le lien de l'iPhone y soit **et soit chiffré** (5 s au plus), puis fait la demande.
+  `LANDLINE_LE_CONN_ENCRYPTED=0` n'attend pas le chiffrement (voir 15.5).
+- **À chaque nouveau lien** : un lien est « nouveau » quand le compte des montées vues par le moniteur
+  change, quel que soit son handle. Ce qui avait été obtenu part avec l'ancien.
+- **Vérification** : l'auxiliaire attend *Command Status* puis *LE Connection Update Complete* (8 s au
+  plus) ; une supervision accordée plus courte que celle demandée compte comme un refus.
+- **Relances** (Pebble, `gap_le_connect_params.c`) : statut **0x23** (*LMP/LL Error Transaction Collision*)
+  ou **0x2A** (*Different Transaction Collision*) → nouvel essai **2 s** plus tard, sans compter d'essai,
+  **10 fois** au plus ; tout autre refus, l'absence de réponse ou de lien → **3 essais à 5 s** d'intervalle,
+  puis abandon **sans couper le lien** (`refused`).
+- **Surveillance** : après sa réponse, l'auxiliaire reste à l'écoute du lien (6 h au plus, lecture seule)
+  et rapporte chaque *LE Connection Update Complete* et la fin du lien. Si l'iPhone renégocie une
+  supervision **< 6 s** sur le même lien, la demande est refaite, **au plus une fois par minute**, avec un
+  nouveau compte d'essais. Au bout des 6 h, une nouvelle demande (qui relance la surveillance).
+- **État publié** : `le_conn_params` = `applied` / `pending` / `refused` / `no_right` (et `waiting` sans
+  lien LE, `off` éteint) ; `le_conn_values` = `{interval_ms, latency, timeout_ms}` en vigueur sur le lien,
+  ou `null`.
+
+### 15.3 Comment le handle est trouvé
+
+Sans privilège : `HCIGETCONNLIST` sur un socket HCI non lié (ce que lit `hcitool con`) rend, pour chaque
+lien du contrôleur, handle, adresse, type et mode (dont `HCI_LM_ENCRYPT`). Le moteur s'en sert pour attendre
+le chiffrement ; **l'auxiliaire refait lui-même la recherche** à partir de l'**adresse** de l'iPhone et ne
+reçoit jamais de handle. Le noyau liste un iPhone appairé sous son **adresse d'identité** (l'adresse privée
+est résolue dès `LE Connection Complete`, `hci_event.c`) ; aucun autre lien n'est pris pour le sien (le repli
+« un seul lien LE » d'avant a été retiré). Pas de lien LE à cette adresse : `no_link`, rien n'est envoyé.
+
+### 15.4 L'auxiliaire et son droit
+
+Voir `systeme.md` §2 (« Tolérance du lien LE »). En bref : `landline-setup apply` le copie à root dans
+`/usr/local/libexec/landline/` et pose `cap_net_raw+ep` ; il ne fait qu'envoyer *LE Connection Update* sur
+un lien LE existant, avec des valeurs bornées aux règles d'Apple, ne lit ni entrée ni fichier ni variable
+d'environnement, et rend 0 (demande faite), 1 (pas faite) ou 2 (mauvais usage). Le démon le lance avec un
+environnement vide et l'entrée sur `/dev/null`, une fois par lien (et par relance).
+
+### 15.5 Ce qui reste à vérifier en réel
+
+1. **Avant ou après le chiffrement ?** Le lien tombé à 1,05 s n'était pas chiffré ; attendre le chiffrement
+   (0,92 s observé) laisse ~0,1 s. Si des liens meurent encore entre la montée et le chiffrement, essayer
+   `LANDLINE_LE_CONN_ENCRYPTED=0` (demande dès que le handle est connu) — la procédure peut alors croiser
+   la renégociation de l'iPhone (+0,22 s) ou le démarrage du chiffrement : ce sont les collisions 0x23/0x2A,
+   relancées à 2 s.
+2. Le délai réel montée → *Update Complete* avec le moteur (ligne `asking … once the link is encrypted`
+   puis `now in force`), à comparer aux 1,2–1,5 s du script.
+3. Les renégociations de l'iPhone pendant une longue session : combien, et si la redemande (≤ 1/min) suffit.
+4. Le coût : intervalle 60 ms au lieu de 30 ms (moins de radio pour l'iPhone) ; présence vue 6 s plus tard.
+5. La règle des fautes et les retraits d'annonce devraient devenir rares : à compter sur une journée.
+
+### 15.6 Ce qu'on lit dans le journal
+
+| Ligne | Sens |
+|---|---|
+| `bluetooth: LE connection parameters are asked for as soon as it is encrypted on each LE link (45-60 ms, latency 0, supervision 6000 ms), by helper` | au démarrage : auxiliaire trouvé |
+| `bluetooth: LE connection parameters are not asked for: this process holds no CAP_NET_RAW and there is no usable helper at …` | au démarrage : pas d'auxiliaire (une fois) |
+| `bluetooth: asking the iPhone for LE connection parameters 45-60 ms, latency 0, supervision 6000 ms (attempt 1 of 3, by helper), once the link is encrypted` | demande lancée |
+| `bluetooth: LE connection parameters now in force: interval 60 ms, latency 0, supervision 6000 ms (handle 3585)` | accordé |
+| `[WARN] bluetooth: LE connection parameters not obtained (refused, HCI status 42…); a collision with the iPhone's own procedure, asking again in 2s` | collision (42 = 0x2A, 35 = 0x23) |
+| `[WARN] … not obtained (not_ready: the LE link was not encrypted in time…)` | lien jamais chiffré en 5 s |
+| `bluetooth: the LE connection parameters changed: interval 45 ms, latency 0, supervision 720 ms (handle N); shorter than asked for, asked again within a minute` | renégociation de l'iPhone |
+| `bluetooth: the LE link whose parameters were watched ended (handle N, HCI reason 8)` | fin du lien (8 = délai de supervision) |
+| `ancs: the iPhone did not answer the liveness probe within 5000ms; the notification session is subscribed again` | sonde ANCS sans réponse (15.7) |
+| `ancs: no notification from the iPhone for 6h; …` | réabonnement après 6 h de silence (15.7) |
+| `[WARN] bluetooth: 4 LE links that had served were lost within 60s; the advertisement goes at its slow interval…` | liens servis en boucle (15.8) |
+
+### 15.7 Autres reprises de Pebble : la sonde de vie ANCS (`ancs/liveness.hpp`)
+
+Une fois la session de notifications active, toutes les **15 min** (`LANDLINE_ANCS_PROBE_SECONDS`) le moteur
+écrit au point de contrôle un *GetNotificationAttributes* pour l'UID **0xFFFFFFFF**, hors du séquenceur et
+seulement quand aucune requête n'est en cours. iOS répond l'erreur ANCS 0xA2 (BlueZ : `Operation failed
+with ATT error: 0xa2`) : c'est la preuve de vie. **Sans réponse en 5 s**, la session est reconstruite par le
+chemin existant (`rebuild()` : oubli de ce côté, puis `StartNotify` sous les règles de
+`subscription_guard.hpp`) — **jamais** de `StopNotify` suivi de `StartNotify` (§10). Une réponse ni oui ni
+non (lien en train de tomber) : nouvel essai dans une minute. **Six heures** sans aucun paquet sur la
+*Notification Source* (`LANDLINE_ANCS_QUIET_SECONDS`) : même reconstruction. Une notification reçue vaut
+preuve de vie et repousse la sonde. `LANDLINE_ANCS_LIVENESS=0` éteint les deux.
+
+Limite : la reconstruction de BlueZ ne réécrit pas le CCCD de l'iPhone pour un abonné qu'il tient encore
+(Pebble, lui, réécrit les deux CCCD) ; si la sonde se tait alors que BlueZ se croit abonné, la vraie
+réécriture ne vient qu'avec le lien suivant. Non observé ; à surveiller dans le journal.
+
+### 15.8 Liens servis qui tombent en boucle (`le_strikes.hpp`)
+
+*Depuis #29 (14.7), c'est le seul cas où l'annonce passe à 1022,5 ms par défaut.*
+
+La règle des fautes (§14.2) ne compte que les liens morts **avant** service. Pebble ralentit aussi
+l'annonce quand des liens **servis** tombent en boucle (`gap_le_slave_reconnect.c`, plus de 3 démarrages
+en 60 s). Repris : au-delà de **3 pertes de liens servis en 60 s**, l'annonce passe à 1022,5 ms **sans phase
+rapide**, jusqu'à une minute sans nouvelle perte. Les liens morts avant service, eux, ne retirent plus
+l'annonce depuis #29 (14.7).
+
+## 16. obexd au démarrage de session
+
+### 16.1 Ce qui s'est passé (17 novembre, 22:50–22:53)
+
+`obex.service` (obexd 5.87, `Type=dbus`, activé par D-Bus) démarre à 22:50:56 et s'arrête en erreur à
+22:51:56 : « obex_server_init failed ». Lu dans les sources de BlueZ 5.87 (`obexd/src/logind.c`,
+`obexd/plugins/bluetooth.c`) : le greffon Bluetooth n'enregistre son transport qu'une fois la session
+dite « active » par logind ; démarré avant, `obex_server_init` trouve une liste de transports vide et
+quitte avec le code 1. Pendant ces 60 s, obexd possédait déjà le nom `org.bluez.obex` sans répondre.
+
+Côté moteur : `CreateSession` attendait `CONNECT_TIMEOUT_MS` (30 s), journal « map session failed
+(other): Timeout was reached » ; la boucle est restée bloquée 30 s (retardant entre autres la
+confirmation des paramètres LE), puis MAP et PBAP sont restés en `other`, obexd mort, sans que le
+moteur sache le faire revenir.
+
+### 16.2 Ce que fait le moteur
+
+À chaque tour où un profil doit être ouvert, **un seul** regard sur obexd avant tout `CreateSession`
+(`ProfileSupervisor::daemon_ready()`) : `org.freedesktop.DBus.Peer.Ping` sur `org.bluez.obex`,
+`G_DBUS_CALL_FLAGS_NO_AUTO_START`, délai `OBEX_PING_TIMEOUT_MS` = 2 s. Le ping est servi par la
+bibliothèque D-Bus d'obexd dès que sa boucle tourne : un obexd sain répond en millisecondes.
+
+| Regard (`classify_obex_ping`) | Ce que fait le moteur | `CreateSession` |
+|---|---|---|
+| répond (`alive`) | rien | oui, comme avant |
+| nom sans propriétaire (`NameHasNoOwner`, « Destination does not exist ») | `StartUnit("obex.service", "replace")` au gestionnaire systemd de l'utilisateur | non : motif `daemon_down` |
+| nom possédé, ping sans réponse (`Timeout was reached`, `NoReply`) | `RestartUnit("obex.service", "replace")` ; les sessions qu'obexd tenait sont oubliées (rien n'est retiré à travers lui) | non : motif `daemon_down` |
+| autre (bus fermé, accès refusé…) | rien | oui : son erreur dit ce qui se passe (`bus_closed`…) |
+
+- Démarrage et redémarrage passent par le **même** compteur : **une fois par 60 s au plus**
+  (`OBEX_DAEMON_RECOVERY_SECONDS`). Entre-temps, un obexd absent ou muet donne `daemon_down` sans
+  rien redemander.
+- systemd répond tout de suite par le chemin du travail mis en file (délai 2 s) : le moteur n'attend
+  jamais obexd lui-même.
+- **systemd injoignable ou unité inconnue** (pas de systemd utilisateur, obexd non installé) : le moteur
+  retombe sur l'ancien chemin, `CreateSession` avec activation D-Bus ; un obexd absent reste nommé
+  `no_daemon` (« not activatable »).
+- Un `CreateSession` qui **expire quand même** (obexd figé entre le ping et l'appel) est classé
+  `daemon_down` (`classify_obex_error` sur « Timeout was reached »), et non plus `other`. L'autre profil
+  n'est pas tenté dans le même tour (il attendrait le même délai), obexd est regardé à nouveau, et
+  relancé seulement si ce regard le confirme absent ou muet : un obexd qui répond encore au ping
+  attendait probablement l'iPhone, et le relancer couperait la session de l'autre profil pour rien.
+  Écart volontaire avec la demande initiale (« relancer sur tout délai expiré »).
+- `CONNECT_TIMEOUT_MS` reste à **30 s** pour `CreateSession` : une vraie connexion OBEX à l'iPhone
+  (page, SDP, L2CAP, OBEX Connect) prend plusieurs secondes, et aucune mesure ne montre qu'on peut
+  descendre sans risque. Le ping préalable suffit à éviter le blocage de 30 s dans le cas du
+  17 novembre, **si** obexd ne répondait pas non plus au ping pendant sa minute (probable : un
+  `CreateSession` sans réponse veut dire que sa boucle ne tournait pas ; non vérifié).
+
+`daemon_down` est **transitoire** : réessai 3 s plus tard (`OBEX_DAEMON_RETRY_SECONDS`) quand l'iPhone est là, au recul sans lien sinon ; « Timeout was reached », « NoReply » et « Remote peer disconnected » sont classés ainsi,
+conseil « {Messages, Contacts} is waiting for this computer's OBEX service, which is starting again.
+Nothing needs changing on the iPhone. », jamais de ré-appairage. Publié `unavailable` dans `messages`
+/ `contacts`. L'extension ne le compte pas comme la panne « Fix It » (`extension/lib/model/obex.js`) :
+relancer le moteur n'y changerait rien, et « Restarting did not bring messages and contacts back »
+renvoie vers l'oubli de l'iPhone.
+
+### 16.3 Le complément systemd
+
+`system/obex-landline.conf`, posé par `scripts/install-local.sh` dans
+`~/.config/systemd/user/obex.service.d/landline.conf` (retiré par `uninstall-local.sh`, dossier compris
+s'il est vide) : `Restart=on-failure`, `RestartSec=10`, `StartLimitIntervalSec=300`,
+`StartLimitBurst=10`, `TimeoutStopSec=5` (obexd figé ignore l'arrêt : 53 s le 18 novembre). obexd mort au démarrage de session revient seul dix secondes plus tard, sans
+attendre le moteur. Les deux se complètent : le complément relance un obexd sorti en erreur, le
+moteur démarre un obexd jamais lancé (ou arrêté proprement) et relance un obexd figé.
+
+### 16.4 Ce qu'on lit dans le journal
+
+- `bluetooth: obexd is not on the session bus; asked systemd to start obex.service`
+- `bluetooth: obexd holds its name but does not answer; asked systemd to restart obex.service`
+- `bluetooth: map session failed (daemon_down): Timeout was reached`
+- `bluetooth: obexd ... systemd could not start|restart obex.service: …` : retour à l'activation D-Bus.
+
+### 16.5 Ce qui reste à vérifier en réel
+
+- Qu'obexd, pendant sa minute d'attente de logind, **ne répond pas** au ping (sinon le premier
+  `CreateSession` attend encore 30 s, puis le motif est bien `daemon_down`, mais sans relance).
+- Que `RestartUnit` sur un obexd figé au démarrage de session ne fait que recommencer l'attente tant
+  que la session n'est pas active (sans dommage : une fois par 60 s), puis réussit.
+- Que le complément relance obexd après « obex_server_init failed » (vérifiable au prochain démarrage
+  de session : `journalctl --user -u obex.service`).
+
+Tests : `ObexDaemon.*` dans `test/test_bluetooth_supervisor.cpp` (nom absent, sans systemd, obexd muet
+et limite de 60 s, délai expiré avec obexd vivant puis muet, obexd sain inchangé, textes réels du bus).
+
+**Essai réel du 18 novembre (01:13 puis 01:17).** obex.service arrêté exprès. À 01:13, la relève horaire a bien demandé obexd à systemd, mais l'ouverture du lien classique a été déclarée refusée une seconde plus tard : `daemon_down` comptait comme un refus de l'iPhone. Corrigé : `daemon_down` n'est plus un refus (`demand_refused`), et obexd est revu 3 s plus tard (`OBEX_DAEMON_RETRY_SECONDS`), dans la fenêtre d'ouverture de 20 s. À 01:17, même essai : obexd demandé à 01:17:36, contacts, appels récents et boîte de messages lus à 01:17:45. « Remote peer disconnected » (obexd arrêté pendant un appel) est aussi classé `daemon_down`.

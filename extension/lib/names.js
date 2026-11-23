@@ -12,7 +12,11 @@ export const ENGINE_UNIT = 'landline-engine.service';
 export const SOCKET_PATH = ['landline', 'landlined.sock'];
 
 // The system setup helper. Only the copy owned by root is ever run through
-// pkexec; the one of a local install, below the home directory, is only asked
-// for its status.
+// pkexec; the ones below the home directory are only asked for their status:
+// first the one of an engine installed from Phone Settings, then the one
+// scripts/install-local.sh leaves.
 export const ROOT_HELPER = '/usr/local/libexec/landline/landline-setup';
-export const LOCAL_HELPER = ['.local', 'lib', 'landline', 'landline-setup'];
+export const LOCAL_HELPERS = [
+    ['.local', 'lib', 'landline', 'engine', 'system', 'landline-setup'],
+    ['.local', 'lib', 'landline', 'landline-setup'],
+];

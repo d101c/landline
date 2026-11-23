@@ -54,7 +54,9 @@ export const withTour = Base => class extends Base {
         // not hold: the walk starts at the repair, whatever the links are
         // doing this very second. This click is the user taking it in hand.
         const unsteady = this.steady && this._unsteady !== null;
-        const first = this._system && this._needsPermission()
+        // The wished settings ride along with the needed ones, or are
+        // offered on their own once per session.
+        const first = this._system && (this._needsPermission() || this._wishPending())
             ? 'permission' : this._tourFirstLinkStep(false, unsteady);
         if (first === 'done')
             return;
@@ -154,7 +156,7 @@ export const withTour = Base => class extends Base {
     // gets a chance to come back by itself.
     _tourFirstLinkStep(afterPermission, unsteady = false) {
         const broken = this._brokenPairing() || unsteady;
-        if (this._linkedEither() && !broken)
+        if (this._linked() && !broken)
             return this._allOn() ? 'done' : 'switches';
         if (!this._knownPairing())
             return 'find';
@@ -479,10 +481,12 @@ export const withTour = Base => class extends Base {
 
     _switches() {
         const conn = this._conn ?? {};
+        // With the classic link on demand, a switch found on at the last
+        // opening still counts while the link is closed.
         return {
             notifications: conn.ancs_ready === true,
-            messages: conn.map_open === true,
-            contacts: conn.pbap_open === true,
+            messages: this._messagesUsable(),
+            contacts: this._contactsUsable(),
         };
     }
 
@@ -521,14 +525,34 @@ export const withTour = Base => class extends Base {
         // No helper of root to run: the commands are shown instead.
         if (state === 'unavailable')
             state = 'idle';
+        // Nothing needed was asked: a wish turned down, or that could not
+        // be made, is let go and the tour goes on.
+        if (['refused', 'failed', 'partial'].includes(state) && !this._needsPermission())
+            state = 'skipped';
+        if (['done', 'skipped'].includes(state) && this._systemWishes().length > 0)
+            this._wishesDeclined = true;
         tour.permission = state;
-        if (state === 'done') {
+        if (state === 'done' || state === 'skipped') {
             const next = this._tourFirstLinkStep(true, tour.unsteady === true);
             tour.plan = ['permission', ...this._tourPlanFrom(next)];
             tour.open = true;
             this._tourEnter(next);
         }
         this._changed();
+    }
+
+    // "Keep the link steady" in Phone Settings: asked for, so offered again
+    // even if it was turned down earlier in the session.
+    startSteadyTour() {
+        this._wishesDeclined = false;
+        this.startTour();
+    }
+
+    // "Skip" on a permission step that only offers wished settings.
+    tourSkipPermission() {
+        if (this._tour?.step !== 'permission' || this._needsPermission())
+            return;
+        this.tourPermission('skipped');
     }
 
     tourNext() {

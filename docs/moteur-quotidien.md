@@ -76,6 +76,56 @@ visent l'objet BlueZ ou PipeWire de l'iPhone par son adresse.
   par appel.
 - **État et commandes sur le socket** : requête et événement `bt_audio`, résultats
   `bt_phone_audio_result` et `bt_call_audio_result`, capacité `bluetooth.audio`.
+- **Mode sobre (lien classique à la demande), #38 et #43** : jusqu'au 18 novembre, `phone_audio: "here"`
+  était un bail `audio` permanent ; le lien classique est resté monté plus d'une heure (17:01 à 18:26) sans
+  rien jouer, et quand le LE est tombé à 18:18 il n'est plus revenu (voir plus bas). Désormais
+  (`plan_audio_lease()`, `classic_demand.hpp`) :
+  - **demandé** (`bt_set_phone_audio here`, à l'allumage ou redemandé : `ask_phone_audio()`) : bail de
+    **120 s** (`PHONE_AUDIO_OFFER_SECONDS`), le temps que le lien s'ouvre (« classic link opening;
+    connecting for hands-free (leases: audio) », 2 s environ), que `PhoneAudioFollower` ouvre le flux A2DP
+    (5 s après, `PHONE_AUDIO_HERE_DELAY`) et que l'iPhone liste l'ordinateur et y joue ;
+  - **le son joue** (transport A2DP `pending` ou `active`, et non plus seulement présent : `audio_playing()`) :
+    bail renouvelé à chaque passe pour **60 s** (`PHONE_AUDIO_SILENCE_SECONDS`) ; aussi sur un lien que
+    l'iPhone a ouvert lui-même ;
+  - **silence** : le bail s'éteint 60 s après la dernière passe qui jouait, puis les 30 s de maintien, et le
+    lien se ferme. Le choix reste ; rien n'est rouvert pour lui seul, ni au retour de l'iPhone ;
+  - **éteint** : bail rendu tout de suite.
+  Un flux A2DP connecté mais muet ne compte plus comme du son (`phone_audio_streaming` des `DemandFacts`) :
+  il retenait lui aussi le lien.
+- **LE tombé sous un classique ouvert (#43)** : le 18 novembre à 18:18:03 le LE tombe (délai de
+  supervision), le classique reste, ANCS se réabonne par lui (« Notification mirroring is active »,
+  18:18:17), mais l'iPhone ne répond plus à l'annonce (`phone_silent` dès 18:21), comme le 16 novembre
+  (`moteur-reconnexion.md`, §10.3). Désormais, en mode sobre, LE absent depuis **30 s**
+  (`CLASSIC_LE_CYCLE_SECONDS`) et classique monté (ouvert ou en maintien, par le moteur ou par l'iPhone) :
+  le classique est fermé une fois, ses baux gardés (« no LE link for 30s while the classic link is up;
+  closing the classic link once so that the iPhone comes back over LE »). Rien n'est rouvert sans LE ; le LE
+  revenu, les baux restants rouvrent le lien. Jamais sous un appel, pendant que le son joue ici ou quand
+  NetworkManager se sert du lien ; pas deux fois en 10 min (`CLASSIC_LE_CYCLE_INTERVAL_SECONDS`).
+  Tests : `ClassicDemand.TheAudioLeaseFollowsTheAskAndTheSoundNotTheChoiceAlone`,
+  `TurnedOnTheLinkIsOfferedThenLetGoWhenNothingPlays` (le cas de 17:01), `WhileTheSoundPlays…`,
+  `SoundTheIPhoneSends…`, `TurnedOffTheAudioLeaseIsReturned`, `TheLeLinkGoneUnderAnOpenClassicLinkCyclesItOnce`
+  (le cas de 18:18), `TheLeCycleIsHeldUnderACallTheSoundOrTethering`, `TheLeCycleIsNotRepeatedWithinTenMinutes`,
+  `ALeaseHeldWhileTheIPhoneIsAwayOpensTheLinkWhenItComesBack` (`test/test_classic_demand.cpp`).
+  Le « rien ne se passe » du #38 venait de l'extension : `docs/extension.md`, « Le quotidien », **Son**.
+- **Ce qui peut tenir le lien classique en mode sobre** (état au 18 novembre, après #39 et #43). Principe :
+  le classique n'est ouvert que pour une raison précise et bornée ; elle finie, il se ferme après un court
+  maintien, et le LE reste seul. Aucun bail ne le tient « au cas où ».
+
+  | Bail ou raison | Pris quand | Fin | Au plus | Maintien après |
+  |---|---|---|---|---|
+  | `sync` (automatique) | retour du LE (au plus toutes les 10 min) | relève faite | 120 s | 10 s |
+  | `arrival` (automatique) | notification de Messages | relève faite | 120 s | 45 s |
+  | `hourly` (automatique) | une heure sans relève | relève faite | 120 s | 0 s |
+  | `send` | envoi d'un message | envoi fini (réussi ou non) | durée de l'envoi | 90 s |
+  | `reading` (client) | conversation ou « New Message… » ouverte dans le menu | carte fermée (l'extension rend le bail) ; sans renouvellement | 300 s | 20 s |
+  | `setup` (client) | parcours d'accueil ouvert | parcours fermé ; sans renouvellement | 300 s | 0 s |
+  | `call` | sonnerie, composition, appel en cours | appel fini, ou 20 s après une sonnerie sans suite | sonnerie 90 s, puis l'appel | 15 s |
+  | `audio` | son demandé ici (allumage, « Connect for Sound ») | 120 s sans son | 120 s | 30 s |
+  | `audio` | le son de l'iPhone joue ici | 60 s après la fin du son | durée du son + 60 s | 30 s |
+  | lien ouvert par l'iPhone | BR/EDR monté sans bail | 120 s sans appel, son ni opération | — | — |
+  | appel, son qui joue, partage de connexion (`busy`) | tant qu'ils durent | leur fin ; le partage fini, refermé 120 s après | leur durée | — |
+  | plafond des baux de données | baux `sync`/`arrival`/`hourly`/`reading`/`send` enchaînés | fermeture forcée (hors envoi, appel, son, partage) | 300 s | — |
+  | LE tombé, classique monté | — | fermé une fois après 30 s sans LE (#43) | 30 s | — |
 
 ### Lien entre le mains-libres de PipeWire et le rôle d'enceinte
 
@@ -312,3 +362,129 @@ Rien de ceci n'a tourné face à un appel : le moteur n'a pas été lancé, et l
 À regarder dans `~/.local/state/landline/landlined.log` au prochain appel : la ligne `telephony: call audio
 handed back to the iPhone (…)` ou `telephony: the call audio is still on this computer (…)`.
 
+
+## 7. Le son d'un appel passé depuis l'ordinateur (branche `moteur-son-appels`)
+
+### Constat (essai réel du 17 novembre 2026, 16 h 05 à 16 h 08, mode sobre)
+
+Trois appels passés par « Call… », aucun avec du son sur l'ordinateur. Reconstitution à partir de
+`landlined.log`, du journal de `bluetoothd`, de `obexd` et de WirePlumber (`journalctl`), et du code.
+
+| Heure | Ce qui s'est passé | Certitude |
+|---|---|---|
+| 16:05:31 | Premier appel. Le lien classique est ouvert pour lui. L'extension **n'a pas envoyé `audio`** (ou a envoyé `phone`) : aucune ligne `Activate`, et `the sound of calls stays on the iPhone` vient d'être écrit (`RejectSCO` vrai, réglage `call_audio` = `phone`). L'iPhone accepte la composition (33.505) : le son est sur l'iPhone, comme demandé. | établi |
+| 16:05:33 → 45 | L'appel **n'est jamais vu** par le moteur. Les sessions OBEX sont ouvertes une seconde après la composition, sur le même lien, et leurs lectures tiennent le fil de supervision : la liste des appels n'est pas relue entre 33.4 et 45.0. À 45.0 l'appel n'existe déjà plus. Le bail `call` est rendu à 45.013 : 10 s d'attente + 1,5 s, sans appel vu. | établi pour le fil retenu et le bail ; la fin de l'appel (raccroché à la main ?) n'est pas dans le journal |
+| 16:05:54 | Deuxième appel, cette fois avec `audio:"here"`. Le moteur écrit `RejectSCO` faux puis appelle `Activate` **avant** la composition : PipeWire envoie `AT+BCC`, l'iPhone, qui n'a pas d'appel, répond `ERROR` → `Activate failed … Method call failed`. Sans conséquence : le lien voix est de toute façon ouvert par l'iPhone. L'appel est vu (`dialing`, 55.108) et se termine une seconde plus tard. | établi pour `Activate` ; la fin de l'appel n'est pas expliquée par le journal |
+| 16:05:56 → 16:06:06 | La relève du journal d'appels, lancée à la fin de l'appel, n'obtient pas de réponse de l'iPhone en 10 s (`Timed out waiting for response`). | établi |
+| 16:06:46 | Troisième tentative, annulée par l'utilisateur au bout d'une seconde (`dial not placed: cancelled`). | établi |
+| 16:07:13 | Quatrième appel, sans `audio`. Le lien est rouvert ; la passerelle est vue pour la première fois **avec l'appel déjà dessus** (composition 0,6 s après l'ouverture), donc `RejectSCO` n'est pas écrit (« jamais pendant un appel ») et reste à la valeur d'origine de PipeWire : faux. L'iPhone ouvre le lien voix, PipeWire l'accepte : les nœuds `bluez_input.A0_B1_C2_D3_E4_F5.0` et `bluez_output.….1` existent et tournent (journal de WirePlumber à 16:07:47 : `running -> error`). **Le chemin du son était donc monté sur l'ordinateur**, sans que personne l'ait demandé. | établi |
+| 16:07:17 → 47 | À partir de 16:07:17 l'iPhone ne répond plus à rien sur le lien classique : `SetFolder` OBEX sans réponse (10 s), fermeture AVDTP sans réponse (`bluetoothd` : `Close: Connection timed out`, puis `Abort`), plus aucune nouvelle de l'appel. Le lien tombe à 16:07:47 avec `Reason.Unknown`, 30 s après : ce n'est **pas** une fermeture du moteur (aucune ligne `closed on purpose`). L'état `dialing` affiché pendant ces 30 s est celui de la dernière lecture : le fil de supervision était retenu par OBEX. | établi pour les faits ; la cause du gel est une hypothèse (voir plus bas) |
+
+Réponses aux six constats :
+
+- **(a) « stays on the iPhone » à chaque appel** : c'est le réglage `call_audio` (`phone` par défaut) remis
+  à chaque nouvelle passerelle. L'extension n'envoie `audio` que si `call_audio_switchable` est vrai, ce
+  qui est faux lien classique fermé ; et son choix par défaut est le réglage, donc `phone`. Un appel passé
+  lien fermé part donc toujours sans `audio`.
+- **(b) `Activate` échoue** : appelé avant que l'appel existe. L'iPhone refuse `AT+BCC` sans appel.
+- **(c) l'état reste `dialing`** : la liste des appels est lue sur le fil qui fait aussi les lectures OBEX,
+  et celles-ci l'ont retenu 30 s. À quoi s'ajoute, à 16:07, que le lien ne passait plus rien.
+- **(d) appel vu 22 s après** : non. Le premier appel n'a jamais été vu ; celui de 16:05:55 est le deuxième,
+  vu 0,6 s après sa propre composition.
+- **(e) bail rendu avant la fin** : rendu parce qu'aucun appel n'a été vu dans les 10 s, le fil étant retenu.
+- **(f) le lien tombe** : ni le moteur ni une commande de fermeture. Le lien a cessé de répondre au moment
+  où le lien voix s'établissait, sur une connexion vieille de trois secondes où s'ouvraient en même temps
+  deux sessions OBEX, l'AVRCP et un flux A2DP (que le moteur refermait).
+
+### Comment PipeWire 1.6.8 porte le son d'un appel (lu dans `spa/plugins/bluez5/backend-native.c`)
+
+Rôle mains-libres, iPhone en passerelle, négociation de codec (mSBC) :
+
+1. **Le lien voix (SCO) est ouvert par l'iPhone, jamais d'ici.** `sco_listen_event` n'accepte une
+   connexion entrante que pour un transport en rôle passerelle ; `sco_do_connect` n'est atteint que par
+   `sco_acquire_cb`, que seuls appellent des nœuds qui n'existent qu'une fois le lien voix déjà là.
+2. **`Activate`** (`hfp_hf_transport_activate`) envoie `AT+BCC` : « ouvre-moi le lien voix ». L'iPhone
+   répond `OK` puis `+BCS` et ouvre le SCO s'il a un appel ; sans appel il répond `ERROR`, que PipeWire rend
+   en `org.pipewire.Telephony.Error.Failed: Method call failed`.
+3. **Le transport n'existe pas à la connexion** : il est créé au premier `+BCS` de l'iPhone
+   (`rfcomm_new_transport`), et c'est à ce moment que le profil mains-libres est déclaré connecté
+   (`spa_bt_device_connect_profile`) et que la carte `bluez_card.<adresse>` gagne le profil
+   `audio-gateway`. Lien classique ouvert sans appel, la carte n'a que `off` (lu sur la machine).
+4. **`RejectSCO` vrai** : la connexion SCO entrante est refermée sans être acceptée
+   (`rejecting SCO, AudioGatewayTransport1.RejectSCO=true`). Il ne ferme rien d'ouvert. PipeWire crée
+   chaque passerelle avec `RejectSCO` faux.
+5. **SCO accepté** : transport `pending`. Les nœuds `bluez_input.<adresse>.0` (voix distante) et
+   `bluez_output.<adresse>.1` (micro vers l'iPhone) sont des nœuds « dynamiques »
+   (`bluez5-device.c`, `emit_dynamic_node`) : créés quand le transport passe `pending`, **seulement si la
+   carte est sur `audio-gateway`**. WirePlumber les relie à la sortie et au micro par défaut ; le nœud
+   prend le transport et celui-ci passe `active`.
+6. **Carte sur `off`** (bascule « rendre le son à l'iPhone » restée garée, ou profil pas encore choisi) :
+   le SCO est quand même accepté, le transport reste `pending`, aucun nœud : l'iPhone croit le son ici et
+   **personne ne le joue**. C'est le motif `voice_link_unused`.
+7. **États de l'appel** : l'iPhone envoie `+CIEV` (callsetup, call) ; PipeWire répond par `AT+CLCC` et
+   publie `dialing` → `alerting` → `active`. Rien d'autre ne les fait avancer : un lien qui ne passe plus
+   rien fige l'état.
+
+Donc, pour que le son d'un appel soit ici : `RejectSCO` faux **avant** que l'iPhone offre le lien voix
+(avant la composition, avant de décrocher), la carte pas sur `off`, et rien d'autre. `Activate` ne sert
+qu'à redemander le lien voix pendant un appel.
+
+### Ce qui a été fait
+
+- **Le son d'un appel passé d'ici va ici par défaut.** Quand `bt_call_dial` ne porte pas `audio`, le
+  moteur prend `here` : qui compose depuis l'ordinateur est devant. `LANDLINE_DIAL_AUDIO_DEFAULT=setting`
+  rend l'ancien comportement (le réglage `call_audio`), `=phone` force l'iPhone. Le journal dit ce qui a été
+  demandé : `dial asked, sound on this computer (client said: nothing)`.
+- **Le souhait dure le temps de l'appel** (`CallAudioPolicy::set_once`, `telephony.hpp`). Une passerelle
+  qui apparaît entre le choix et l'appel n'est plus remise sur le réglage ; une passerelle vue pour la
+  première fois avec un appel dessus est tout de même réglée (cas de 16:07, et de la sonnerie qui se
+  jouait ici sur un lien ouvert pour elle).
+- **`Activate` au bon moment** (`CallAudioFollowUp`, `call_audio_follow.hpp`). Plus jamais avant l'appel.
+  Si l'appel porte du son (`dialing`, `alerting`, `active`, `held`) et que le lien voix n'est pas là 3 s
+  après, le moteur vérifie la carte, rouvre `RejectSCO` et appelle `Activate` ; trois fois, à 3 s
+  d'intervalle. Puis il publie l'échec : `bt_call_progress` `audio_failed`, `reason` `no_voice_link` ou
+  `voice_link_unused`. L'arrivée du son est publiée aussi (`audio_here`).
+- **Un appel d'abord, OBEX ensuite.** Pendant une composition, une sonnerie ou un appel : aucune session
+  OBEX n'est ouverte (mode sobre), aucune lecture longue ne tourne (les deux modes), le flux A2DP n'est
+  pas refermé (il l'est à la fin). La liste des appels est lue quatre fois par seconde au lieu d'une. À la
+  fin de l'appel un bail `sync` relit le journal d'appels sur le lien encore ouvert. Un message envoyé
+  pendant l'appel passe quand même. Retour arrière : `LANDLINE_OBEX_DURING_CALLS=1`.
+- **Un appel accepté et jamais vu est dit** : `bt_call_progress` `no_call` après 20 s (10 s avant), puis le
+  bail est rendu. Le bail `call` tient de la demande de composition à la fin de l'appel ; rien dans la
+  machine des baux ne ferme le lien sous un appel listé, même bail rendu (testé).
+- **Journal** : `telephony: voice link pending (was idle; RejectSCO false)` à chaque mouvement du
+  transport, `the sound of the call is on this computer`, `the sound of the call did not come to this
+  computer (…)`.
+
+### Tests
+
+`test/test_call_audio_follow.cpp` (32 tests, plus un dans `test_classic_demand.cpp` ; 1 106 au total) : choix par défaut, souhait suivi (arrivée seule, demande
+après attente, abandon après trois demandes, son reparti non combattu), interrupteur avec choix d'un appel
+(les deux courses du 17 novembre), séquence complète à travers `TelephonyClient` (sortant ici, sortant
+iPhone, entrant décroché ici, lien voix non joué, souhait oublié), OBEX qui attend, bail tenu.
+
+### Non vérifiable sans appel réel
+
+1. **Pourquoi le lien a gelé à 16:07:17** (et probablement à 16:05:56). Hypothèse retenue : trop
+   d'échanges sur une connexion toute neuve au moment où le lien voix s'établit. Autre hypothèse : la
+   topologie du mode sobre — c'est l'ordinateur qui appelle l'iPhone en classique (il y est maître) alors
+   que l'iPhone est maître du lien LE ; le contrôleur (Intel 9560) sert alors deux horloges plus un lien
+   voix. Le 16 novembre (mode complet, lien ouvert par l'iPhone depuis longtemps) le son passait. Si le
+   gel revient avec OBEX à l'arrêt, c'est la seconde : relever `hcitool con` pendant l'appel (protocole
+   S1 de `essai-reconnexion.md` §9) et une trace `btmon`.
+2. Que l'iPhone offre bien le lien voix dès la composition (`dialing`), et pas seulement une fois l'appel
+   décroché ; sinon le son arrive après la première demande, 3 s plus tard.
+3. Que `AT+BCC` est accepté par l'iPhone pendant `dialing` / `alerting`.
+4. Que WirePlumber met la carte sur `audio-gateway` de lui-même quand le profil apparaît (vu une fois, à
+   16:07 ; pas vu avec une carte garée sur `off`).
+5. Les premiers appels de 16:05 : par qui et pourquoi ils ont pris fin.
+
+### Ce que l'extension doit changer
+
+- Envoyer `audio` avec `bt_call_dial` **même quand `call_audio_switchable` est faux** (lien fermé, appels
+  `on_demand`) : aujourd'hui le choix de la carte de composition n'est pas transmis dans ce cas.
+- Proposer « This computer » par défaut dans la carte de composition, quel que soit `call_audio`.
+- Lire `bt_call_progress` `audio_here`, `audio_failed` (+ `reason`) et `no_call` : aujourd'hui les étapes
+  inconnues sont ignorées, ce qui ne casse rien.
+- `calls.audio_wanted` (`here`, `phone`, `null`) dit ce qui a été demandé pour l'appel ; `audio_route`
+  reste la vérité.

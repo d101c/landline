@@ -394,6 +394,9 @@ namespace tether::bluetooth {
         // advert back after a refusal.
         std::atomic<int64_t> g_solicit_next_attempt_ms{0};
 
+        // Set by renew_ancs_solicitation(), cleared by the registration it causes.
+        std::atomic<bool> g_advert_renew_requested{false};
+
         // The interval an advert is actually registered with: none when switched
         // off by TETHER_ADVERT_INTERVALS=0 or refused by this BlueZ.
         AdvertInterval effective_interval(const AdvertInterval& wanted) {
@@ -541,6 +544,8 @@ namespace tether::bluetooth {
         stop_advert(monitor);
     }
 
+    void renew_ancs_solicitation() { g_advert_renew_requested = true; }
+
     void forget_ancs_solicitation(BluezMonitor& monitor) {
         g_advert_hold_until_ms = 0;
         g_solicit_next_attempt_ms = 0;
@@ -569,7 +574,8 @@ namespace tether::bluetooth {
         // BlueZ timeout: register it again now, a gap of two D-Bus calls,
         // rather than after BlueZ has released it, a gap of up to a tick and
         // of whatever the thread is busy with at that moment.
-        if (ancs_solicitation_active() && !advert_interval_differs(interval) && !advert_renewal_due_now())
+        if (ancs_solicitation_active() && !advert_interval_differs(interval) && !advert_renewal_due_now() &&
+            !g_advert_renew_requested.load())
             return;
 
         if (steady_ms() < g_solicit_next_attempt_ms.load())
@@ -578,6 +584,7 @@ namespace tether::bluetooth {
         std::string err;
         if (rearm_solicitation(monitor, err, interval)) {
             g_solicit_next_attempt_ms = 0;
+            g_advert_renew_requested = false;
             return;
         }
         g_solicit_next_attempt_ms = steady_ms() + SOLICIT_RETRY_SECONDS * 1000;

@@ -46,9 +46,45 @@ namespace tether::bluetooth {
         // Only its change matters. Each one ends any GATT session on the link.
         uint64_t le_drop_count(const std::string& device_path) const;
 
+        // Disconnected signals of the device's LE bearer alone: one per LE
+        // link that ended, including those that came and went between two
+        // looks at the snapshot. Only its change matters.
+        uint64_t le_link_drop_count(const std::string& device_path) const;
+
+        // The device's LE bearer was told Connected: how many times, and
+        // when last, in milliseconds on the steady clock (-1 for never).
+        // Dated when the signal is read, before the snapshot is.
+        struct LeLinkUp {
+            uint64_t count = 0;
+            int64_t at_ms = -1;
+        };
+        LeLinkUp le_link_up(const std::string& device_path) const;
+
+        // When the adapter last came back after BlueZ took it away (the
+        // kernel resetting the controller, for one), in milliseconds on the
+        // steady clock; -1 when it has not happened since start (#59).
+        int64_t adapter_back_at_ms() const;
+
+        // Called on the watcher thread each time an LE link comes up, once
+        // the snapshot shows it, and each time one ends. It must not block.
+        // An empty function removes it.
+        void set_link_listener(std::function<void()> listener);
+
         // Disconnected signals whose reason is org.bluez.Reason.Authentication,
         // for the device at `address`. Only its change matters.
         uint64_t auth_failure_count(const std::string& address) const;
+
+        // The last LE link that ended on a device BlueZ holds no pairing
+        // for, as its Disconnected signal described it. `count` is how many
+        // there have been; only its change matters.
+        struct LeStranger {
+            uint64_t count = 0;
+            std::string path;
+            // Empty when BlueZ had already removed the object.
+            std::string address_type;
+            std::string reason;
+        };
+        LeStranger le_stranger() const;
 
         // Whether bluetoothd owns org.bluez right now. While it does not the
         // snapshot is empty: nothing it described exists any more.

@@ -59,10 +59,17 @@ namespace tether::bluetooth {
         Capability cap;
         std::map<std::string, std::string> disconnect_reasons;
         std::map<std::string, uint64_t> le_drops;
+        std::map<std::string, uint64_t> le_link_drops;
+        // The LE bearer read Connected: how many times, and when last.
+        std::map<std::string, BluezMonitor::LeLinkUp> le_link_ups;
+        std::atomic<int64_t> adapter_back_ms{-1};
+        // Called on this thread when an LE link comes up or ends.
+        std::function<void()> link_listener;
         // One cut link can be signalled on its bearer and on Device1 both, so
         // the two are counted apart and the larger is what is reported.
         std::map<std::string, uint64_t> auth_failures_bearer;
         std::map<std::string, uint64_t> auth_failures_device;
+        BluezMonitor::LeStranger le_stranger;
         std::string preferred_adapter_id;
         std::string secure_adapter;
         std::optional<bool> secure_connections;
@@ -73,7 +80,9 @@ namespace tether::bluetooth {
         void bluez_appeared();
         void bluez_vanished();
         void schedule_refresh();
+        void refresh_now();
         void notify();
+        void link_changed();
         std::optional<bool> read_secure_connections(const std::string& adapter_id);
     };
 
@@ -88,10 +97,11 @@ namespace tether::bluetooth {
 
         constexpr const char* IFACE_ADAPTER = "org.bluez.Adapter1";
 
-        void log_adapter_change(const gchar* signal_name, GVariant* parameters) {
+        // True when the signal gives an adapter back.
+        bool log_adapter_change(const gchar* signal_name, GVariant* parameters) {
             const bool added = g_strcmp0(signal_name, "InterfacesAdded") == 0;
             if (!g_variant_is_of_type(parameters, G_VARIANT_TYPE(added ? "(oa{sa{sv}})" : "(oas)")))
-                return;
+                return false;
 
             const gchar* path = nullptr;
             GVariant* interfaces = nullptr;
@@ -113,18 +123,68 @@ namespace tether::bluetooth {
 
             if (adapter)
                 debug::log(INFO, "bluetooth: adapter {} {}", path, added ? "added" : "removed");
+            return adapter && added;
+        }
+
+        int64_t steady_now_ms() {
+            using namespace std::chrono;
+            return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+        }
+
+        // What a PropertiesChanged says of the LE bearer's Connected
+        // property; nothing when it is about anything else.
+        std::optional<bool> le_connected_change(GVariant* parameters) {
+            if (!parameters || !g_variant_is_of_type(parameters, G_VARIANT_TYPE("(sa{sv}as)")))
+                return std::nullopt;
+            const gchar* iface = nullptr;
+            GVariant* changed = nullptr;
+            g_variant_get(parameters, "(&s@a{sv}@as)", &iface, &changed, nullptr);
+            std::optional<bool> connected;
+            if (changed && g_strcmp0(iface, "org.bluez.Bearer.LE1") == 0) {
+                if (GVariant* value = g_variant_lookup_value(changed, "Connected", G_VARIANT_TYPE_BOOLEAN)) {
+                    connected = g_variant_get_boolean(value) != FALSE;
+                    g_variant_unref(value);
+                }
+            }
+            if (changed)
+                g_variant_unref(changed);
+            return connected;
         }
 
         void on_bluez_signal(GDBusConnection*,
                              const gchar*,
-                             const gchar*,
+                             const gchar* object_path,
                              const gchar*,
                              const gchar* signal_name,
                              GVariant* parameters,
                              gpointer user_data) {
-            if (g_strcmp0(signal_name, "PropertiesChanged") != 0)
-                log_adapter_change(signal_name, parameters);
-            static_cast<MonitorState*>(user_data)->schedule_refresh();
+            auto* impl = static_cast<MonitorState*>(user_data);
+            if (g_strcmp0(signal_name, "PropertiesChanged") != 0) {
+                if (log_adapter_change(signal_name, parameters))
+                    impl->adapter_back_ms = steady_now_ms();
+                impl->schedule_refresh();
+                return;
+            }
+            // A link that comes up is acted on now, not a debounce and a
+            // supervision pass later: until the notification service has
+            // answered on it, a link that dies is one the iPhone counts
+            // against this computer (le_strikes.hpp).
+            const std::optional<bool> le_connected = le_connected_change(parameters);
+            if (!le_connected) {
+                impl->schedule_refresh();
+                return;
+            }
+            if (*le_connected && object_path) {
+                {
+                    std::lock_guard<std::mutex> lock(impl->mutex);
+                    auto& up = impl->le_link_ups[object_path];
+                    ++up.count;
+                    up.at_ms = steady_now_ms();
+                }
+                debug::log(INFO, "bluetooth: org.bluez.Bearer.LE1 connected to {}", object_path);
+            }
+            impl->refresh_now();
+            impl->link_changed();
         }
 
         void on_disconnected(GDBusConnection*,
@@ -147,6 +207,21 @@ namespace tether::bluetooth {
                 if (g_strcmp0(interface_name, "org.bluez.Bearer.LE1") == 0 ||
                     g_strcmp0(interface_name, "org.bluez.Device1") == 0)
                     ++impl->le_drops[object_path];
+                // An LE link on a device there is no pairing with. Counted on
+                // the bearer's signal alone: Device1 repeats it.
+                if (g_strcmp0(interface_name, "org.bluez.Bearer.LE1") == 0) {
+                    ++impl->le_link_drops[object_path];
+                    const Device* known = nullptr;
+                    for (const auto& device : impl->objects.devices)
+                        if (device.path == object_path)
+                            known = &device;
+                    if (!known || !known->paired) {
+                        ++impl->le_stranger.count;
+                        impl->le_stranger.path = object_path;
+                        impl->le_stranger.address_type = known ? known->address_type : std::string();
+                        impl->le_stranger.reason = reason;
+                    }
+                }
                 if (g_strcmp0(reason, REASON_AUTHENTICATION) == 0) {
                     if (g_strcmp0(interface_name, "org.bluez.Device1") == 0)
                         ++impl->auth_failures_device[object_path];
@@ -160,7 +235,15 @@ namespace tether::bluetooth {
                        object_path,
                        reason,
                        message ? message : "");
-            impl->schedule_refresh();
+            // The end of an LE link is acted on at once (the advert may have
+            // to come off air): the snapshot is read now, so that the pass
+            // this starts does not see the link as still up.
+            if (g_strcmp0(interface_name, "org.bluez.Bearer.LE1") == 0) {
+                impl->refresh_now();
+                impl->link_changed();
+            } else {
+                impl->schedule_refresh();
+            }
         }
 
         void on_bluez_appeared(GDBusConnection*, const gchar*, const gchar*, gpointer user_data) {
@@ -222,6 +305,26 @@ namespace tether::bluetooth {
         // this one covers a daemon that had them exported already.
         schedule_refresh();
         notify();
+    }
+
+    // Without the debounce: for the few changes that are acted on at once.
+    void MonitorState::refresh_now() {
+        if (pending_refresh != 0) {
+            if (GSource* source = g_main_context_find_source_by_id(context, pending_refresh))
+                g_source_destroy(source);
+            pending_refresh = 0;
+        }
+        refresh();
+    }
+
+    void MonitorState::link_changed() {
+        std::function<void()> listener;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            listener = link_listener;
+        }
+        if (listener)
+            listener();
     }
 
     void MonitorState::schedule_refresh() {
@@ -696,6 +799,30 @@ namespace tether::bluetooth {
         std::lock_guard<std::mutex> lock(impl_->mutex);
         auto it = impl_->le_drops.find(device_path);
         return it == impl_->le_drops.end() ? 0 : it->second;
+    }
+
+    uint64_t BluezMonitor::le_link_drop_count(const std::string& device_path) const {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        auto it = impl_->le_link_drops.find(device_path);
+        return it == impl_->le_link_drops.end() ? 0 : it->second;
+    }
+
+    BluezMonitor::LeLinkUp BluezMonitor::le_link_up(const std::string& device_path) const {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        auto it = impl_->le_link_ups.find(device_path);
+        return it == impl_->le_link_ups.end() ? LeLinkUp{} : it->second;
+    }
+
+    int64_t BluezMonitor::adapter_back_at_ms() const { return impl_->adapter_back_ms.load(); }
+
+    void BluezMonitor::set_link_listener(std::function<void()> listener) {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        impl_->link_listener = std::move(listener);
+    }
+
+    BluezMonitor::LeStranger BluezMonitor::le_stranger() const {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        return impl_->le_stranger;
     }
 
     uint64_t BluezMonitor::auth_failure_count(const std::string& address) const {

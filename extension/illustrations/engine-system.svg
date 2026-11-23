@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 240 160" font-family="sans-serif">
+  <!-- Bluetooth settings: one administrator password. Drawn for Landline (Phone Settings › Engine); no artwork of anyone else. -->
+  <rect x="0" y="0" width="240" height="160" rx="18" fill="#1d1d20"/>
+  <path d="M96 70 v-16 a24 24 0 0 1 48 0 v16" fill="none" stroke="#77777c" stroke-width="7" stroke-linecap="round"/>
+  <rect x="82" y="68" width="76" height="62" rx="10" fill="#f2b45c"/>
+  <path d="M112 82 l16 13 l-8 7 v-26 l8 7 l-16 13" fill="none" stroke="#1d1d20" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#ffffff"><circle cx="104" cy="118" r="3"/><circle cx="114" cy="118" r="3"/><circle cx="124" cy="118" r="3"/><circle cx="134" cy="118" r="3"/></g>
+</svg>

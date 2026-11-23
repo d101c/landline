@@ -29,7 +29,6 @@ const DIRECT_REPLIES = {
     bt_list_calls: 'bt_calls',
     bt_list_call_history: 'bt_call_history',
     bt_diagnostics: 'bt_diagnostics',
-    bt_call_dial: 'bt_call_result',
     bt_call_action: 'bt_call_result',
     bt_call_tones: 'bt_call_result',
 };
@@ -40,6 +39,11 @@ const OPTIONAL_REPLIES = {
     bt_audio: 'bt_audio',
     bt_presence: 'bt_presence',
 };
+
+// Commands whose answer is not waited for. Placing a call ends with a
+// bt_call_result that may be half a minute away, and "cancel" must be able to
+// leave meanwhile: the result is taken when it comes, like any event.
+const UNACKNOWLEDGED = new Set(['bt_call_dial']);
 
 // Call commands block the engine for up to 10 s.
 const ACK_TIMEOUT_MS = 12000;
@@ -288,6 +292,8 @@ export class EngineClient {
                 if (cancellable.is_cancelled())
                     return;
                 this._writing = false;
+                if (UNACKNOWLEDGED.has(name))
+                    this._waiting = null;
                 // The reply may have been read before this callback ran.
                 if (!this._waiting) {
                     this._pump();

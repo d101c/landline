@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 240 160" font-family="sans-serif">
+  <!-- Start: the engine runs with the session. Drawn for Landline (Phone Settings › Engine); no artwork of anyone else. -->
+  <rect x="0" y="0" width="240" height="160" rx="18" fill="#1d1d20"/>
+  <rect x="72" y="40" width="96" height="62" rx="6" fill="#2c2c2e" stroke="#77777c" stroke-width="2"/>
+  <rect x="78" y="46" width="84" height="50" rx="2" fill="#141416"/>
+  <path d="M62 102 h116 l-6 7 h-104 z" fill="#3a3a3c" stroke="#77777c" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M84 72 h18 l6 -12 l8 24 l7 -16 l5 4 h28" fill="none" stroke="#6fd58e" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="120" cy="134" r="6" fill="#6fd58e"/>
+  <circle cx="120" cy="134" r="11" fill="none" stroke="#6fd58e" stroke-width="1.5" opacity="0.5"/>
+</svg>

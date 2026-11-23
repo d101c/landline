@@ -146,6 +146,20 @@ namespace tether::bluetooth {
         return ContactsPlan::PullLater;
     }
 
+    // The same decision on a link opened on demand, where a session opens
+    // many times a day and is not kept for a read put off till later: the
+    // entry count alone is asked, and the book is read again when it moved
+    // or once a day.
+    inline constexpr int CONTACTS_DAILY_SECONDS = 86400;
+
+    inline ContactsPlan plan_contacts_on_demand(bool have_book, int64_t pulled_age, int size_then, int size_now) {
+        if (!have_book || pulled_age < 0)
+            return ContactsPlan::PullNow;
+        if (size_then >= 0 && size_now >= 0 && size_then != size_now)
+            return ContactsPlan::PullNow;
+        return pulled_age >= CONTACTS_DAILY_SECONDS ? ContactsPlan::PullNow : ContactsPlan::Keep;
+    }
+
     // TETHER_CONTACTS_ALWAYS_PULL=1 reads the address book on every new session.
     inline bool contacts_always_pulled(const char* env_override) {
         return env_override && std::string_view(env_override) == "1";

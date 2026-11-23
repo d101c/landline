@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdlib>
 #include <mutex>
+#include <string_view>
 
 // PipeWire's hands-free implementation, on the session bus. It owns the same
 // profile BlueZ's does and carries the call audio as well, so a phone that
@@ -109,12 +111,26 @@ namespace tether::bluetooth {
                     if (GVariant* nested = managed_objects_locked(snap.gateway.path.c_str())) {
                         snap.calls = parse_pipewire_calls(nested, snap.gateway.path);
                         g_variant_unref(nested);
+                    } else if (gateway_strict()) {
+                        // The gateway object is announced and does not answer
+                        // yet: there, but not ready to take a Dial.
+                        snap.gateway.state = "connecting";
                     }
                 }
                 return snap;
             }
 
         private:
+            // LANDLINE_GATEWAY_STRICT=0: a gateway is ready as soon as its
+            // object exists, as it used to be.
+            static bool gateway_strict() {
+                static const bool strict = [] {
+                    const char* value = std::getenv("LANDLINE_GATEWAY_STRICT");
+                    return !value || std::string_view(value) != "0";
+                }();
+                return strict;
+            }
+
             GDBusConnection* ensure_locked() const {
                 if (conn_)
                     return conn_;

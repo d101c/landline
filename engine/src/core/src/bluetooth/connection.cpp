@@ -1,11 +1,24 @@
 #include "tether/bluetooth/connection.hpp"
 #include "tether/bluetooth/ancs/client.hpp"
 #include "tether/bluetooth/bmessage.hpp"
+#include "tether/bluetooth/classic_demand.hpp"
 #include "tether/bluetooth/config.hpp"
 #include "tether/bluetooth/contacts.hpp"
+#include "tether/bluetooth/dial_plan.hpp"
 #include "tether/bluetooth/groups.hpp"
+#include "tether/bluetooth/incoming_call.hpp"
 #include "tether/bluetooth/journal.hpp"
+#include "tether/bluetooth/le_after_sleep.hpp"
+#include "tether/bluetooth/le_conn_update.hpp"
+#include "tether/bluetooth/le_after_reset.hpp"
+#include "tether/bluetooth/le_first_use.hpp"
+#include "tether/bluetooth/le_ghost.hpp"
+#include "tether/bluetooth/le_health.hpp"
+#include "tether/bluetooth/le_recovery.hpp"
+#include "tether/bluetooth/le_strikes.hpp"
+#include "tether/bluetooth/link_mode.hpp"
 #include "tether/bluetooth/map_session.hpp"
+#include "tether/bluetooth/message_sync_policy.hpp"
 #include "tether/bluetooth/monitor.hpp"
 #include "tether/bluetooth/pairing.hpp"
 #include "tether/bluetooth/pbap_session.hpp"
@@ -18,16 +31,21 @@
 #include "tether/bluetooth/supervision_tick.hpp"
 #include "tether/log.hpp"
 #include "tether/net.hpp"
+#include "tether/paths.hpp"
 #include "tether/secret_store.hpp"
 #include "tether/session_lock.hpp"
+#include "tether/sleep_watch.hpp"
 #include <tether/i18n.hpp>
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <fstream>
 #include <condition_variable>
 #include <cstdlib>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <gio/gio.h>
 #include <mutex>
@@ -91,7 +109,27 @@ namespace tether::bluetooth {
     MessageStore& message_store() { return g_messages; }
     std::mutex& message_store_mutex() { return g_messages_mutex; }
 
-    bool send_message(const std::string& thread_key, const std::string& body, Message& sent_out, std::string& err_out) {
+    namespace {
+        // Returns the Send lease when the caller is done, however it leaves.
+        struct SendLease {
+            bool held = false;
+            ~SendLease() {
+                if (held && g_bt_connections)
+                    g_bt_connections->release_lease(Lease::Send);
+            }
+        };
+
+        std::shared_ptr<MapSession> current_map_session() {
+            std::lock_guard<std::mutex> lock(g_map_mutex);
+            return g_map_session;
+        }
+    } // namespace
+
+    bool send_message(const std::string& thread_key,
+                      const std::string& body,
+                      Message& sent_out,
+                      std::string& err_out,
+                      const SendProgressFn& progress) {
         if (body.empty()) {
             err_out = _("Nothing to send.");
             return false;
@@ -123,15 +161,27 @@ namespace tether::bluetooth {
             recipients.push_back(recipient);
         }
 
-        std::shared_ptr<MapSession> session;
-        {
-            std::lock_guard<std::mutex> lock(g_map_mutex);
-            session = g_map_session;
+        std::shared_ptr<MapSession> session = current_map_session();
+        // The lean link mode: the classic link is closed at rest. The Send
+        // lease opens it, or keeps it if it is there, and the session is
+        // waited for.
+        SendLease lease;
+        if (g_bt_connections && g_bt_connections->on_demand()) {
+            lease.held = g_bt_connections->take_lease(Lease::Send);
+            if (!session) {
+                if (progress)
+                    progress("connecting");
+                session = g_bt_connections->await_messages(SEND_LINK_TIMEOUT_SECONDS, err_out);
+                if (!session)
+                    return false;
+            }
         }
         if (!session) {
             err_out = _("Messages are not connected.");
             return false;
         }
+        if (progress)
+            progress("sending");
 
         const std::string bmessage = build_bmessage(recipients, body);
         if (bmessage.empty()) {
@@ -141,6 +191,9 @@ namespace tether::bluetooth {
 
         if (!session->push_message(MAP_OUTBOX, bmessage, err_out))
             return false;
+        // The phone's own copy lands in its sent folder a moment later.
+        if (g_bt_connections)
+            g_bt_connections->request_message_sync("sent");
 
         Message sent;
         sent.thread_key = thread_key;
@@ -198,6 +251,7 @@ namespace tether::bluetooth {
         std::lock_guard<std::mutex> lock(g_messages_mutex);
         g_journal.close();
         migrate_contacts(previous, next);
+        migrate_call_history(previous, next);
         if (!migrate_removed_threads(previous, next) && removed_threads().size() > 0)
             save_removed_threads(removed_threads());
     }
@@ -307,6 +361,43 @@ namespace tether::bluetooth {
         constexpr const char* UUID_HFP_AG = "0000111f-0000-1000-8000-00805f9b34fb";
         constexpr int PROFILE_REQUEST_TIMEOUT_MS = 15000;
 
+        // Turns the adapter off and, a second later, on again (three tries), off the
+        // caller's thread (#59). BlueZ lets the session's user do it.
+        void restart_adapter(GDBusConnection* conn, const std::string& path) {
+            if (!conn || path.empty())
+                return;
+            g_object_ref(conn);
+            std::thread([conn, path] {
+                auto set_powered = [&](bool on) -> bool {
+                    GError* error = nullptr;
+                    GVariant* reply = g_dbus_connection_call_sync(
+                        conn, BLUEZ_NAME, path.c_str(), IFACE_PROPS, "Set",
+                        g_variant_new("(ssv)", "org.bluez.Adapter1", "Powered", g_variant_new_boolean(on)), nullptr,
+                        G_DBUS_CALL_FLAGS_NONE, 10000, nullptr, &error);
+                    if (reply)
+                        g_variant_unref(reply);
+                    else
+                        debug::log(WARN, "bluetooth: could not turn {} {}: {}", path, on ? "on" : "off",
+                                   error ? error->message : "unknown error");
+                    g_clear_error(&error);
+                    return reply != nullptr;
+                };
+                if (set_powered(false)) {
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                    // Never left off: tried again, and said loudly if it stays so.
+                    bool on = false;
+                    for (int attempt = 0; attempt < 3 && !on; ++attempt) {
+                        if (attempt > 0)
+                            std::this_thread::sleep_for(std::chrono::seconds(2));
+                        on = set_powered(true);
+                    }
+                    if (!on)
+                        debug::log(ERR, "bluetooth: {} was turned off and could not be turned on again", path);
+                }
+                g_object_unref(conn);
+            }).detach();
+        }
+
         constexpr const char* OBEX_NAME = "org.bluez.obex";
         constexpr const char* OBEX_ROOT = "/org/bluez/obex";
         constexpr const char* OBEX_CLIENT = "org.bluez.obex.Client1";
@@ -318,19 +409,11 @@ namespace tether::bluetooth {
         // this is generous on purpose.
         constexpr int LE_CONNECT_TIMEOUT_MS = 45000;
 
-        constexpr int MESSAGE_POLL_SECONDS = 15;
-        // TETHER_MESSAGE_POLL_SECONDS: how often the inbox is listed, 5 to
-        // 3600. Each listing is an exchange with the phone over BR/EDR, the
-        // one thing this engine asks of it without end while it is connected.
-        int message_poll_seconds() {
-            static const int seconds = [] {
-                const char* text = std::getenv("LANDLINE_MESSAGE_POLL_SECONDS");
-                if (!text || !*text)
-                    return MESSAGE_POLL_SECONDS;
-                char* end = nullptr;
-                const long value = std::strtol(text, &end, 10);
-                return end && !*end && value >= 5 && value <= 3600 ? static_cast<int>(value) : MESSAGE_POLL_SECONDS;
-            }();
+        // LANDLINE_MESSAGE_POLL_SECONDS: how often the inbox is listed with
+        // nothing asking for it, 5 to 3600. Unset, message_sync_policy.hpp
+        // decides: an hour behind working notifications, 15 s without them.
+        int message_poll_override() {
+            static const int seconds = message_poll_override_from(std::getenv("LANDLINE_MESSAGE_POLL_SECONDS"));
             return seconds;
         }
         // obexd can drop a MAP session while the Classic link stays up, and the
@@ -349,7 +432,14 @@ namespace tether::bluetooth {
         // which also has ANCS and the bearer supervisor. Needs cap to keep the
         // first listing of a full mailbox from stalling all of it
         constexpr size_t MESSAGE_BODY_FETCH_MAX = 20;
+        // What bt_retry_profiles holds the link for in the lean link mode.
+        constexpr int RETRY_LEASE_SECONDS = 30;
+        // How long after the start "this controller cannot carry LE" is not
+        // yet taken for an answer.
+        constexpr int LINK_MODE_SETTLE_SECONDS = 10;
         constexpr int SUPERVISOR_TICK_SECONDS = 1;
+        // The pause between two ticks while a call is in hand.
+        constexpr int CALL_TICK_MS = 250;
         // A step that took this long has held the supervising thread: the
         // links are looked at again before anything else is done.
         constexpr int LONG_STEP_MS = 250;
@@ -468,6 +558,73 @@ namespace tether::bluetooth {
                            request->via_bearer ? "Bearer.BREDR1.Connect" : "Device1.Connect");
                 monitor_.invoke_sync([this, request] { issue_classic(monitor_.connection(), request); });
                 return ConnectResult::Requested;
+            }
+
+            // The lean link mode: the LE link is up, so the per-bearer call
+            // exists, and it is the only one made. No Device1.Connect behind
+            // it, no PreferredBearer.
+            ConnectResult connect_classic_on_demand(std::string& err) override {
+                auto device = lookup();
+                if (!device) {
+                    err = "device not present";
+                    return ConnectResult::Failed;
+                }
+                if (!device->has_classic_bearer) {
+                    err = "no BR/EDR bearer";
+                    return ConnectResult::Failed;
+                }
+                const ConnectResult begun = classic_->begin(err);
+                if (begun != ConnectResult::Requested)
+                    return begun;
+                auto* request = new ClassicCall{classic_, le_, device->path, true};
+                request->bearer_only = true;
+                debug::log(INFO, "bluetooth: asking BlueZ for the BR/EDR link on demand (Bearer.BREDR1.Connect)");
+                monitor_.invoke_sync([this, request] { issue_classic(monitor_.connection(), request); });
+                return ConnectResult::Requested;
+            }
+
+            // An A2DP stream from the iPhone playing here, not merely
+            // connected: BlueZ's transport is pending (the iPhone started it)
+            // or active (PipeWire took it). A connected stream sits idle (#43).
+            bool audio_playing() const {
+                auto device = lookup();
+                if (!device)
+                    return false;
+                const auto snapshot = monitor_.snapshot();
+                const MediaTransport* transport = snapshot.find_sink_transport(device->path);
+                return transport && (transport->state == "pending" || transport->state == "active");
+            }
+
+            // Whether the phone's network profile is connected: NetworkManager
+            // is using the link for tethering, and it is not ours to close.
+            bool tethering_active() const {
+                auto device = lookup();
+                if (!device)
+                    return false;
+                GError* error = nullptr;
+                GVariant* reply = g_dbus_connection_call_sync(monitor_.connection(),
+                                                              BLUEZ_NAME,
+                                                              device->path.c_str(),
+                                                              IFACE_PROPS,
+                                                              "Get",
+                                                              g_variant_new("(ss)", "org.bluez.Network1", "Connected"),
+                                                              G_VARIANT_TYPE("(v)"),
+                                                              G_DBUS_CALL_FLAGS_NONE,
+                                                              1000,
+                                                              nullptr,
+                                                              &error);
+                if (!reply) {
+                    g_clear_error(&error);
+                    return false;
+                }
+                GVariant* boxed = nullptr;
+                g_variant_get(reply, "(v)", &boxed);
+                const bool connected = boxed && g_variant_is_of_type(boxed, G_VARIANT_TYPE_BOOLEAN) &&
+                                       g_variant_get_boolean(boxed) != FALSE;
+                if (boxed)
+                    g_variant_unref(boxed);
+                g_variant_unref(reply);
+                return connected;
             }
 
             void forget_classic_refusal() override { classic_->discard_error(); }
@@ -691,6 +848,8 @@ namespace tether::bluetooth {
                 bool via_bearer = false;
                 bool pin_bredr = false;
                 std::string bearer_error;
+                // The lean link mode: never Device1.Connect behind a refusal.
+                bool bearer_only = false;
             };
 
             static bool sync_classic_connect() {
@@ -731,6 +890,11 @@ namespace tether::bluetooth {
 
                 const ClassicReply verdict =
                     classify_classic_reply(request->via_bearer, ok, timed_out, message, request->bearer_error);
+                if (verdict.fall_back && request->bearer_only) {
+                    debug::log(INFO, "bluetooth: BlueZ refused the BR/EDR connect on demand: {}", message);
+                    request->state->finish(message);
+                    return;
+                }
                 if (verdict.fall_back) {
                     request->via_bearer = false;
                     request->bearer_error = message;
@@ -900,6 +1064,10 @@ namespace tether::bluetooth {
                                                               g_variant_new("(sa{sv})", address_.c_str(), &args),
                                                               G_VARIANT_TYPE("(o)"),
                                                               G_DBUS_CALL_FLAGS_NONE,
+                                                              // Kept at 30 s: a real OBEX connect to the
+                                                              // phone (page, SDP, L2CAP, OBEX Connect) takes
+                                                              // seconds, and a dead obexd is now caught by
+                                                              // the ping first (ProfileSupervisor::daemon_ready).
                                                               CONNECT_TIMEOUT_MS,
                                                               nullptr,
                                                               &error);
@@ -915,6 +1083,39 @@ namespace tether::bluetooth {
                 g_variant_unref(reply);
                 return session;
             }
+
+            // Peer.Ping is answered by obexd's bus library as soon as its main
+            // loop runs. NO_AUTO_START: an absent obexd is reported, not started
+            // behind systemd's back with the caller waiting on it.
+            ObexDaemonState probe_daemon() override {
+                std::string err;
+                if (!ensure_connection(err))
+                    return ObexDaemonState::Unknown;
+                GError* error = nullptr;
+                GVariant* reply = g_dbus_connection_call_sync(conn_,
+                                                              OBEX_NAME,
+                                                              OBEX_ROOT,
+                                                              "org.freedesktop.DBus.Peer",
+                                                              "Ping",
+                                                              nullptr,
+                                                              nullptr,
+                                                              G_DBUS_CALL_FLAGS_NO_AUTO_START,
+                                                              OBEX_PING_TIMEOUT_MS,
+                                                              nullptr,
+                                                              &error);
+                if (reply) {
+                    g_variant_unref(reply);
+                    return ObexDaemonState::Alive;
+                }
+                const ObexDaemonState state = classify_obex_ping(error ? error->message : "unknown error");
+                if (state == ObexDaemonState::Unknown)
+                    debug::log(DEBUG, "bluetooth: obexd ping failed: {}", error ? error->message : "unknown error");
+                g_clear_error(&error);
+                return state;
+            }
+
+            bool start_daemon(std::string& err) override { return unit_job("StartUnit", err); }
+            bool restart_daemon(std::string& err) override { return unit_job("RestartUnit", err); }
 
             void remove_session(const std::string& path) override {
                 if (path.empty() || !conn_)
@@ -937,6 +1138,32 @@ namespace tether::bluetooth {
             }
 
         private:
+            // The user's systemd queues the job and answers with its path at
+            // once: nothing here waits for obexd itself.
+            bool unit_job(const char* method, std::string& err) {
+                if (!ensure_connection(err))
+                    return false;
+                GError* error = nullptr;
+                GVariant* reply = g_dbus_connection_call_sync(conn_,
+                                                              "org.freedesktop.systemd1",
+                                                              "/org/freedesktop/systemd1",
+                                                              "org.freedesktop.systemd1.Manager",
+                                                              method,
+                                                              g_variant_new("(ss)", OBEX_UNIT, "replace"),
+                                                              G_VARIANT_TYPE("(o)"),
+                                                              G_DBUS_CALL_FLAGS_NONE,
+                                                              OBEX_PING_TIMEOUT_MS,
+                                                              nullptr,
+                                                              &error);
+                if (!reply) {
+                    err = error ? error->message : "unknown error";
+                    g_clear_error(&error);
+                    return false;
+                }
+                g_variant_unref(reply);
+                return true;
+            }
+
             bool ensure_connection(std::string& err) {
                 if (conn_)
                     return true;
@@ -1006,8 +1233,157 @@ namespace tether::bluetooth {
         // service. -1 whenever that is not the case.
         int64_t ancs_absent_since = -1;
         uint64_t le_drops_seen = 0;
+        uint64_t le_link_drops_seen = 0;
         int map_failures = 0;
-        int64_t next_message_poll = 0;
+        // The last listing on the open MAP session, -1 for none, and whether
+        // that session was ever listed.
+        int64_t last_message_poll = -1;
+        bool map_session_new = true;
+        // The listing a notification asked for. Supervisor thread only.
+        MessageSyncRequest message_request;
+        // Asked from another thread, dated by the next tick.
+        std::mutex sync_ask_mutex;
+        std::atomic<bool> sync_asked{false};
+        std::string sync_ask_reason;
+        bool sync_ask_expects_new = false;
+        // Which notifications are about the mailbox or the call history.
+        std::mutex triggers_mutex;
+        AncsSyncTriggers sync_triggers;
+        // Wall clock of the last listing that succeeded, 0 for none, and the
+        // supervisor's clock of the same, -1 for none.
+        std::atomic<int64_t> last_sync_wall{0};
+        int64_t last_sync_at = -1;
+
+        // --- The link mode, and the classic link on demand (link_mode.hpp,
+        // classic_demand.hpp). ---
+        // What bt_set_link_mode last set, as a LinkMode.
+        std::atomic<int> link_mode_wanted{static_cast<int>(LinkMode::Lean)};
+        // What is applied, and whether it has been handed to the supervisors.
+        EffectiveLinkMode effective{LinkMode::Full, ""};
+        bool link_mode_applied = false;
+        // The same as `effective.lean()`, for other threads.
+        std::atomic<bool> lean{false};
+        // Leases are taken from any thread; the machine is stepped by the supervisor.
+        mutable std::mutex demand_mutex;
+        ClassicDemand demand;
+        ClassicState demand_state_logged = ClassicState::Idle;
+        std::atomic<bool> lease_changed{false};
+        // What outlives a closed link: verdicts, notifications granted.
+        LinkMemory memory;
+        // logind has announced the computer's sleep.
+        std::atomic<bool> suspended_soon{false};
+        SleepAnnouncer sleep_announcer;
+        // LE up and notifications ready, as last seen: its rising edge is a sync.
+        bool sync_edge = false;
+        bool phone_link_seen = false;
+        int64_t last_sync_lease_at = -1;
+        int64_t last_hourly_lease_at = -1;
+        // A Messages notification wants the link, dated for the debounce.
+        bool arrival_wanted = false;
+        int64_t arrival_wanted_at = -1;
+        bool backlog_wanted = false;
+        // How the LE link is holding (le_health.hpp): the classic link is not
+        // opened unasked on a young LE link, nor soon after an opening or a
+        // close took the LE link down, and a burst of LE drops takes the
+        // advert off air for a moment. Supervisor thread only.
+        LeHealth le_health;
+        // LE links that ended before the notification service had answered
+        // on them (le_strikes.hpp): each keeps the advert off air for a
+        // while. Supervisor thread only.
+        LeStrikes le_strikes;
+        // An LE link came up or ended, or the phone sent a notification
+        // packet: the next pass starts now (le_first_use.hpp). Set from
+        // BlueZ's thread under `mutex`.
+        std::atomic<bool> link_event{false};
+        bool le_prompt = true;
+        // The LE links seen coming up, and the steps of the last one.
+        uint64_t le_ups_seen = 0;
+        LeFirstUse first_use;
+        // An iPhone that does not come back after the controller was reset
+        // (le_after_reset.hpp, #59): the menu says what to do.
+        LeAfterReset le_after_reset;
+        // 0 nothing to say, 1 ask for this computer's Bluetooth to be turned
+        // off and on, 2 the iPhone's.
+        std::atomic<int> le_after_reset_hint{0};
+        int64_t le_reset_seen_ms = -1;
+        int64_t le_restarted_at_ms = -1;
+        // #62: an iPhone near that does not come back over LE (le_recovery.hpp).
+        LeRecovery le_recovery;
+        // #63: BlueZ's LE link that the controller no longer holds.
+        LeGhost le_ghost;
+        bool le_dial_wanted = false;
+        std::atomic<bool> le_stuck{false};
+        int64_t le_stuck_since = -1;
+        void record_le_stuck(bool started, int64_t now, bool opened_by_phone);
+        // The connection parameters asked of the phone as early as possible
+        // on each LE link (le_conn_params.hpp). On when the helper, or the
+        // capability, is there. Supervisor thread only.
+        LeConnParamsPlan conn_params;
+        std::unique_ptr<LeConnUpdater> conn_updater;
+        // The link the request running was made on.
+        uint64_t conn_params_link = 0;
+        void step_conn_params(int64_t now);
+        void read_conn_params_news(int64_t now);
+        void wake_for_event() {
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                link_event = true;
+            }
+            wake.notify_all();
+        }
+        // What step_demand() last did to the classic link, for the next look.
+        bool le_wait_logged = false;
+        // The phone's sound is wanted here (the standing choice). It no longer
+        // holds the link by itself (#43): see plan_audio_lease().
+        std::atomic<bool> audio_here_wanted{false};
+        // The user turned it on, or asked for it again: the link is offered
+        // to the iPhone for PHONE_AUDIO_OFFER_SECONDS.
+        std::atomic<bool> audio_asked{false};
+        // Whether the call history was ever read, from the phone or from disk.
+        bool call_history_known = false;
+
+        // --- Incoming calls from the first ring (incoming_call.hpp). ---
+        // LANDLINE_ANCS_CALLS=0 switches the whole of it off.
+        bool ancs_calls = true;
+        mutable std::mutex ring_mutex;
+        IncomingCallTracker ring;
+        void publish_ring(const IncomingCallTracker::Event& event);
+        void step_ring(int64_t now);
+        // Wakes the supervisor so that a lease just wanted is acted on now.
+        void nudge();
+        // A dial in progress wants the classic link (dial_plan.hpp).
+        std::atomic<bool> dial_wants_link{false};
+        // A call is being placed, is ringing, or is in progress: read by the
+        // supervisor each tick (see call_busy()).
+        std::atomic<bool> calls_busy{false};
+        const bool obex_waits = obex_waits_for_calls(std::getenv("LANDLINE_OBEX_DURING_CALLS"));
+        bool obex_wait_logged = false;
+        // One dial at a time; its id, and whether it was asked to stop.
+        std::mutex dial_mutex;
+        bool dial_running = false;
+        std::string dial_operation_id;
+        bool dial_cancel = false;
+        // When a call command was last sent, on the supervisor's clock.
+        std::atomic<int64_t> call_command_at{-1};
+        // When run() started: the supervisor's clock, for the other threads.
+        std::chrono::steady_clock::time_point run_started = std::chrono::steady_clock::now();
+
+        int64_t clock() const {
+            return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - run_started)
+                .count();
+        }
+        LinkMode configured_link_mode() const;
+        void apply_link_mode(int64_t now);
+        void step_demand(int64_t now);
+        void finish_data_round(int64_t now);
+        void remember_verdicts();
+        void save_memory() const;
+        bool take_lease(Lease lease, int ttl_seconds = 0, bool urgent = false);
+        void release_lease(Lease lease);
+        // The MAP session object the senders use, made as soon as the
+        // session opens and dropped when it closes.
+        void adopt_map_session();
+        void forget_map_session();
         std::string open_map_path;
         // Whether the phone answers a listing for a child of the message root.
         // Cleared once, permanently for the session, if it turns out not to.
@@ -1035,6 +1411,20 @@ namespace tether::bluetooth {
         uint64_t bluez_generation_seen = 0;
         // When BR/EDR was first seen reaching the phone while LE was down.
         int64_t seen_without_le_since = -1;
+        // The "LE first" measures as configured, for what is decided here.
+        LeFirstConfig le_first = le_first_off();
+        // le_after_sleep.hpp: the computer's sleep, as two clocks tell it.
+        SleepWatch sleep_watch;
+        bool resume_watch = true;
+        int64_t resumed_at = -1;
+        bool le_seen_since_resume = true;
+        // LE links that ended on a device BlueZ holds no pairing for.
+        bool stranger_watch = true;
+        uint64_t strangers_seen = 0;
+        int64_t stranger_at = -1;
+        int64_t stranger_rearmed_at = -1;
+        // le_state and le_cause as last published, for the journal.
+        LeState le_state_logged;
         int advert_fast_seconds = ADVERT_FAST_SECONDS;
         // Makes the long OBEX reads wait for the notification session.
         NotificationPriority notification_priority;
@@ -1100,11 +1490,20 @@ namespace tether::bluetooth {
         void publish_presence();
 
         void sync_messages(int64_t now);
+        // Hands a listing asked for by another thread to the supervisor's clock.
+        void date_sync_asks(int64_t now);
+        void ask_message_sync(std::string_view reason);
         void sync_contacts(int64_t now);
         void sync_call_history();
         nlohmann::json call_history_json() const;
         void sync_ancs(int64_t now);
+        void after_reset_pass(bool le_up);
         void bluez_restarted();
+        void watch_sleep(int64_t now);
+        void watch_strangers(int64_t now);
+        void watch_le_health(int64_t now);
+        void watch_le_strikes(int64_t now);
+        LeState le_state(int64_t now) const;
 
         // Brings the ANCS client and the bearer supervisor in line with the wanted preference and the controller's
         // current capability.
@@ -1154,11 +1553,99 @@ namespace tether::bluetooth {
             payload["battery_state"] = nullptr;
         }
         const auto alert = battery_watch.observe(battery.percent);
+        // The notification link, said outright: a client can show
+        // "Notifications paused" and why without reading five fields.
+        const LeState le = le_state(tick_now);
+        payload["le_state"] = le.state;
+        payload["le_cause"] = le.cause;
+        payload["le_detail"] = le.detail;
+        // LE links that ended before they were of use since one last served.
+        payload["le_strikes"] = le_strikes.strikes();
+        // The iPhone has not come back since the controller was reset (#59):
+        // whose Bluetooth to turn off and on, or false.
+        if (const int hint = le_after_reset_hint.load(); hint == 0)
+            // #62: the iPhone answers over the classic link but not over LE.
+            payload["le_after_reset"] = le_stuck.load() ? nlohmann::json("phone") : nlohmann::json(false);
+        else
+            payload["le_after_reset"] = hint == 1 ? "computer" : "phone";
+        // Whether other connection parameters were asked of the phone on
+        // this LE link, and what came of it.
+        payload["le_conn_params"] = conn_params.state();
+        if (const auto& got = conn_params.in_force(); got && bearers->status().le_connected)
+            payload["le_conn_values"] = {
+                {"interval_ms", got->max_interval_ms}, {"latency", got->latency}, {"timeout_ms", got->timeout_ms}};
+        else
+            payload["le_conn_values"] = nullptr;
+        if (le.state != le_state_logged.state || le.cause != le_state_logged.cause) {
+            if (!le_state_logged.state.empty() || le.state == "paused")
+                debug::log(INFO,
+                           "bluetooth: notification link {}{}{}",
+                           le.state,
+                           le.cause.empty() ? "" : ": ",
+                           le.cause);
+            le_state_logged = le;
+        }
+        // The link mode and what the classic link is doing. The older fields
+        // above keep their strict sense: what is up at this instant.
+        const bool lean_now = effective.lean();
+        const BearerStatus& bearer = bearers->status();
+        const ProfileStatus& sessions = profiles->status();
+        ClassicState classic_state = bearer.classic_connected ? ClassicState::Open : ClassicState::Idle;
+        std::string opened_by = bearer.classic_connected ? "engine" : "";
+        nlohmann::json leases = nlohmann::json::array();
+        if (lean_now) {
+            std::lock_guard<std::mutex> lock(demand_mutex);
+            classic_state = demand.state();
+            opened_by = demand.opened_by();
+            for (const Lease lease : demand.leases())
+                leases.push_back(to_string(lease));
+        }
+        payload["link_mode"] = to_string(configured_link_mode());
+        payload["link_mode_effective"] = to_string(effective.mode);
+        payload["link_mode_reason"] = effective.reason;
+        payload["classic_state"] = to_string(classic_state);
+        payload["classic_leases"] = std::move(leases);
+        payload["classic_opened_by"] = opened_by;
+        const auto service = [&](const char* open, bool held, ObexError error, ProfileVerdict verdict) {
+            ServiceFacts facts;
+            facts.open = payload.value(open, false);
+            facts.held = held;
+            facts.error_forbidden = error == ObexError::Forbidden;
+            facts.error_other = error != ObexError::None && error != ObexError::Forbidden;
+            facts.verdict = verdict;
+            facts.lean = lean_now;
+            facts.le_connected = bearer.le_connected;
+            return service_state(facts);
+        };
+        payload["messages"] = service("map_open", sessions.map_held, sessions.map_error, memory.map);
+        payload["contacts"] = service("pbap_open", sessions.pbap_held, sessions.pbap_error, memory.pbap);
+        const int64_t synced = last_sync_wall.load();
         {
             std::lock_guard<std::mutex> lock(status_mutex);
             payload["ancs_ready"] = ancs_ready;
             payload["ancs_reason"] = ancs_reason;
             payload["ancs_held"] = hold_ancs.load();
+            CallsFacts calls;
+            calls.calls_enabled = calls_enabled;
+            calls.hands_free_ready = payload["calls"].is_object() && payload["calls"].value("available", false);
+            calls.lean = lean_now;
+            calls.le_connected = bearer.le_connected;
+            calls.ancs_ready = ancs_ready;
+            calls.classic_failed = lean_now && classic_state == ClassicState::Failed;
+            payload["calls_available"] = calls_state(calls);
+            if (synced > 0) {
+                MessageSyncFacts sync;
+                sync.ancs_ready = ancs_ready;
+                sync.ancs_content = ancs_content_wanted.load();
+                MessageSyncConfig sync_config;
+                sync_config.background_override = message_poll_override();
+                payload["last_sync"] = synced;
+                payload["next_sync"] = synced + (lean_now ? MESSAGE_BACKGROUND_POLL_SECONDS
+                                                          : message_background_seconds(sync, sync_config));
+            } else {
+                payload["last_sync"] = nullptr;
+                payload["next_sync"] = nullptr;
+            }
             current_status = std::move(payload);
         }
         if (alert) {
@@ -1174,6 +1661,255 @@ namespace tether::bluetooth {
                           {"state", battery_state(alert->level)},
                           {"source", battery.source},
                           {"initial", alert->initial}});
+        }
+    }
+
+    LeState ConnectionState::le_state(int64_t now) const {
+        const BearerStatus& bearer = bearers->status();
+        LeStateFacts facts;
+        facts.ancs_enabled = ancs_enabled;
+        facts.device_paired = bearer.device_paired;
+        facts.le_available = bearer.le_available;
+        facts.le_connected = bearer.le_connected;
+        facts.classic_connected = bearer.classic_connected;
+        facts.obex_up = profiles->status().map_open || profiles->status().pbap_open;
+        facts.bond_unusable = bearer.bond.needs_repair || bearer.bond.state == BondState::Broken;
+        facts.holding_for_le = bearer.holding_for_le;
+        facts.advert_registered = ancs_solicitation_active();
+        facts.now = now;
+        facts.le_down_since = le_down_since;
+        facts.resumed_at = resumed_at;
+        facts.le_seen_since_resume = le_seen_since_resume;
+        facts.stranger_at = stranger_at;
+        facts.unsteady = le_health.unsteady(now) || le_strikes.unsteady();
+        facts.advert_paused = le_health.advert_paused(now);
+        facts.holding_off = le_strikes.advert_paused(now);
+        facts.lost_after_burst =
+            le_health.lost_after_burst(le_down_since) || le_strikes.lost_after_strikes(le_down_since);
+        facts.classic_seen_since_loss = le_health.classic_seen_since(le_down_since);
+        return le_state_for(facts);
+    }
+
+    namespace {
+        int64_t clock_ms(clockid_t clock) {
+            timespec ts{};
+            if (clock_gettime(clock, &ts) != 0)
+                return 0;
+            return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+        }
+    } // namespace
+
+    // The computer slept. Every link was cut on the way down (BlueZ reports
+    // Reason.Suspend), and the clock this thread runs on stood still, so
+    // nothing here knows on its own that anything happened: the fast window
+    // of the advert, the hold and the recycle were all dated before it.
+    void ConnectionState::watch_sleep(int64_t now) {
+        const auto slept = sleep_watch.observe(clock_ms(CLOCK_MONOTONIC), clock_ms(CLOCK_BOOTTIME));
+        if (!slept || !resume_watch)
+            return;
+        debug::log(INFO,
+                   "bluetooth: the computer slept for {}s; registering the advertisement again at its fast "
+                   "interval and leaving BR/EDR alone first",
+                   *slept / 1000);
+        resumed_at = now;
+        le_seen_since_resume = false;
+        // The syncs were dated on a clock that stood still: a long sleep
+        // makes the next one due when the LE link returns.
+        {
+            const int64_t slept_s = *slept / 1000;
+            std::lock_guard<std::mutex> lock(demand_mutex);
+            last_sync_at = dated_across_sleep(last_sync_at, slept_s);
+            last_sync_lease_at = dated_across_sleep(last_sync_lease_at, slept_s);
+            last_hourly_lease_at = dated_across_sleep(last_hourly_lease_at, slept_s);
+        }
+        // The links the sleep cut are not the phone's doing.
+        le_health.reset(le_link_drops_seen);
+        le_strikes.reset(le_link_drops_seen);
+        // The sleep logind announced has happened, whether or not its
+        // "woken up" was heard: leases are served again.
+        suspended_soon = false;
+        bearers->resumed(now);
+        bearer_ops->forget_classic_refusal();
+        // Whatever the controller kept of the advert across the sleep, it is
+        // registered again: one D-Bus round trip against a silent radio.
+        renew_ancs_solicitation();
+        if (auto client = ancs())
+            client->retry_now();
+    }
+
+    // The LE links that ended since the last look, and what follows from
+    // them. Run once per pass, after the supervisor has read the links.
+    void ConnectionState::watch_le_health(int64_t now) {
+        const BearerStatus& bearer = bearers->status();
+        uint64_t drops = 0;
+        if (bearer.device_present) {
+            const auto objects = monitor->snapshot();
+            for (const auto& device : objects.devices)
+                if (device.address == address || normalize_address(device.address) == normalize_address(address)) {
+                    drops = monitor->le_link_drop_count(device.path);
+                    break;
+                }
+        }
+        // A phone BlueZ no longer lists reads 0: the count is kept as it was.
+        le_link_drops_seen = std::max(le_link_drops_seen, drops);
+        watch_le_strikes(now);
+        const auto event = le_health.observe(now, bearer.le_connected, bearer.classic_connected, le_link_drops_seen);
+        if (!event)
+            return;
+        switch (event->kind) {
+        case LeHealth::Event::Kind::ClassicBlamed:
+            debug::log(WARN,
+                       "bluetooth: the LE link dropped {}s after the classic link was {}; the classic link is not "
+                       "opened again for {}s unless a call or the user asks for it",
+                       event->after_seconds,
+                       to_string(event->touch),
+                       event->quiet_seconds);
+            break;
+        case LeHealth::Event::Kind::Burst:
+            if (event->pause_seconds > 0) {
+                debug::log(WARN,
+                           "bluetooth: the LE link dropped {} times within {}s; the advertisement is taken off air "
+                           "for {}s so that the iPhone is not offered links that do not hold",
+                           event->drops,
+                           LE_BURST_WINDOW_SECONDS,
+                           event->pause_seconds);
+            } else {
+                debug::log(WARN,
+                           "bluetooth: the LE link dropped {} times within {}s",
+                           event->drops,
+                           LE_BURST_WINDOW_SECONDS);
+            }
+            break;
+        case LeHealth::Event::Kind::Steady:
+            debug::log(INFO, "bluetooth: the LE link has held; it is no longer treated as unsteady");
+            break;
+        }
+    }
+
+    // The LE links that ended before the notification service had answered
+    // on them. Run before the notification client hears of the drop, so
+    // that its readiness still describes the link that ended.
+    void ConnectionState::watch_le_strikes(int64_t now) {
+        const BearerStatus& bearer = bearers->status();
+        LeStrikeFacts facts;
+        facts.now = now;
+        // Only a phone that has offered the service on a whole bond is held
+        // to using it: a pairing under way drops and reopens the link.
+        facts.armed = ancs_enabled && bearer.device_paired && bearer.le_available && !bearer.standing_back &&
+                      !bearer.bond.needs_repair && bearer.bond.state != BondState::Broken &&
+                      bearer_ops->phone_offers_ancs();
+        facts.le_connected = bearer.le_connected;
+        facts.drop_count = le_link_drops_seen;
+        {
+            std::lock_guard<std::mutex> lock(status_mutex);
+            facts.service_live = ancs_ready;
+        }
+        const auto event = le_strikes.observe(facts);
+        if (!event)
+            return;
+        switch (event->kind) {
+        case LeStrikes::Event::Kind::Strike:
+            if (event->pause_seconds > 0) {
+                debug::log(WARN,
+                           "bluetooth: {} ended before the notification service had answered (unused links in a "
+                           "row: {}); the advertisement is taken off air for {}s so that the iPhone is not offered "
+                           "another link that fails{}",
+                           event->links == 1 ? std::string("the LE link")
+                                             : std::to_string(event->links) + " LE links",
+                           event->strikes,
+                           event->pause_seconds,
+                           le_strikes.slow_advert() ? ", then put back at its slow interval" : "");
+                // Now, not at the end of the pass: the phone answers an
+                // advert on air within a fraction of a second.
+                supervise_ancs_solicitation(*monitor, false);
+            } else if (le_strikes.slow_advert()) {
+                debug::log(WARN,
+                           "bluetooth: {} ended before the notification service had answered (unused links in a "
+                           "row: {}); the advertisement stays on air at its slow interval",
+                           event->links == 1 ? std::string("the LE link")
+                                             : std::to_string(event->links) + " LE links",
+                           event->strikes);
+            } else if (le_strikes.sets_rhythm() && !le_strikes.braked()) {
+                // On 18 November the iPhone came back after every unused
+                // link: withholding the advert only delayed it (#29).
+                debug::log(WARN,
+                           "bluetooth: {} ended before the notification service had answered (unused links in a "
+                           "row: {}); the advertisement stays on air, fast for {}s then at 152.5 ms, and the "
+                           "iPhone is called again",
+                           event->links == 1 ? std::string("the LE link")
+                                             : std::to_string(event->links) + " LE links",
+                           event->strikes,
+                           le_strikes.config().fast_seconds);
+            } else {
+                debug::log(WARN,
+                           "bluetooth: the LE link ended before the notification service had answered (unused "
+                           "links in a row: {})",
+                           event->strikes);
+            }
+            if (event->braked)
+                debug::log(WARN,
+                           "bluetooth: {} LE links in a row ended before the notification service had answered, "
+                           "none served in between; the advertisement stays on air at 152.5 ms, with no fast phase, "
+                           "until a link serves (LANDLINE_LE_STRIKE_BRAKE={})",
+                           le_strikes.unused_run(),
+                           le_strikes.config().brake_from);
+            break;
+        case LeStrikes::Event::Kind::Served:
+            debug::log(INFO,
+                       "bluetooth: the notification service has been live on the LE link for {}s; the {} unused "
+                       "link(s) before it are forgotten",
+                       le_strikes.config().served_seconds,
+                       event->strikes);
+            break;
+        case LeStrikes::Event::Kind::Churn:
+            debug::log(WARN,
+                       "bluetooth: {} LE links that had served were lost within {}s; the advertisement goes at its "
+                       "slow interval, with no fast phase, until a minute passes without another",
+                       event->links,
+                       LE_CHURN_WINDOW_SECONDS);
+            break;
+        case LeStrikes::Event::Kind::Forgotten:
+            debug::log(INFO,
+                       "bluetooth: no unused LE link for {}s; the {} counted before that are forgotten",
+                       LE_STRIKE_MEMORY_SECONDS,
+                       event->strikes);
+            break;
+        }
+    }
+
+    // An LE link came and went on a device BlueZ holds no pairing for,
+    // while the paired iPhone has no LE link and the advert is on air.
+    void ConnectionState::watch_strangers(int64_t now) {
+        const BluezMonitor::LeStranger stranger = monitor->le_stranger();
+        if (stranger.count == strangers_seen)
+            return;
+        strangers_seen = stranger.count;
+        if (!stranger_watch)
+            return;
+        const BearerStatus& bearer = bearers->status();
+        StrangerFacts facts;
+        facts.address = stranger.path;
+        facts.address_type = stranger.address_type;
+        facts.le.ancs_enabled = ancs_enabled;
+        facts.le.le_available = bearer.le_available;
+        facts.le.phone_offers_ancs = bearer_ops->phone_offers_ancs();
+        facts.le.standing_back = bearer.standing_back;
+        facts.phone_le_connected = bearer.le_connected;
+        facts.advert_registered = ancs_solicitation_active();
+        if (!may_be_unresolved_phone(facts))
+            return;
+        stranger_at = now;
+        const bool rearm = stranger_rearmed_at < 0 || now - stranger_rearmed_at >= STRANGER_REARM_SECONDS;
+        debug::log(WARN,
+                   "bluetooth: an LE device BlueZ holds no pairing for ({}, resolvable private address) connected "
+                   "and left ({}) while the paired iPhone has no LE link and the advertisement is on air. It may "
+                   "be the iPhone under an address that was not resolved to the pairing, or a device nearby.{}",
+                   stranger.path,
+                   stranger.reason,
+                   rearm ? " Registering the advertisement again." : "");
+        if (rearm) {
+            stranger_rearmed_at = now;
+            renew_ancs_solicitation();
         }
     }
 
@@ -1229,6 +1965,13 @@ namespace tether::bluetooth {
                     else
                         save_contacts(contact_store());
                     restore_removed_threads();
+                    if (!call_history_known) {
+                        std::vector<VCard> calls = load_call_history();
+                        call_history_known = !calls.empty();
+                        std::lock_guard<std::mutex> history_lock(call_history_mutex);
+                        if (call_history.empty())
+                            call_history = std::move(calls);
+                    }
                     auto history = g_journal.load(now);
                     for (const auto& message : history)
                         g_messages.add(message);
@@ -1239,35 +1982,39 @@ namespace tether::bluetooth {
         }
 
         if (!profiles->status().map_open) {
-            if (!open_map_path.empty()) {
-                std::lock_guard<std::mutex> lock(g_map_mutex);
-                g_map_session.reset();
-                open_map_path.clear();
-            }
+            forget_map_session();
+            message_request.expire(now);
             return;
         }
 
-        if (open_map_path != profiles->map_session()) {
-            open_map_path = profiles->map_session();
-            auto session = std::make_shared<MapSession>(profile_ops->bus(), open_map_path);
-            {
-                std::lock_guard<std::mutex> lock(g_map_mutex);
-                g_map_session = session;
-            }
-            // A freshly opened session starts at the root, and SetFolder walks the
-            // MAP hierarchy from there — "msg" on its own is not a valid step.
-            std::string err;
-            if (!session->set_folder(MAP_MSG_ROOT, err))
-                debug::log(WARN, "bluetooth: SetFolder({}) failed: {}", MAP_MSG_ROOT, err);
-            next_message_poll = 0;
-            map_session_backfill = true;
-            map_lists_subfolders = true;
-            map_lists_sent = true;
-        }
+        adopt_map_session();
 
-        if (now < next_message_poll)
+        MessageSyncFacts facts;
+        facts.now = now;
+        facts.last_poll_at = last_message_poll;
+        facts.requested_at = message_request.requested_at;
+        facts.request_attempts = message_request.attempts;
+        facts.ancs_content = ancs_content_wanted.load();
+        facts.session_new = map_session_new;
+        {
+            std::lock_guard<std::mutex> lock(status_mutex);
+            facts.ancs_ready = ancs_ready;
+        }
+        MessageSyncConfig sync_config;
+        sync_config.background_override = message_poll_override();
+        const MessageSyncCause cause = message_sync_cause(facts, sync_config);
+        if (cause == MessageSyncCause::None)
             return;
-        next_message_poll = now + message_poll_seconds();
+        last_message_poll = now;
+        map_session_new = false;
+        {
+            const bool asked = message_request.pending() && cause != MessageSyncCause::Session;
+            debug::log(DEBUG,
+                       "bluetooth: inbox listed ({}{}{})",
+                       to_string(cause),
+                       asked ? ": " : "",
+                       asked ? message_request.reason : std::string());
+        }
 
         std::shared_ptr<MapSession> session;
         {
@@ -1435,6 +2182,11 @@ namespace tether::bluetooth {
 
         const bool backfill = map_session_backfill;
         map_session_backfill = false;
+        // A listing that brought the message settles the request; one that
+        // did not is made again, see message_sync_policy.hpp.
+        message_request.listed(fresh.size());
+        last_sync_wall = static_cast<int64_t>(std::time(nullptr));
+        last_sync_at = now;
 
         for (const auto& message : fresh) {
             {
@@ -1443,6 +2195,76 @@ namespace tether::bluetooth {
             }
             if (on_message)
                 on_message(message, backfill);
+        }
+    }
+
+    void ConnectionState::forget_map_session() {
+        if (open_map_path.empty())
+            return;
+        std::lock_guard<std::mutex> lock(g_map_mutex);
+        g_map_session.reset();
+        open_map_path.clear();
+    }
+
+    void ConnectionState::adopt_map_session() {
+        if (!profiles->status().map_open || open_map_path == profiles->map_session())
+            return;
+        open_map_path = profiles->map_session();
+        auto session = std::make_shared<MapSession>(profile_ops->bus(), open_map_path);
+        // A freshly opened session starts at the root, and SetFolder walks the
+        // MAP hierarchy from there — "msg" on its own is not a valid step.
+        std::string err;
+        if (!session->set_folder(MAP_MSG_ROOT, err))
+            debug::log(WARN, "bluetooth: SetFolder({}) failed: {}", MAP_MSG_ROOT, err);
+        {
+            std::lock_guard<std::mutex> lock(g_map_mutex);
+            g_map_session = session;
+        }
+        last_message_poll = -1;
+        map_session_new = true;
+        map_session_backfill = true;
+        map_lists_subfolders = true;
+        map_lists_sent = true;
+    }
+
+    void ConnectionState::ask_message_sync(std::string_view reason) {
+        {
+            std::lock_guard<std::mutex> lock(sync_ask_mutex);
+            // The first reason of a burst names it; a removal alone expects no message.
+            const bool expects_new = reason != "ancs_removed";
+            if (!sync_asked.load() || (expects_new && !sync_ask_expects_new))
+                sync_ask_reason = std::string(reason);
+            sync_ask_expects_new = sync_ask_expects_new || expects_new;
+            sync_asked = true;
+        }
+        debug::log(DEBUG, "bluetooth: message sync asked ({})", reason);
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+        }
+        wake.notify_all();
+    }
+
+    void ConnectionState::date_sync_asks(int64_t now) {
+        if (!sync_asked.load())
+            return;
+        std::string reason;
+        bool expects_new = false;
+        {
+            std::lock_guard<std::mutex> lock(sync_ask_mutex);
+            reason.swap(sync_ask_reason);
+            expects_new = sync_ask_expects_new;
+            sync_ask_expects_new = false;
+            sync_asked = false;
+        }
+        message_request.ask(now, reason, expects_new);
+        // In the lean link mode a new message is worth opening the link for,
+        // and a backlog is worth a sync whatever the last one's date. A
+        // removal or a message just sent is not: the next opening lists it.
+        if (reason == "ancs" && !arrival_wanted) {
+            arrival_wanted = true;
+            arrival_wanted_at = now;
+        } else if (reason == "ancs_backlog") {
+            backlog_wanted = true;
         }
     }
 
@@ -1463,7 +2285,11 @@ namespace tether::bluetooth {
             return;
         if (new_session) {
             pulled_pbap_path = profiles->pbap_session();
-            call_history_stale = true;
+            // A session that opens many times a day does not read the call
+            // history each time: a call ending, or the notification of one,
+            // is what makes it stale.
+            if (!effective.lean() || !call_history_known)
+                call_history_stale = true;
         }
         contacts_due_at = -1;
 
@@ -1483,7 +2309,8 @@ namespace tether::bluetooth {
                 have_book = contact_store().size() > 0;
             }
             const int64_t age = contacts_pulled_at < 0 ? -1 : now - contacts_pulled_at;
-            switch (plan_contacts(have_book, age, contacts_size_at_pull, size_now)) {
+            switch (effective.lean() ? plan_contacts_on_demand(have_book, age, contacts_size_at_pull, size_now)
+                                     : plan_contacts(have_book, age, contacts_size_at_pull, size_now)) {
             case ContactsPlan::Keep:
                 debug::log(INFO,
                            "bluetooth: address book read {}s ago and still {} entries on the phone; not read again",
@@ -1547,6 +2374,8 @@ namespace tether::bluetooth {
         }
 
         debug::log(INFO, "bluetooth: pulled {} recent calls", history.size());
+        save_call_history(history);
+        call_history_known = true;
         {
             std::lock_guard<std::mutex> lock(call_history_mutex);
             call_history = std::move(history);
@@ -1583,10 +2412,111 @@ namespace tether::bluetooth {
     }
 
     // Keeps the ANCS client pointed at the LE session and drains its work.
+    // #62, point 5: each stuck episode written down with what preceded it,
+    // one JSON line, in the state folder (le-stuck.jsonl), to find what
+    // triggers it on the iPhone's side.
+    void ConnectionState::record_le_stuck(bool started, int64_t now, bool opened_by_phone) {
+        nlohmann::json line;
+        line["event"] = started ? "stuck" : "back";
+        line["at"] = static_cast<int64_t>(std::time(nullptr));
+        line["le_missing_seconds"] = le_recovery.lost_since() >= 0 ? now - le_recovery.lost_since() : -1;
+        line["probes"] = le_recovery.probes();
+        line["dials"] = le_recovery.dials();
+        if (started) {
+            le_stuck_since = now;
+            line["classic_opened_by_phone"] = opened_by_phone;
+            line["seconds_since_wake"] = resumed_at >= 0 ? now - resumed_at : -1;
+            using namespace std::chrono;
+            const int64_t back = monitor->adapter_back_at_ms();
+            const int64_t steady_ms = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+            line["seconds_since_adapter_back"] = back >= 0 ? (steady_ms - back) / 1000 : -1;
+            nlohmann::json others = nlohmann::json::array();
+            for (const auto& device : monitor->snapshot().devices)
+                if (device.connected && normalize_address(device.address) != normalize_address(address))
+                    others.push_back(device.name.empty() ? std::string("unnamed") : device.name);
+            line["other_devices_connected"] = others;
+            debug::log(WARN,
+                       "bluetooth: the iPhone is here over the classic link but has not come back over LE after {} "
+                       "dials; the menu asks for its Bluetooth to be turned off and on",
+                       le_recovery.dials());
+        } else {
+            line["stuck_seconds"] = le_stuck_since >= 0 ? now - le_stuck_since : -1;
+            le_stuck_since = -1;
+            debug::log(INFO, "bluetooth: the LE link is back after the stuck state");
+        }
+        std::error_code ec;
+        const auto dir = paths::state_dir();
+        std::filesystem::create_directories(dir, ec);
+        std::ofstream out(dir / "le-stuck.jsonl", std::ios::app);
+        if (out)
+            out << line.dump() << '\n';
+    }
+
+    // #59: an iPhone that does not come back after the controller was reset.
+    void ConnectionState::after_reset_pass(bool le_up) {
+        using namespace std::chrono;
+        const int64_t now_ms = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+        const int64_t back = monitor->adapter_back_at_ms();
+        if (back != le_reset_seen_ms) {
+            le_reset_seen_ms = back;
+            le_restarted_at_ms = -1;
+        }
+        const bool due = le_after_reset.observe(now_ms, back, le_up);
+        bool others = false;
+        std::string adapter_path;
+        if (due && le_restarted_at_ms < 0) {
+            const auto objects = monitor->snapshot();
+            for (const auto& device : objects.devices) {
+                if (normalize_address(device.address) == normalize_address(address))
+                    adapter_path = device.adapter_path;
+                // Anything connected stops it, the iPhone itself included: its
+                // LE link is down, so a connection is its classic link (a call,
+                // its sound), which a restart would cut.
+                if (device.connected)
+                    others = true;
+            }
+            if (adapter_path.empty() && !objects.adapters.empty())
+                adapter_path = objects.adapters.front().path;
+            // An adapter the user turned off stays off.
+            const Adapter* adapter = objects.find_adapter(adapter_path);
+            if (!adapter || !adapter->powered)
+                return;
+        }
+        int hint = 0;
+        switch (after_reset_step(due, others, now_ms, le_restarted_at_ms)) {
+        case AfterResetStep::Restart:
+            le_restarted_at_ms = now_ms;
+            debug::log(INFO,
+                       "bluetooth: the iPhone has not come back since the controller was reset and nothing else is "
+                       "connected; turning {} off and on",
+                       adapter_path);
+            restart_adapter(monitor->connection(), adapter_path);
+            break;
+        case AfterResetStep::AskComputer:
+            hint = 1;
+            break;
+        case AfterResetStep::AskPhone:
+            hint = 2;
+            break;
+        case AfterResetStep::None:
+            break;
+        }
+        if (hint != le_after_reset_hint.exchange(hint))
+            debug::log(INFO,
+                       "bluetooth: after the controller reset, the menu {}",
+                       hint == 1   ? "asks for this computer's Bluetooth to be turned off and on (another device is "
+                                     "connected)"
+                       : hint == 2 ? "asks for the iPhone's Bluetooth to be turned off and on"
+                                   : "says nothing more");
+    }
+
     void ConnectionState::sync_ancs(int64_t now) {
         auto client = ancs();
-        if (!client)
+        if (!client) {
+            // No phone to watch for (forgotten, notifications off): no hint.
+            le_after_reset_hint = 0;
             return;
+        }
 
         // ANCS rides the LE bearer, but BlueZ keeps exposing the bonded
         // characteristics while that bearer reads disconnected, and the bearer
@@ -1596,6 +2526,9 @@ namespace tether::bluetooth {
         // short outage and let discovery decide; a real loss still clears it,
         // because an empty path is what makes the client forget a dead session.
         const bool le_up = bearers->status().le_connected;
+        // Before anything below can return: a phone that stays silent after
+        // the controller was reset is exactly the case to see (#59).
+        after_reset_pass(le_up);
         if (le_up)
             le_down_since = -1;
         else if (le_down_since < 0)
@@ -1651,7 +2584,184 @@ namespace tether::bluetooth {
             le_drops_seen = drops;
             client->drop_session("LE link dropped");
         }
+        // A new LE link: discovery, subscription and the first question go
+        // out in this pass, whatever their retry dates had grown to while
+        // the phone was away (five seconds after five minutes). BlueZ writes
+        // the subscription again by itself when it still holds it; when it
+        // does not, this is what subscribes.
+        const BluezMonitor::LeLinkUp up = device_path.empty() ? BluezMonitor::LeLinkUp{} : monitor->le_link_up(device_path);
+        if (!device_path.empty() && up.count != le_ups_seen) {
+            le_ups_seen = up.count;
+            if (le_prompt)
+                client->retry_now();
+        }
         client->tick(now);
+
+        if (device_path.empty()) {
+            le_ghost.forget();
+            return;
+        }
+
+        // #63: BlueZ says up, the notifications never answer: is the link
+        // really there? Asked of the kernel, which BlueZ can be out of step with.
+        if (le_ghost.check_due(now, le_up, ready)) {
+            std::optional<bool> in_kernel;
+            std::string adapter_path;
+            for (const auto& device : monitor->snapshot().devices)
+                if (device.path == device_path)
+                    adapter_path = device.adapter_path;
+            const std::string adapter_id = adapter_path.substr(adapter_path.find_last_of('/') + 1);
+            if (const auto index = hci_index_from(adapter_id))
+                in_kernel = le_link_listed(*index, address);
+            if (le_ghost.listed(now, in_kernel)) {
+                debug::log(WARN,
+                           "bluetooth: BlueZ says the LE link is up but the controller holds none and the "
+                           "notifications never answered; disconnecting the LE bearer in BlueZ so that it catches up "
+                           "(the classic link, if any, is left alone)");
+                g_dbus_connection_call(monitor->connection(),
+                                       BLUEZ_NAME,
+                                       device_path.c_str(),
+                                       IFACE_BEARER_LE,
+                                       "Disconnect",
+                                       nullptr,
+                                       nullptr,
+                                       G_DBUS_CALL_FLAGS_NONE,
+                                       10000,
+                                       nullptr,
+                                       nullptr,
+                                       nullptr);
+            }
+        }
+        using namespace std::chrono;
+        const int64_t now_ms = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+        const auto step = first_use.observe(up.count, up.at_ms, le_up, client->subscribed(), client->ready(), now_ms);
+        if (!step)
+            return;
+        if (step->kind == LeFirstUse::Event::Kind::Subscribed)
+            debug::log(INFO, "bluetooth: notification subscription confirmed {}ms after the LE link came up", step->after_ms);
+        else if (step->after_subscribed_ms >= 0)
+            debug::log(INFO,
+                       "bluetooth: notification service in use {}ms after the LE link came up, {}ms after the "
+                       "subscription",
+                       step->after_ms,
+                       step->after_subscribed_ms);
+        else
+            debug::log(INFO, "bluetooth: notification service in use {}ms after the LE link came up", step->after_ms);
+    }
+
+    // What the request and the watch that follows it have to say.
+    void ConnectionState::read_conn_params_news(int64_t now) {
+        const LeConnParams& wanted = conn_params.config().wanted;
+        while (const auto result = conn_updater->take()) {
+            // News of a link that has ended since is of no use.
+            if (conn_params_link != le_ups_seen)
+                continue;
+            switch (result->outcome) {
+            case LeConnUpdateOutcome::Changed:
+                debug::log(INFO,
+                           "bluetooth: the LE connection parameters changed: interval {} ms, latency {}, supervision "
+                           "{} ms (handle {}){}",
+                           result->got.max_interval_ms,
+                           result->got.latency,
+                           result->got.timeout_ms,
+                           result->handle,
+                           result->got.timeout_ms >= wanted.timeout_ms ? ""
+                                                                       : "; shorter than asked for, asked again "
+                                                                         "within a minute");
+                conn_params.report(now, *result);
+                continue;
+            case LeConnUpdateOutcome::Ended:
+                debug::log(INFO,
+                           "bluetooth: the LE link whose parameters were watched ended (handle {}, HCI reason {})",
+                           result->handle,
+                           result->status);
+                continue;
+            default:
+                break;
+            }
+            const bool last = conn_params.report(now, *result);
+            switch (result->outcome) {
+            case LeConnUpdateOutcome::Applied:
+                debug::log(INFO,
+                           "bluetooth: LE connection parameters now in force: interval {} ms, latency {}, supervision "
+                           "{} ms (handle {}){}",
+                           result->got.max_interval_ms,
+                           result->got.latency,
+                           result->got.timeout_ms,
+                           result->handle,
+                           conn_params.settled() ? ""
+                           : last              ? "; short of what was asked for, left as they are on this link"
+                                               : "; short of what was asked for, asking again");
+                break;
+            case LeConnUpdateOutcome::NoRight:
+                debug::log(INFO,
+                           "bluetooth: LE connection parameters cannot be asked for by this process ({}); the link "
+                           "keeps the iPhone's own. Not tried again",
+                           result->detail);
+                break;
+            default:
+                debug::log(WARN,
+                           "bluetooth: LE connection parameters not obtained ({}{}{}){}",
+                           to_string(result->outcome),
+                           result->status >= 0 ? ", HCI status " + std::to_string(result->status) : std::string(),
+                           result->detail.empty() ? std::string() : ": " + result->detail,
+                           le_conn_collision(result->status)
+                               ? (last ? std::string("; too many collisions, left as they are on this link")
+                                       : "; a collision with the iPhone's own procedure, asking again in " +
+                                             std::to_string(LE_CONN_PARAMS_COLLISION_RETRY_SECONDS) + "s")
+                           : last ? std::string("; left as they are on this link, which is kept")
+                                  : "; attempt " + std::to_string(conn_params.attempts()) + " of " +
+                                        std::to_string(LE_CONN_PARAMS_ATTEMPTS));
+                break;
+            }
+        }
+    }
+
+    // Asks the phone for connection parameters that survive a radio gap, as
+    // early as possible on each LE link, and watches what becomes of them.
+    // Nothing here ever ends a link.
+    void ConnectionState::step_conn_params(int64_t now) {
+        if (!conn_params.config().enabled || !conn_updater || conn_params.stopped())
+            return;
+        read_conn_params_news(now);
+        if (conn_params.stopped())
+            return;
+
+        LeConnParamsFacts facts;
+        facts.now = now;
+        facts.le_connected = bearers->status().le_connected;
+        facts.link = le_ups_seen;
+        facts.busy = conn_updater->requesting();
+        // The link the watch was about has ended, or a new one is up: the
+        // watch has nothing more to say.
+        if (conn_updater->active() && !facts.busy && (!facts.le_connected || conn_params_link != le_ups_seen))
+            conn_updater->stop();
+        // A watch that ran its course on a link that is still up: once more.
+        if (!conn_updater->active() && facts.le_connected && conn_params_link == le_ups_seen && conn_params.settled())
+            conn_params.watch_ended(now);
+        if (!conn_params.due(facts))
+            return;
+        const auto index = hci_index_from(monitor->capability().adapter_id);
+        if (!index) {
+            LeConnUpdateResult none;
+            none.detail = "the controller is not known as hciN";
+            conn_params.report(now, none);
+            return;
+        }
+        const LeConnParams& wanted = conn_params.config().wanted;
+        debug::log(INFO,
+                   "bluetooth: asking the iPhone for LE connection parameters {}-{} ms, latency {}, supervision {} ms "
+                   "(attempt {} of {}, by {}){}",
+                   wanted.min_interval_ms,
+                   wanted.max_interval_ms,
+                   wanted.latency,
+                   wanted.timeout_ms,
+                   conn_params.attempts(),
+                   LE_CONN_PARAMS_ATTEMPTS,
+                   conn_updater->way(),
+                   conn_params.config().wait_encryption ? ", once the link is encrypted" : "");
+        conn_params_link = le_ups_seen;
+        conn_updater->start(*index, address, wanted, conn_params.config().wait_encryption);
     }
 
     // bluetoothd left the bus and came back: a crash, a restart, an update.
@@ -1668,6 +2778,8 @@ namespace tether::bluetooth {
         forget_ancs_solicitation(*monitor);
         bearer_ops->forget_classic_refusal();
         bearers->bluez_restarted();
+        le_health.reset(le_link_drops_seen);
+        le_strikes.reset(le_link_drops_seen);
         profiles->reset();
         map_failures = 0;
         link_was_ready = false;
@@ -1685,10 +2797,63 @@ namespace tether::bluetooth {
         auto client = std::make_shared<ancs::AncsClient>(
             *monitor,
             [this](const ancs::Notification& notification) {
+                AncsSyncAsk ask;
+                {
+                    std::lock_guard<std::mutex> lock(triggers_mutex);
+                    ask = sync_triggers.on_notification(notification.uid,
+                                                        notification.app_id,
+                                                        notification.category,
+                                                        notification.pre_existing,
+                                                        notification.session);
+                }
+                if (ask.calls_changed)
+                    call_history_stale = true;
+                if (!ask.reason.empty())
+                    ask_message_sync(ask.reason);
+                // A call is ringing: said at once, and the classic link is
+                // wanted for hands-free. A missed call replayed with the
+                // backlog says nothing about the call ringing now.
+                const bool about_calls = notification.category == ancs::CategoryId::IncomingCall ||
+                                         (notification.category == ancs::CategoryId::MissedCall &&
+                                          !notification.pre_existing);
+                if (about_calls && ancs_calls && calls_wanted.load()) {
+                    IncomingCallTracker::Event event;
+                    {
+                        std::lock_guard<std::mutex> lock(ring_mutex);
+                        event = ring.on_notification(notification.uid,
+                                                     notification.category,
+                                                     notification.title,
+                                                     notification.has_positive_action,
+                                                     notification.has_negative_action,
+                                                     clock(),
+                                                     static_cast<int64_t>(std::time(nullptr)));
+                    }
+                    publish_ring(event);
+                    nudge();
+                }
                 if (on_notification)
                     on_notification(notification);
             },
             [this](uint32_t uid) {
+                AncsSyncAsk ask;
+                {
+                    std::lock_guard<std::mutex> lock(triggers_mutex);
+                    ask = sync_triggers.on_removed(uid);
+                }
+                if (!ask.reason.empty())
+                    ask_message_sync(ask.reason);
+                {
+                    IncomingCallTracker::Event event;
+                    bool following = false;
+                    {
+                        std::lock_guard<std::mutex> lock(ring_mutex);
+                        following = ring.active();
+                        event = ring.on_removed(uid, clock());
+                    }
+                    publish_ring(event);
+                    if (following)
+                        nudge();
+                }
                 if (on_withdraw)
                     on_withdraw(uid);
             },
@@ -1708,6 +2873,8 @@ namespace tether::bluetooth {
             });
         client->set_content_enabled(ancs_content_wanted.load());
         client->set_fast_settle(ancs_first_seconds > 0);
+        if (le_prompt)
+            client->set_activity_listener([this] { wake_for_event(); });
         std::lock_guard<std::mutex> lock(ancs_mutex);
         ancs_client = std::move(client);
     }
@@ -1752,6 +2919,16 @@ namespace tether::bluetooth {
         if (wanted) {
             client = make_telephony_client(*monitor, address);
             client->set_call_audio_here(call_audio_here.load());
+            // Where the sound of a call wanted here ended up: said to the
+            // clients, which otherwise only see it missing.
+            client->set_audio_event_handler([this](const std::string& stage, const std::string& reason) {
+                if (!on_event)
+                    return;
+                nlohmann::json event{{"command", "bt_call_progress"}, {"stage", stage}};
+                if (!reason.empty())
+                    event["reason"] = reason;
+                on_event(event);
+            });
         }
         {
             std::lock_guard<std::mutex> lock(telephony_mutex);
@@ -1770,14 +2947,42 @@ namespace tether::bluetooth {
             return;
         }
         nlohmann::json calls = client->poll_calls();
+        // What hands-free shows of a call that is ringing: "Answer here"
+        // comes alive when it shows it.
+        if (ancs_calls && calls.is_array()) {
+            std::vector<CallSight> sights;
+            for (const auto& call : calls)
+                sights.push_back({call.value("path", std::string{}), call.value("state", std::string{})});
+            bool gateway = !sights.empty();
+            if (!gateway) {
+                std::lock_guard<std::mutex> status_lock(status_mutex);
+                const auto found = current_status.find("calls");
+                gateway = found != current_status.end() && found->is_object() &&
+                          !found->value("path", std::string{}).empty();
+            }
+            IncomingCallTracker::Event event;
+            {
+                std::lock_guard<std::mutex> ring_lock(ring_mutex);
+                event = ring.on_calls(sights, gateway, clock());
+            }
+            publish_ring(event);
+        }
         if (calls == last_calls)
             return;
         // Every transition leaves a line: without one, a call that rang with
         // nothing in the journal cannot be told from a call that was never seen.
         for (const std::string& line : describe_call_changes(last_calls, calls))
             debug::log(INFO, "bluetooth: {}", line);
-        if (last_calls.is_array() && calls.size() < last_calls.size())
+        if (last_calls.is_array() && calls.size() < last_calls.size()) {
             call_history_stale = true;
+            // The sessions waited for the call: the link it leaves open is
+            // used once for the call history, then closed as usual.
+            if (calls.empty() && lean.load() && obex_waits) {
+                std::lock_guard<std::mutex> demand_lock(demand_mutex);
+                if (demand.take(Lease::Sync, clock()))
+                    debug::log(INFO, "bluetooth: the call ended; reading the call history over the link it leaves");
+            }
+        }
         last_calls = calls;
         if (on_calls)
             on_calls(std::move(calls));
@@ -1836,14 +3041,480 @@ namespace tether::bluetooth {
             on_event(event);
     }
 
+    LinkMode ConnectionState::configured_link_mode() const {
+        static const std::optional<LinkMode> forced = link_mode_from_env(std::getenv("LANDLINE_LINK_MODE"));
+        return forced.value_or(static_cast<LinkMode>(link_mode_wanted.load()));
+    }
+
+    namespace {
+        std::string link_memory_path() {
+            const std::filesystem::path dir = paths::state_dir();
+            return dir.empty() ? std::string{} : (dir / "link.json").string();
+        }
+
+        LinkMemory load_link_memory(const std::string& address) {
+            LinkMemory memory;
+            memory.address = address;
+            const std::string path = link_memory_path();
+            if (path.empty())
+                return memory;
+            std::ifstream in(path);
+            if (!in.is_open())
+                return memory;
+            const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            return deserialize_link_memory(text, address);
+        }
+    } // namespace
+
+    void ConnectionState::save_memory() const {
+        const std::string path = link_memory_path();
+        if (path.empty())
+            return;
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
+        const std::string tmp = path + ".tmp";
+        {
+            std::ofstream out(tmp, std::ios::trunc);
+            if (!out.is_open())
+                return;
+            out << serialize_link_memory(memory);
+        }
+        std::filesystem::rename(tmp, path, ec);
+        if (ec)
+            std::filesystem::remove(tmp, ec);
+    }
+
+    // The last answer of each profile, kept for when the link is closed.
+    void ConnectionState::remember_verdicts() {
+        const ProfileStatus& sessions = profiles->status();
+        const auto verdict = [](bool open, ObexError error, ProfileVerdict current) {
+            return open ? ProfileVerdict::Granted : error == ObexError::Forbidden ? ProfileVerdict::Forbidden : current;
+        };
+        const ProfileVerdict map = verdict(sessions.map_open, sessions.map_error, memory.map);
+        const ProfileVerdict pbap = verdict(sessions.pbap_open, sessions.pbap_error, memory.pbap);
+        if (map == memory.map && pbap == memory.pbap)
+            return;
+        const int64_t at = static_cast<int64_t>(std::time(nullptr));
+        if (map != memory.map) {
+            memory.map = map;
+            memory.map_at = at;
+        }
+        if (pbap != memory.pbap) {
+            memory.pbap = pbap;
+            memory.pbap_at = at;
+        }
+        save_memory();
+    }
+
+    // Which link mode is applied this tick, and the supervisors told when
+    // it changes.
+    void ConnectionState::apply_link_mode(int64_t now) {
+        bool ready = false;
+        {
+            std::lock_guard<std::mutex> lock(status_mutex);
+            ready = ancs_ready;
+        }
+        // Notifications granted once are counted on across restarts, until
+        // the phone has plainly stopped offering them.
+        if (ready && !memory.ancs_ready_once) {
+            memory.ancs_ready_once = true;
+            save_memory();
+        } else if (!ready && memory.ancs_ready_once && ancs_absent_since >= 0 &&
+                   now - ancs_absent_since >= ANCS_ABSENT_GRACE_SECONDS) {
+            memory.ancs_ready_once = false;
+            save_memory();
+        }
+        bool keeps = false;
+        {
+            std::lock_guard<std::mutex> lock(demand_mutex);
+            keeps = demand.phone_keeps_link(now);
+        }
+        // A bond without an LE half never brings the link lean rests on.
+        const bool le_possible = ancs_available() && (!bearer_ops->device_present() || !bearer_ops->device_paired() ||
+                                                      bearer_ops->le_bearer_available());
+        EffectiveLinkMode next =
+            effective_link_mode(configured_link_mode(), le_possible, ancs_enabled, memory.ancs_ready_once, keeps);
+        // BlueZ may not have finished enumerating the adapter in the first
+        // seconds: "no LE" then is not a verdict, and falling back to the
+        // full mode on it would page the phone at every start.
+        if (next.reason == "no_le" && now < LINK_MODE_SETTLE_SECONDS)
+            next = EffectiveLinkMode{LinkMode::Lean, ""};
+        if (link_mode_applied && next == effective)
+            return;
+        const bool was_applied = link_mode_applied;
+        effective = next;
+        link_mode_applied = true;
+        lean = next.lean();
+        debug::log(INFO,
+                   "bluetooth: link mode {}{}{}{}",
+                   to_string(next.mode),
+                   next.lean() ? " (LE kept, the classic link on demand)" : " (both links kept)",
+                   next.reason.empty() ? "" : ", instead of lean: ",
+                   next.reason);
+        bearers->set_link_mode(next.lean());
+        profiles->set_on_demand(next.lean());
+        std::lock_guard<std::mutex> lock(demand_mutex);
+        demand.reset();
+        // A link the full mode was keeping is this side's own: used if a
+        // lease wants it, then closed, and not held against the iPhone.
+        if (next.lean() && was_applied && bearer_ops->classic_connected())
+            demand.adopt_engine_link(now);
+        demand_state_logged = demand.state();
+        sync_edge = false;
+        phone_link_seen = false;
+        // Asked for under the other mode: not this one's to serve.
+        arrival_wanted = false;
+        backlog_wanted = false;
+    }
+
+    bool ConnectionState::take_lease(Lease lease, int ttl_seconds, bool urgent) {
+        bool taken = false;
+        {
+            std::lock_guard<std::mutex> lock(demand_mutex);
+            taken = demand.take(lease, clock(), ttl_seconds, urgent);
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            lease_changed = true;
+        }
+        wake.notify_all();
+        return taken;
+    }
+
+    void ConnectionState::release_lease(Lease lease) {
+        {
+            std::lock_guard<std::mutex> lock(demand_mutex);
+            demand.release(lease, clock());
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            lease_changed = true;
+        }
+        wake.notify_all();
+    }
+
+    void ConnectionState::nudge() {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            lease_changed = true;
+        }
+        wake.notify_all();
+    }
+
+    void ConnectionState::publish_ring(const IncomingCallTracker::Event& event) {
+        if (!event)
+            return;
+        debug::log(INFO,
+                   "bluetooth: incoming call {} (answer here: {}{})",
+                   event->state,
+                   event->answer_here,
+                   event->path.empty() ? "" : ", seen by hands-free");
+        if (on_event)
+            on_event(to_json(*event));
+    }
+
+    // The clock of a ring: "Answer here" given up on, a ring nobody ended.
+    void ConnectionState::step_ring(int64_t now) {
+        IncomingCallTracker::Event event;
+        {
+            std::lock_guard<std::mutex> lock(ring_mutex);
+            event = ring.step(now);
+        }
+        publish_ring(event);
+    }
+
+    // Returns the automatic leases once what they opened the link for is done:
+    // the mailbox listed and the request settled, the address book looked at.
+    void ConnectionState::finish_data_round(int64_t now) {
+        {
+            std::lock_guard<std::mutex> lock(demand_mutex);
+            if (demand.state() != ClassicState::Open ||
+                !(demand.holds(Lease::Sync) || demand.holds(Lease::Arrival) || demand.holds(Lease::Hourly)))
+                return;
+        }
+        const ProfileStatus& sessions = profiles->status();
+        const bool map_done =
+            sessions.map_open
+                ? open_map_path == profiles->map_session() && !map_session_new && !message_request.pending()
+                : sessions.map_held ||
+                      (profiles->demand_attempted() && sessions.map_error != ObexError::DaemonDown);
+        const bool pbap_done = sessions.pbap_open ? pulled_pbap_path == profiles->pbap_session() &&
+                                                        contacts_due_at < 0 && !call_history_stale.load()
+                                                  : sessions.pbap_held ||
+                                                        (profiles->demand_attempted() &&
+                                                         sessions.pbap_error != ObexError::DaemonDown);
+        // obexd being brought back is waited for (18 November, 01:45: the
+        // sync was called done while obexd was restarting, and the mailbox
+        // was not read). The automatic leases' own lifetime bounds the wait.
+        if (!map_done || !pbap_done)
+            return;
+        debug::log(DEBUG, "bluetooth: sync done; the classic link is no longer needed for it");
+        std::lock_guard<std::mutex> lock(demand_mutex);
+        demand.release(Lease::Sync, now);
+        demand.release(Lease::Arrival, now);
+        demand.release(Lease::Hourly, now);
+    }
+
+    // The lean link mode, once per pass of the quick steps: what the links
+    // are, which automatic leases are due, what the machine decides, done.
+    void ConnectionState::step_demand(int64_t now) {
+        if (!effective.lean()) {
+            bool listed = false;
+            {
+                std::lock_guard<std::mutex> lock(calls_publish_mutex);
+                listed = last_calls.is_array() && !last_calls.empty();
+            }
+            calls_busy = call_busy(dial_wants_link.load(), false, listed);
+            // Nothing to close before a sleep: logind is not kept waiting.
+            if (suspended_soon.load())
+                sleep_announcer.ready_to_sleep();
+            return;
+        }
+        finish_data_round(now);
+
+        const BearerStatus& bearer = bearers->status();
+        const ProfileStatus& sessions = profiles->status();
+        DemandFacts facts;
+        facts.now = now;
+        facts.le_connected = bearer.le_connected;
+        facts.classic_connected = bearer.classic_connected;
+        facts.map_open = sessions.map_open;
+        facts.pbap_open = sessions.pbap_open;
+        // Hands-free rides the classic link: not worth asking the stack without one.
+        if (bearer.classic_connected) {
+            if (auto client = calls_client())
+                facts.hands_free = client->present();
+        }
+        {
+            std::lock_guard<std::mutex> lock(calls_publish_mutex);
+            facts.call_active = last_calls.is_array() && !last_calls.empty();
+        }
+        facts.phone_audio_streaming = bearer.classic_connected && bearer_ops->audio_playing();
+        facts.suspended_soon = suspended_soon.load();
+        facts.data_refused = profiles->demand_refused();
+        facts.held_by_other = bearer.classic_connected && bearer_ops->tethering_active();
+
+        bool ready = false;
+        {
+            std::lock_guard<std::mutex> lock(status_mutex);
+            ready = ancs_ready;
+        }
+
+        DemandAction action = DemandAction::None;
+        ClassicState state = ClassicState::Idle;
+        bool want = false;
+        bool keep = false;
+        std::string held;
+        std::string opened_by;
+        {
+            std::lock_guard<std::mutex> lock(demand_mutex);
+            // The phone's sound here is a standing wish, not a moment.
+            // The classic link is opened unasked only on an LE link that has
+            // held, and not soon after an opening or a close took it down. A
+            // link already there costs the LE link nothing more.
+            const bool link_there = demand.state() == ClassicState::Opening || demand.state() == ClassicState::Open ||
+                                    demand.state() == ClassicState::Lingering;
+            const bool calm = link_there || le_health.auto_open_allowed(now);
+            // #43: the choice opens the link when it is made (or asked for
+            // again) and while the sound plays, not for ever.
+            {
+                const bool wanted = audio_here_wanted.load();
+                const bool asked = wanted && audio_asked.exchange(false);
+                const AudioLeasePlan plan =
+                    plan_audio_lease(wanted, asked, facts.phone_audio_streaming, demand.holds(Lease::Audio));
+                if (plan.move == AudioLeaseMove::Take && (asked || link_there))
+                    demand.take(Lease::Audio, now, plan.ttl_seconds);
+                else if (plan.move == AudioLeaseMove::Release)
+                    demand.release(Lease::Audio, now);
+                if (asked)
+                    debug::log(INFO, "bluetooth: the iPhone's sound asked for here; the classic link is offered for {}s",
+                               PHONE_AUDIO_OFFER_SECONDS);
+            }
+
+            // A call: wanted while one rings and a moment after, while one is
+            // being placed, and for as long as the call it brought lasts.
+            bool ring_wanted = false;
+            bool ring_now = false;
+            {
+                std::lock_guard<std::mutex> ring_lock(ring_mutex);
+                ring_wanted = ring.wants_link(now);
+                ring_now = ring.ringing();
+            }
+            calls_busy = call_busy(dial_wants_link.load(), ring_wanted, facts.call_active);
+            demand.set_data_waits_for_calls(obex_waits);
+            const bool call_wanted =
+                ring_wanted || dial_wants_link.load() || (facts.call_active && demand.holds(Lease::Call));
+            if (call_wanted && !demand.holds(Lease::Call))
+                demand.take(Lease::Call, now, 0, ring_now);
+            else if (!call_wanted && demand.holds(Lease::Call))
+                demand.release(Lease::Call, now);
+
+            // The LE link is back with its notifications: one sync, unless
+            // the last is recent and nothing says there is something new.
+            const bool returned = ready && facts.le_connected;
+            const bool edge = returned && calm;
+            const bool rising = edge && !sync_edge;
+            sync_edge = edge;
+            // Kept while the sync waits for the LE link to have held.
+            const bool backlog = backlog_wanted && (edge || !returned);
+            if (edge || !returned)
+                backlog_wanted = false;
+            if (returned && !calm && !le_wait_logged) {
+                le_wait_logged = true;
+                const int64_t quiet = le_health.quiet_until(now);
+                if (quiet >= 0)
+                    debug::log(INFO,
+                               "bluetooth: the classic link is left closed for another {}s (the LE link dropped right "
+                               "after it was last opened or closed); the sync waits",
+                               quiet - now);
+                else
+                    debug::log(INFO,
+                               "bluetooth: the LE link is back; the classic link is not opened before it has held "
+                               "for {}s, the sync waits",
+                               le_health.config().stable_seconds);
+            } else if (!returned || calm) {
+                le_wait_logged = false;
+            }
+            if (edge && (rising || backlog) && sync_due_on_le_return(now, last_sync_lease_at, backlog) &&
+                demand.take(Lease::Sync, now)) {
+                last_sync_lease_at = now;
+                debug::log(INFO, "bluetooth: sync wanted ({})", backlog ? "notifications waiting on the iPhone" : "the iPhone is back");
+            }
+            // A new message: the link is opened once the phone has filed it.
+            if (arrival_wanted && !facts.le_connected)
+                arrival_wanted = false;
+            if (arrival_wanted && calm && now - arrival_wanted_at >= MESSAGE_SYNC_DEBOUNCE_SECONDS) {
+                arrival_wanted = false;
+                if (!demand.take(Lease::Arrival, now))
+                    debug::log(INFO,
+                               "bluetooth: a message arrived and the classic link is not opened for it ({}); the "
+                               "notification stands until the next sync",
+                               demand.capped() ? "hourly ceiling reached" : "waiting after a failed opening");
+            }
+            // The safety net: an hour with nothing listed. Not tied to the
+            // notifications being ready: it is what is left without them.
+            if (facts.le_connected && calm && demand.state() == ClassicState::Idle) {
+                const int64_t reference = std::max({last_sync_at, last_sync_lease_at, last_hourly_lease_at});
+                if ((reference >= 0 || reference == SYNC_LONG_AGO) && now - reference >= MESSAGE_BACKGROUND_POLL_SECONDS) {
+                    last_hourly_lease_at = now;
+                    if (demand.take(Lease::Hourly, now))
+                        debug::log(INFO, "bluetooth: hourly sync");
+                }
+            }
+
+            // #62: an iPhone near that does not come back over LE.
+            {
+                LeRecoveryFacts rf;
+                rf.now = now;
+                rf.le_connected = facts.le_connected;
+                rf.classic_connected = facts.classic_connected;
+                rf.busy = facts.call_active || facts.phone_audio_streaming || facts.held_by_other ||
+                          demand.holds(Lease::Call) || facts.suspended_soon;
+                const LeRecoveryStep r = le_recovery.step(rf);
+                if (facts.classic_connected && demand.holds(Lease::Probe)) {
+                    demand.release(Lease::Probe, now);
+                    debug::log(INFO, "bluetooth: the iPhone answered over the classic link: it is here");
+                }
+                if (r.probe) {
+                    if (demand.take(Lease::Probe, now))
+                        debug::log(INFO,
+                                   "bluetooth: no LE link for {}s; paging the iPhone over the classic link to see "
+                                   "whether it is here (probe {})",
+                                   now - le_recovery.lost_since(),
+                                   le_recovery.probes());
+                    else
+                        debug::log(INFO,
+                                   "bluetooth: no LE link; the probe over the classic link waits ({})",
+                                   demand.capped() ? "hourly ceiling reached" : "waiting after a failed opening");
+                }
+                if (r.dial)
+                    le_dial_wanted = true;
+                if (r.stuck_started || r.stuck_ended) {
+                    le_stuck = r.stuck_started;
+                    record_le_stuck(r.stuck_started, now, std::string_view(demand.opened_by()) == "phone");
+                }
+            }
+
+            action = demand.step(facts);
+            if (demand.cycled_for_le(now))
+                debug::log(INFO,
+                           "bluetooth: no LE link for {}s while the classic link is up; closing the classic link once so "
+                           "that the iPhone comes back over LE (its leases wait for it)",
+                           CLASSIC_LE_CYCLE_SECONDS);
+
+            // A link the iPhone opened is put to use: a sync if the last is old.
+            const bool phone_link = std::string_view(demand.opened_by()) == "phone";
+            if (phone_link && !phone_link_seen) {
+                debug::log(INFO,
+                           "bluetooth: the iPhone opened the BR/EDR link itself; using it, then closing it once idle "
+                           "(kept up to {}s while the LE link is missing)",
+                           PHONE_LINK_WITHOUT_LE_SECONDS);
+                if (sync_due_on_le_return(now, std::max(last_sync_at, last_sync_lease_at), false) &&
+                    demand.take(Lease::Sync, now))
+                    last_sync_lease_at = now;
+            }
+            phone_link_seen = phone_link;
+
+            state = demand.state();
+            want = demand.want_data();
+            keep = demand.keep_data();
+            opened_by = demand.opened_by();
+            for (const Lease lease : demand.leases()) {
+                if (!held.empty())
+                    held += ", ";
+                held += to_string(lease);
+            }
+        }
+
+        if (state != demand_state_logged || action != DemandAction::None) {
+            const char* doing = action == DemandAction::OpenData          ? "; opening for data"
+                                : action == DemandAction::OpenVoice       ? "; connecting for hands-free"
+                                : action == DemandAction::RecycleForVoice ? "; dropping the data link for hands-free"
+                                : action == DemandAction::Close           ? "; closing"
+                                                                          : "";
+            debug::log(INFO,
+                       "bluetooth: classic link {}{} (leases: {}{}{})",
+                       to_string(state),
+                       doing,
+                       held.empty() ? "none" : held,
+                       opened_by.empty() ? "" : "; opened by ",
+                       opened_by);
+            demand_state_logged = state;
+        }
+
+        // #62: the LE link dialled from here while the iPhone is there.
+        if (le_dial_wanted) {
+            le_dial_wanted = false;
+            bearers->dial_le();
+        }
+
+        // Sessions first: removed before the link under them is dropped.
+        profiles->set_demand(want, keep);
+        if (!keep)
+            forget_map_session();
+        bearers->set_demand(action, now);
+        if (action == DemandAction::OpenData || action == DemandAction::OpenVoice)
+            le_health.note_classic(ClassicTouch::Opened, now);
+        else if (action == DemandAction::Close || action == DemandAction::RecycleForVoice)
+            le_health.note_classic(ClassicTouch::Closed, now);
+
+        // Before a sleep: logind goes on once nothing is left to close.
+        if (facts.suspended_soon && state != ClassicState::Closing && action == DemandAction::None)
+            sleep_announcer.ready_to_sleep();
+    }
+
     void ConnectionState::run() {
         using namespace std::chrono;
         const auto started = steady_clock::now();
+        run_started = started;
 
         // One tick, in the order run_supervision_tick() fixes.
         struct Tick final : SupervisionSteps {
             Tick(ConnectionState& state, steady_clock::time_point started) : s(state), started(started) {
                 read_clock();
+                s.lease_changed = false;
+                s.date_sync_asks(now);
+                s.apply_link_mode(now);
             }
 
             // links() runs several times in a tick that held the thread, and
@@ -1868,9 +3539,27 @@ namespace tether::bluetooth {
                     s.bluez_generation_seen = generation;
                     s.bluez_restarted();
                 }
+                s.watch_sleep(now);
+                s.watch_strangers(now);
+                // The BR/EDR link has dropped since the last look. The OBEX
+                // sessions that rode on it are forgotten before the supervisor
+                // runs, not after: it took them for a link still up, asked
+                // BlueZ for BR/EDR, and only the next pass began the hold
+                // that was meant to leave BR/EDR alone.
+                if (s.le_first.strict_hold && s.link_was_ready && !s.bearer_ops->classic_connected()) {
+                    s.profiles->reset();
+                    s.bearers->reset();
+                    s.map_failures = 0;
+                    s.link_was_ready = false;
+                }
                 obex_up = s.profiles->status().map_open || s.profiles->status().pbap_open;
 
+                if (const int64_t commanded = s.call_command_at.load(); commanded >= 0)
+                    s.bearers->note_call_command(commanded);
                 s.bearers->tick(now, obex_up);
+                s.watch_le_health(now);
+                if (s.bearers->status().le_connected)
+                    s.le_seen_since_resume = true;
                 // The supervisor has just cut BR/EDR for hands-free. What was
                 // open goes on being published as open while it comes back.
                 if (s.bearers->planned_drops() != s.hfp_cycles_seen) {
@@ -1902,7 +3591,16 @@ namespace tether::bluetooth {
                 s.link_was_ready = link_ready;
             }
 
-            void notifications() override { s.sync_ancs(now); }
+            void notifications() override {
+                s.sync_ancs(now);
+                s.step_conn_params(now);
+            }
+
+            void demand() override {
+                read_clock();
+                s.step_ring(now);
+                s.step_demand(now);
+            }
 
             void calls() override { s.sync_calls(); }
 
@@ -1951,7 +3649,9 @@ namespace tether::bluetooth {
                 const bool ready = bearer.device_paired &&
                                    should_open_profiles(bearer, s.profiles->status().map_open ||
                                                                     s.profiles->status().pbap_open);
-                return s.profiles->tick(now, ready, reachable, bearer.classic_connected);
+                const bool changed = s.profiles->tick(now, ready, reachable, bearer.classic_connected);
+                s.remember_verdicts();
+                return changed;
             }
 
             // Runs from inside a long OBEX read, each time the transfer is
@@ -1993,11 +3693,30 @@ namespace tether::bluetooth {
                 // as long as the phone stays away.
                 supervise_ancs_solicitation(
                     *s.monitor,
-                    should_solicit_ancs(s.ancs_enabled, bearer, now, s.ancs_absent_since),
-                    advert_interval_for(now, s.le_down_since, s.advert_fast_seconds, s.seen_without_le_since));
+                    should_solicit_ancs(s.ancs_enabled, bearer, now, s.ancs_absent_since) &&
+                        !s.le_health.advert_paused(now) && !s.le_strikes.advert_paused(now),
+                    // After a link that ended unused, fast for a moment then
+                    // 152.5 ms until one has served; slow while links that
+                    // served keep dropping: the phone is at the edge of range
+                    // (le_strikes.hpp).
+                    advert_interval_with_strikes(s.le_strikes,
+                                                 now,
+                                                 s.le_down_since,
+                                                 s.advert_fast_seconds,
+                                                 s.seen_without_le_since,
+                                                 s.bearers->advert_rearmed_at()));
             }
 
             bool long_reads_allowed() override {
+                // A call first: a long read holds this thread, and the call
+                // list with it, for as long as the phone takes to answer.
+                if (s.obex_waits && s.calls_busy.load()) {
+                    if (!s.obex_wait_logged)
+                        debug::log(INFO, "bluetooth: a call is in hand; address book, call history and messages wait for it");
+                    s.obex_wait_logged = true;
+                    return false;
+                }
+                s.obex_wait_logged = false;
                 bool ready = false;
                 {
                     std::lock_guard<std::mutex> lock(s.status_mutex);
@@ -2036,12 +3755,29 @@ namespace tether::bluetooth {
             apply_ancs_preference();
             apply_calls_preference();
 
+            // Cleared before the pass: what happens during it starts another.
+            const auto pass_started = steady_clock::now();
+            link_event = false;
             Tick tick(*this, started);
             run_supervision_tick(tick);
 
             std::unique_lock<std::mutex> lock(mutex);
-            wake.wait_for(
-                lock, seconds(SUPERVISOR_TICK_SECONDS), [this] { return !running || retry_requested.load(); });
+            // Under a call the list is read four times a second: its states
+            // (dialing, alerting, active) are what the user is looking at.
+            const auto pause = calls_busy.load() ? milliseconds(CALL_TICK_MS)
+                                                 : duration_cast<milliseconds>(seconds(SUPERVISOR_TICK_SECONDS));
+            wake.wait_for(lock, pause, [this] {
+                return !running || retry_requested.load() || sync_asked.load() || lease_changed.load() ||
+                       link_event.load();
+            });
+            // An LE link came up or ended, or the phone sent a packet: the
+            // pass starts now, but never two of them back to back.
+            if (running && link_event.load()) {
+                const int wait = event_pass_wait_ms(
+                    duration_cast<milliseconds>(steady_clock::now() - pass_started).count());
+                if (wait > 0)
+                    wake.wait_for(lock, milliseconds(wait), [this] { return !running.load(); });
+            }
         }
     }
 
@@ -2089,6 +3825,32 @@ namespace tether::bluetooth {
             state_->watched_address = address;
         }
         state_->yield_when_inactive = config.yield_when_inactive;
+        state_->link_mode_wanted = static_cast<int>(config.link_mode);
+        state_->audio_here_wanted = config.phone_audio == PhoneAudio::Here;
+        state_->memory = load_link_memory(address);
+        state_->effective = EffectiveLinkMode{LinkMode::Full, ""};
+        state_->link_mode_applied = false;
+        state_->lean = false;
+        state_->suspended_soon = false;
+        {
+            std::lock_guard<std::mutex> lock(state_->demand_mutex);
+            state_->demand = ClassicDemand{};
+        }
+        state_->demand_state_logged = ClassicState::Idle;
+        state_->sync_edge = false;
+        state_->phone_link_seen = false;
+        state_->last_sync_lease_at = -1;
+        state_->last_hourly_lease_at = -1;
+        state_->last_sync_at = -1;
+        state_->arrival_wanted = false;
+        state_->backlog_wanted = false;
+        state_->ancs_calls = ancs_calls_enabled(std::getenv("LANDLINE_ANCS_CALLS"));
+        {
+            std::lock_guard<std::mutex> lock(state_->ring_mutex);
+            state_->ring.reset();
+        }
+        state_->dial_wants_link = false;
+        state_->call_command_at = -1;
         // Read the controller's capability here rather than letting each caller
         // latch its own copy. At startup BlueZ may not have finished enumerating
         // the adapter, and its free advertising-instance count drops to zero
@@ -2103,6 +3865,14 @@ namespace tether::bluetooth {
             std::lock_guard<std::mutex> lock(g_messages_mutex);
             contact_store() = load_contacts();
             restore_removed_threads();
+            {
+                // The recent calls as last read, so the list is there before
+                // any link is opened.
+                std::vector<VCard> calls = load_call_history();
+                state_->call_history_known = !calls.empty();
+                std::lock_guard<std::mutex> history_lock(state_->call_history_mutex);
+                state_->call_history = std::move(calls);
+            }
             if (g_journal.open()) {
                 const int64_t now = static_cast<int64_t>(std::time(nullptr));
                 auto history = g_journal.load(now);
@@ -2131,8 +3901,98 @@ namespace tether::bluetooth {
         state_->bearers->set_hfp_request_enabled(hfp_request_enabled(std::getenv("LANDLINE_HFP_CONNECT_PROFILE")));
         const LeFirstConfig le_first = le_first_config_from(std::getenv("LANDLINE_LE_FIRST"),
                                                             std::getenv("LANDLINE_LE_FIRST_HOLD_SECONDS"),
-                                                            std::getenv("LANDLINE_LE_RECYCLE_SECONDS"));
+                                                            std::getenv("LANDLINE_LE_RECYCLE_SECONDS"),
+                                                            std::getenv("LANDLINE_LE_FIRST_STRICT"),
+                                                            std::getenv("LANDLINE_LE_SETTLE_SECONDS"));
         state_->bearers->set_le_first(le_first);
+        state_->le_first = le_first;
+        state_->resume_watch = resume_watch_enabled(std::getenv("LANDLINE_RESUME_WATCH"));
+        state_->le_health = LeHealth{};
+        state_->le_prompt = le_prompt_enabled(std::getenv("LANDLINE_LE_PROMPT"));
+        state_->le_ups_seen = 0;
+        state_->first_use = LeFirstUse{};
+        state_->link_event = false;
+        {
+            const LeConnParamsConfig wanted = le_conn_params_config_from(std::getenv("LANDLINE_LE_CONN_PARAMS"),
+                                                                         std::getenv("LANDLINE_LE_CONN_INTERVAL_MS"),
+                                                                         std::getenv("LANDLINE_LE_CONN_LATENCY"),
+                                                                         std::getenv("LANDLINE_LE_CONN_TIMEOUT_MS"),
+                                                                         std::getenv("LANDLINE_LE_CONN_DELAY_SECONDS"),
+                                                                         std::getenv("LANDLINE_LE_CONN_ENCRYPTED"));
+            if (state_->conn_updater)
+                state_->conn_updater->stop();
+            state_->conn_updater.reset();
+            state_->conn_params = LeConnParamsPlan{};
+            state_->conn_params_link = 0;
+            LeConnParamsConfig config = wanted;
+            if (wanted.enabled) {
+                if (!wanted.note.empty())
+                    debug::log(WARN,
+                               "bluetooth: the LE connection parameters set in the environment are not ones an "
+                               "iPhone takes ({}); the defaults are used",
+                               wanted.note);
+                state_->conn_updater = std::make_unique<LeConnUpdater>();
+                if (state_->conn_updater->able()) {
+                    debug::log(INFO,
+                               "bluetooth: LE connection parameters are asked for {} on each LE link ({}-{} ms, "
+                               "latency {}, supervision {} ms), by {}",
+                               wanted.delay_seconds > 0 ? std::to_string(wanted.delay_seconds) + "s in"
+                               : wanted.wait_encryption ? std::string("as soon as it is encrypted")
+                                                        : std::string("as soon as it is up"),
+                               wanted.wanted.min_interval_ms,
+                               wanted.wanted.max_interval_ms,
+                               wanted.wanted.latency,
+                               wanted.wanted.timeout_ms,
+                               state_->conn_updater->way());
+                } else {
+                    // Said once, and not an error: nothing is asked.
+                    debug::log(INFO,
+                               "bluetooth: LE connection parameters are not asked for: this process holds no "
+                               "CAP_NET_RAW and there is no usable helper at {} (\"landline-setup apply\" installs "
+                               "it). The LE link keeps the iPhone's own parameters",
+                               state_->conn_updater->helper());
+                    state_->conn_updater.reset();
+                }
+            }
+            state_->conn_params.configure(config);
+            if (wanted.enabled && !state_->conn_updater) {
+                // Published as no_right from the start.
+                LeConnUpdateResult none;
+                none.outcome = LeConnUpdateOutcome::NoRight;
+                state_->conn_params.report(0, none);
+            }
+        }
+        state_->le_strikes = LeStrikes{};
+        state_->le_strikes.configure(le_strikes_config_from(std::getenv("LANDLINE_LE_STRIKES"),
+                                                            std::getenv("LANDLINE_LE_STRIKE_PAUSE_SECONDS"),
+                                                            std::getenv("LANDLINE_LE_STRIKE_LONG_PAUSE_SECONDS"),
+                                                            std::getenv("LANDLINE_LE_SERVED_SECONDS"),
+                                                            std::getenv("LANDLINE_LE_STRIKE_FAST_SECONDS"),
+                                                            std::getenv("LANDLINE_LE_STRIKE_SLOW"),
+                                                            std::getenv("LANDLINE_LE_STRIKE_BRAKE")));
+        {
+            LeHealthConfig health = le_health_config_from(std::getenv("LANDLINE_LE_STABLE_SECONDS"),
+                                                          std::getenv("LANDLINE_CLASSIC_QUIET_SECONDS"),
+                                                          std::getenv("LANDLINE_LE_BURST_PAUSE"));
+            // The strike count has taken over from the pause after three
+            // drops in a minute, which is still written in the journal.
+            // LANDLINE_LE_STRIKES=0 gives the old rule back.
+            if (state_->le_strikes.config().enabled)
+                health.burst_pause = false;
+            else
+                debug::log(INFO, "bluetooth: unused LE links are not counted (LANDLINE_LE_STRIKES=0)");
+            state_->le_health.configure(health);
+        }
+        state_->le_link_drops_seen = 0;
+        state_->le_wait_logged = false;
+        state_->sleep_watch = SleepWatch{};
+        state_->resumed_at = -1;
+        state_->le_seen_since_resume = true;
+        state_->stranger_watch = le_stranger_enabled(std::getenv("LANDLINE_LE_STRANGER"));
+        state_->strangers_seen = state_->monitor->le_stranger().count;
+        state_->stranger_at = -1;
+        state_->stranger_rearmed_at = -1;
+        state_->le_state_logged = LeState{};
         if (le_first == le_first_off())
             debug::log(INFO, "bluetooth: LE-first measures are off (LANDLINE_LE_FIRST=0)");
         // Read on the supervising thread, which is the one that writes it.
@@ -2145,6 +4005,9 @@ namespace tether::bluetooth {
         // A session that has just opened is published before the attempt on
         // the other profile, which can wait on obexd, and before any read.
         state_->profiles->set_opened_handler([state = state_.get()] {
+            // The session object first: a message waiting to be sent goes
+            // out now, not after the reads that follow.
+            state->adopt_map_session();
             state->refresh_status();
             state->publish();
         });
@@ -2157,6 +4020,28 @@ namespace tether::bluetooth {
         // bond can carry them.
         if (ancs_effective && state_->on_notification)
             state_->build_ancs_client();
+
+        // The computer's sleep, announced: the classic link is closed first,
+        // so BlueZ has nothing to bring back on wake.
+        if (sleep_close_enabled(std::getenv("LANDLINE_SLEEP_CLOSE"))) {
+            BluezMonitor* monitor = state_->monitor;
+            state_->sleep_announcer.start(
+                monitor->connection(),
+                [monitor](const std::function<void()>& fn) { monitor->invoke_sync(fn); },
+                [state = state_.get()](bool sleeping) {
+                    state->suspended_soon = sleeping;
+                    {
+                        std::lock_guard<std::mutex> lock(state->mutex);
+                        state->lease_changed = true;
+                    }
+                    state->wake.notify_all();
+                });
+        }
+
+        if (state_->le_prompt)
+            state_->monitor->set_link_listener([state = state_.get()] { state->wake_for_event(); });
+        else
+            debug::log(INFO, "bluetooth: LE links are looked at once a second (LANDLINE_LE_PROMPT=0)");
 
         state_->running = true;
         state_->thread = std::thread([this] { state_->run(); });
@@ -2174,6 +4059,9 @@ namespace tether::bluetooth {
         state_->wake.notify_all();
         if (state_->thread.joinable())
             state_->thread.join();
+        state_->monitor->set_link_listener({});
+        state_->sleep_announcer.stop();
+        state_->lean = false;
 
         // MapSession borrows profile_ops' bus connection, which is released
         // below. Drop the session before anything can hand out a pointer into a
@@ -2218,7 +4106,19 @@ namespace tether::bluetooth {
         }
         state_->map_session_backfill = true;
         state_->map_failures = 0;
-        state_->next_message_poll = 0;
+        state_->last_message_poll = -1;
+        state_->map_session_new = true;
+        state_->message_request.clear();
+        {
+            std::lock_guard<std::mutex> lock(state_->sync_ask_mutex);
+            state_->sync_asked = false;
+            state_->sync_ask_reason.clear();
+            state_->sync_ask_expects_new = false;
+        }
+        {
+            std::lock_guard<std::mutex> lock(state_->triggers_mutex);
+            state_->sync_triggers.reset();
+        }
         state_->link_was_ready = false;
         state_->device_was_present = false;
         state_->ancs_absent_since = -1;
@@ -2290,9 +4190,111 @@ namespace tether::bluetooth {
 
     void ConnectionManager::set_yield_when_inactive(bool enabled) { state_->yield_when_inactive = enabled; }
 
+    void ConnectionManager::request_message_sync(std::string_view reason) {
+        if (state_->running)
+            state_->ask_message_sync(reason);
+    }
+
+    void ConnectionManager::mark_call_history_stale() { state_->call_history_stale = true; }
+
+    bool ConnectionManager::on_demand() const { return state_->running && state_->lean.load(); }
+
+    void ConnectionManager::set_link_mode(LinkMode mode) {
+        state_->link_mode_wanted = static_cast<int>(mode);
+        if (!state_->running)
+            return;
+        {
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            state_->lease_changed = true;
+        }
+        state_->wake.notify_all();
+    }
+
+    bool ConnectionManager::take_lease(Lease lease, bool urgent) {
+        return state_->running && state_->take_lease(lease, 0, urgent);
+    }
+
+    void ConnectionManager::release_lease(Lease lease) {
+        if (state_->running)
+            state_->release_lease(lease);
+    }
+
+    bool ConnectionManager::client_lease(const std::string& name, bool held) {
+        Lease lease;
+        if (name == "reading")
+            lease = Lease::Reading;
+        else if (name == "setup")
+            lease = Lease::Setup;
+        else
+            return false;
+        if (!state_->running)
+            return false;
+        if (held)
+            state_->take_lease(lease, CLIENT_LEASE_SECONDS);
+        else
+            state_->release_lease(lease);
+        return true;
+    }
+
+    void ConnectionManager::ask_phone_audio() {
+        if (!state_->audio_here_wanted.load())
+            return;
+        state_->audio_asked = true;
+        state_->wake.notify_all();
+    }
+
+    bool ConnectionManager::set_phone_audio_here(bool here) {
+        state_->audio_here_wanted = here;
+        if (!here)
+            state_->audio_asked = false;
+        if (!state_->running)
+            return false;
+        {
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            state_->lease_changed = true;
+        }
+        state_->wake.notify_all();
+        return state_->lean.load();
+    }
+
+    std::shared_ptr<MapSession> ConnectionManager::await_messages(int seconds, std::string& err) {
+        using namespace std::chrono;
+        const auto deadline = steady_clock::now() + std::chrono::seconds(seconds);
+        // Not before the supervisor has had a tick to start the opening.
+        const auto judged_from = steady_clock::now() + milliseconds(1500);
+        while (state_->running && steady_clock::now() < deadline) {
+            if (auto session = current_map_session())
+                return session;
+            if (steady_clock::now() >= judged_from) {
+                std::lock_guard<std::mutex> lock(state_->status_mutex);
+                const nlohmann::json& status = state_->current_status;
+                if (status.is_object()) {
+                    const std::string classic = status.value("classic_state", "");
+                    const std::string messages = status.value("messages", "");
+                    // The iPhone's switch is off: no wait will change that.
+                    if (messages == "forbidden" && (classic == "open" || classic == "failed")) {
+                        err = status.value("profile_reason", "");
+                        if (err.empty())
+                            err = _("Messages are not connected.");
+                        return nullptr;
+                    }
+                    if (classic == "failed")
+                        break;
+                }
+            }
+            std::this_thread::sleep_for(milliseconds(100));
+        }
+        err = _("Couldn’t reach the iPhone to send.");
+        return nullptr;
+    }
+
     bool ConnectionManager::retry_profiles() {
         if (!state_->running)
             return false;
+        // In the lean link mode there is nothing to retry on a closed link:
+        // whoever asks is looking, so the link is opened for a moment.
+        if (state_->lean.load())
+            state_->take_lease(Lease::Reading, RETRY_LEASE_SECONDS);
         {
             std::lock_guard<std::mutex> lock(state_->mutex);
             state_->retry_requested = true;
@@ -2322,7 +4324,180 @@ namespace tether::bluetooth {
             err = _("Call control is off.");
             return false;
         }
+        state_->call_command_at = state_->clock();
         return client->dial(number, err);
+    }
+
+    namespace {
+        std::string dial_failure_message(const std::string& reason) {
+            if (reason == "calls_off")
+                return _("Call control is off.");
+            if (reason == "busy")
+                return _("Another call is already being placed.");
+            if (reason == "cancelled")
+                return _("The call was cancelled.");
+            if (reason == "no_hands_free")
+                return _("The iPhone has not connected Hands-Free to this computer.");
+            return _("Couldn’t reach the iPhone.");
+        }
+    } // namespace
+
+    // Off the caller's thread from the first line: the link may have to be
+    // opened and hands-free waited for, and the event loop serves the other
+    // clients meanwhile.
+    void ConnectionManager::dial_async(const std::string& number,
+                                       const std::string& audio,
+                                       const std::string& operation_id,
+                                       DialProgressFn progress,
+                                       DialResultFn done) {
+        ConnectionState* state = state_.get();
+        std::thread([state, number, audio, operation_id, progress = std::move(progress), done = std::move(done)]() {
+            using namespace std::chrono;
+            const auto report = [&done](bool ok, const std::string& reason, const std::string& message) {
+                if (done)
+                    done(ok, reason, message);
+            };
+            if (normalize_dial_string(number).empty()) {
+                report(false, "refused", _("Not a dialable number."));
+                return;
+            }
+            {
+                std::lock_guard<std::mutex> lock(state->dial_mutex);
+                const bool calls_on = state->running && state->calls_wanted.load() && state->calls_client() != nullptr;
+                if (const char* refusal = dial_refusal(calls_on, state->dial_running)) {
+                    report(false, refusal, dial_failure_message(refusal));
+                    return;
+                }
+                state->dial_running = true;
+                state->dial_operation_id = operation_id;
+                state->dial_cancel = false;
+            }
+
+            // Only the lean link mode opens a link for the call. In the full
+            // mode hands-free is there or it is not, and the answer is the
+            // one it always was.
+            const bool on_demand = state->lean.load();
+            DialOperation operation(state->clock());
+            state->dial_wants_link = true;
+            state->nudge();
+
+            // Someone placing a call from this computer is sitting at it:
+            // its sound comes here unless the client says otherwise.
+            const bool here = dial_audio_here(audio, state->call_audio_here.load(), std::getenv("LANDLINE_DIAL_AUDIO_DEFAULT"));
+            std::shared_ptr<TelephonyClient> routed_client;
+
+            bool ok = false;
+            std::string reason;
+            std::string message;
+            while (true) {
+                auto client = state->calls_client();
+                DialFacts facts;
+                facts.calls_enabled = state->running && client != nullptr;
+                facts.hands_free_ready = client && client->available();
+                {
+                    std::lock_guard<std::mutex> lock(state->status_mutex);
+                    facts.link_up = state->current_status.is_object() &&
+                                    state->current_status.value("classic_connected", false);
+                }
+                {
+                    std::lock_guard<std::mutex> lock(state->dial_mutex);
+                    if (state->dial_cancel)
+                        operation.cancel();
+                }
+                const DialOperation::Step step = operation.step(facts, state->clock());
+                if (!on_demand && !operation.terminal() && step.stage != DialStage::Dialing) {
+                    reason = "no_hands_free";
+                    message = dial_failure_message(reason);
+                    break;
+                }
+                if (step.changed && dial_stage_published(step.stage) && progress)
+                    progress(to_string(step.stage));
+                if (step.stage == DialStage::Dialing) {
+                    // Where the sound of this call goes, set before it is
+                    // placed: the voice link the iPhone offers with the call
+                    // is accepted or refused on that.
+                    debug::log(INFO,
+                               "bluetooth: dial asked, sound {} (client said: {})",
+                               here ? "on this computer" : "on the iPhone",
+                               audio.empty() ? "nothing" : audio);
+                    std::string route_err;
+                    if (!client->call_action({}, here ? "audio_here" : "audio_phone", route_err))
+                        debug::log(INFO, "telephony: call audio not routed: {}", route_err);
+                    routed_client = client;
+                    state->call_command_at = state->clock();
+                    std::string err;
+                    ok = client->dial(number, err);
+                    operation.dialed(ok);
+                    if (!ok) {
+                        reason = "refused";
+                        message = err;
+                    }
+                    break;
+                }
+                if (operation.terminal()) {
+                    reason = operation.reason();
+                    message = dial_failure_message(reason);
+                    break;
+                }
+                std::this_thread::sleep_for(milliseconds(250));
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(state->dial_mutex);
+                state->dial_running = false;
+                state->dial_operation_id.clear();
+                state->dial_cancel = false;
+            }
+            debug::log(INFO,
+                       "bluetooth: dial {}{}{}",
+                       ok ? "accepted by the iPhone" : "not placed",
+                       reason.empty() ? "" : ": ",
+                       reason);
+            report(ok, reason, message);
+
+            // The link stays wanted until the call shows, which then keeps
+            // it; a dial that brought no call gives it back.
+            bool seen = false;
+            if (ok) {
+                const auto deadline = steady_clock::now() + seconds(DIAL_CALL_APPEARS_SECONDS);
+                while (state->running && !seen && steady_clock::now() < deadline) {
+                    {
+                        std::lock_guard<std::mutex> lock(state->calls_publish_mutex);
+                        seen = state->last_calls.is_array() && !state->last_calls.empty();
+                    }
+                    if (!seen)
+                        std::this_thread::sleep_for(milliseconds(250));
+                }
+                if (seen) {
+                    // One tick with the call seen and the lease still held.
+                    std::this_thread::sleep_for(milliseconds(1500));
+                } else if (state->running) {
+                    // The iPhone took the number and shows no call: said,
+                    // instead of the link closing on a silence.
+                    debug::log(WARN,
+                               "bluetooth: the iPhone accepted the dial and no call has shown in {}s; giving the "
+                               "classic link back",
+                               DIAL_CALL_APPEARS_SECONDS);
+                    if (progress)
+                        progress(DIAL_STAGE_NO_CALL);
+                }
+            }
+            // A choice made for a call that never came does not wait for the next.
+            if (!seen && routed_client)
+                routed_client->forget_call_audio();
+            state->dial_wants_link = false;
+            state->nudge();
+        }).detach();
+    }
+
+    bool ConnectionManager::cancel_dial(const std::string& operation_id) {
+        std::lock_guard<std::mutex> lock(state_->dial_mutex);
+        if (!state_->dial_running)
+            return false;
+        if (!operation_id.empty() && operation_id != state_->dial_operation_id)
+            return false;
+        state_->dial_cancel = true;
+        return true;
     }
 
     bool ConnectionManager::call_action(const std::string& path, const std::string& action, std::string& err) {
@@ -2331,7 +4506,97 @@ namespace tether::bluetooth {
             err = _("Call control is off.");
             return false;
         }
+        state_->call_command_at = state_->clock();
         return client->call_action(path, action, err);
+    }
+
+    nlohmann::json ConnectionManager::incoming_call() const {
+        std::lock_guard<std::mutex> lock(state_->ring_mutex);
+        const auto current = state_->ring.current();
+        return current ? to_json(*current) : nlohmann::json(nullptr);
+    }
+
+    bool ConnectionManager::call_action(const std::string& path,
+                                        const std::string& action,
+                                        const CallActionOptions& options,
+                                        std::string& err,
+                                        std::string& via) {
+        via.clear();
+        auto client = state_->calls_client();
+        if (!client) {
+            err = _("Call control is off.");
+            return false;
+        }
+        const bool audio_named = options.audio == "here" || options.audio == "phone";
+        // Where the sound of that one call goes, set before it is taken.
+        const auto route_audio = [&] {
+            if (action != "answer" || !audio_named)
+                return;
+            std::string route_err;
+            if (!client->call_action({}, options.audio == "here" ? "audio_here" : "audio_phone", route_err))
+                debug::log(INFO, "telephony: call audio not routed: {}", route_err);
+        };
+
+        std::optional<IncomingCall> ringing;
+        {
+            std::lock_guard<std::mutex> lock(state_->ring_mutex);
+            ringing = state_->ring.current();
+        }
+        const bool by_notification = options.uid.has_value() || ringing.has_value();
+        if ((action != "answer" && action != "decline") || !by_notification) {
+            // No ring is being followed: hands-free, exactly as before.
+            via = "hfp";
+            route_audio();
+            return call_action(path, action == "decline" ? "hangup" : action, err);
+        }
+
+        // The call as hands-free shows it, if it does.
+        std::string ringing_path;
+        for (const auto& call : client->calls()) {
+            const std::string state = call.value("state", std::string{});
+            const std::string call_path = call.value("path", std::string{});
+            if ((state == "incoming" || state == "waiting") && (path.empty() || path == call_path)) {
+                ringing_path = call_path;
+                break;
+            }
+        }
+        const uint32_t uid = options.uid.value_or(ringing ? ringing->uid : 0);
+        // Flags are only known for the notification being followed; another
+        // uid is tried and the iPhone decides.
+        const bool known = !ringing || ringing->uid != uid;
+        const CallActionPlan plan = plan_call_action(action,
+                                                     audio_named ? options.audio : std::string{},
+                                                     !ringing_path.empty(),
+                                                     true,
+                                                     known || ringing->can_answer_on_phone,
+                                                     known || ringing->can_decline);
+        switch (plan.via) {
+        case CallRoute::None:
+            err = _(plan.error.c_str());
+            return false;
+        case CallRoute::Ancs: {
+            via = "ancs";
+            state_->call_command_at = state_->clock();
+            const bool sent = perform_notification_action(uid, plan.ancs_action);
+            if (!sent) {
+                err = _("The iPhone did not take the action.");
+                return false;
+            }
+            if (plan.ancs_action == ancs::ActionId::Negative) {
+                std::lock_guard<std::mutex> lock(state_->ring_mutex);
+                state_->ring.on_declined(uid);
+            }
+            debug::log(INFO,
+                       "bluetooth: incoming call {} through its notification",
+                       plan.ancs_action == ancs::ActionId::Negative ? "declined" : "answered on the iPhone");
+            return true;
+        }
+        case CallRoute::Hfp:
+            break;
+        }
+        via = "hfp";
+        route_audio();
+        return call_action(ringing_path, plan.hfp_action, err);
     }
 
     bool ConnectionManager::call_tones(const std::string& tones, std::string& err) {
@@ -2341,6 +4606,10 @@ namespace tether::bluetooth {
             return false;
         }
         return client->send_tones(tones, err);
+    }
+
+    bool ConnectionManager::call_in_hand() const {
+        return state_->obex_waits && (state_->calls_busy.load() || state_->dial_wants_link.load());
     }
 
     bool ConnectionManager::calls_available() const {
@@ -2386,6 +4655,7 @@ namespace tether::bluetooth {
             idle["device_paired"] = false;
             idle["link_reason"] = _("No paired iPhone selected.");
             idle["profile_reason"] = "";
+            idle["link_mode"] = to_string(state_->configured_link_mode());
             put_bond(idle, BondHealth{});
             return idle;
         }

@@ -19,7 +19,8 @@ namespace tether {
         std::vector<std::string> icons;
         bool quiet = false;
         std::string reply_thread;
-        // OTP found in this notification, or empty. Non-empty adds a copy action.
+        // OTP found in this notification, or empty. No longer offered as a
+        // "Copy Code" action: the engine has no clipboard under GNOME.
         std::string otp_code;
         // Originating iPhone bundle id.
         std::string app_id;
@@ -39,11 +40,6 @@ namespace tether {
         DesktopNotifier& operator=(const DesktopNotifier&) = delete;
 
         bool init();
-
-        // Where the "Copy Code" action sends the code, along with the spec's
-        // read_handle. Called on the notifier's own thread, so the handler is
-        // responsible for any thread hop it needs.
-        void set_copy_handler(std::function<void(const std::string& code, const std::string& handle)> handler);
 
         // Where text typed into a message notification's inline reply field
         // goes, along with the spec's reply_thread. Only servers advertising

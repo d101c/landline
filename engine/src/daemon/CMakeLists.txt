@@ -22,5 +22,7 @@ set_target_properties(tetherd PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
+landline_portable_runtime(tetherd)
+
 install(TARGETS tetherd
         RUNTIME DESTINATION bin)

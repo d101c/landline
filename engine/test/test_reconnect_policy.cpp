@@ -220,3 +220,22 @@ TEST(AncsRetry, IsEverySecondWhileASessionIsRebuilt) {
     EXPECT_EQ(ancs_retry_seconds(100, -1), ANCS_RETRY_SECONDS);
     EXPECT_EQ(ancs_retry_seconds(100, 100, false), ANCS_RETRY_SECONDS) << "switched off";
 }
+
+// On a link opened on demand a session opens many times a day: the entry
+// count alone decides, and the book is read again once a day.
+TEST(ContactsPlanOnDemand, ReadsWhenThereIsNothingOrTheCountMoved) {
+    EXPECT_EQ(plan_contacts_on_demand(false, -1, -1, 767), ContactsPlan::PullNow);
+    EXPECT_EQ(plan_contacts_on_demand(true, -1, -1, 767), ContactsPlan::PullNow);
+    EXPECT_EQ(plan_contacts_on_demand(true, 120, 767, 768), ContactsPlan::PullNow);
+}
+
+TEST(ContactsPlanOnDemand, KeepsTheBookForADayAndNeverPutsTheReadOff) {
+    EXPECT_EQ(plan_contacts_on_demand(true, 120, 767, 767), ContactsPlan::Keep);
+    // Where the kept link would read it again five minutes later.
+    EXPECT_EQ(plan_contacts(true, 3600, 767, 767), ContactsPlan::PullLater);
+    EXPECT_EQ(plan_contacts_on_demand(true, 3600, 767, 767), ContactsPlan::Keep);
+    EXPECT_EQ(plan_contacts_on_demand(true, CONTACTS_DAILY_SECONDS - 1, 767, 767), ContactsPlan::Keep);
+    EXPECT_EQ(plan_contacts_on_demand(true, CONTACTS_DAILY_SECONDS, 767, 767), ContactsPlan::PullNow);
+    // An unknown count is not a changed one.
+    EXPECT_EQ(plan_contacts_on_demand(true, 3600, 767, -1), ContactsPlan::Keep);
+}

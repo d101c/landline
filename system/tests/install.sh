@@ -80,6 +80,8 @@ check_not "rien n'est écrit" test -e "$H/.local"
 check "annonce la copie du moteur" grep -q "ferait : install -m 0755 $BUILD_DIR/$ENGINE_DAEMON $E/$ENGINE_DAEMON" <<< "$out"
 check "HOME factice : activation refusée" grep -q "rien ne sera démarré ni activé" <<< "$out"
 check_not "aucun systemctl annoncé comme exécuté" grep -Eq '^(fait|ferait) : systemctl' <<< "$out"
+check "annonce le complément d'obex.service" \
+    grep -q "ferait : install -m 0644 $REPO/system/$OBEX_DROPIN_SRC $H/.config/systemd/user/$OBEX_DROPIN_DIR/$OBEX_DROPIN" <<< "$out"
 check "rien à migrer" grep -q "aucune installation sous les anciens noms" <<< "$out"
 
 echo "== install"
@@ -87,8 +89,17 @@ inst >/dev/null
 check "démon installé" test -x "$E/$ENGINE_DAEMON"
 check "outil en ligne de commande installé" test -x "$E/$ENGINE_CLI"
 check "licence du moteur à côté des binaires" cmp -s "$REPO/engine/LICENSE" "$E/LICENSE"
+check "auxiliaire des paramètres LE copié avec le moteur" cmp -s "$BUILD_DIR/$P-le-params" "$E/$P-le-params"
+check_not "auxiliaire des paramètres LE : aucun droit posé par l'installation locale" \
+    sh -c "getcap '$E/$P-le-params' 2>/dev/null | grep -q cap_"
+check "auxiliaire des paramètres LE : ne dépend que du libc" \
+    sh -c "! ldd '$E/$P-le-params' | awk '\$2 == \"=>\" { print \$1 }' | grep -v '^libc\\.so'"
 check_not "aucune interface d'origine installée" sh -c "ls '$E' | grep -Eq 'gtk|tui|dialog|native-host'"
 check "unité utilisateur installée" cmp -s "$REPO/system/$ENGINE_UNIT" "$H/.config/systemd/user/$ENGINE_UNIT"
+check "complément d'obex.service installé" \
+    cmp -s "$REPO/system/$OBEX_DROPIN_SRC" "$H/.config/systemd/user/$OBEX_DROPIN_DIR/$OBEX_DROPIN"
+check "complément d'obex.service : relance en cas d'échec" \
+    grep -qx "Restart=on-failure" "$H/.config/systemd/user/$OBEX_DROPIN_DIR/$OBEX_DROPIN"
 check_not "unité non activée (HOME factice)" test -e "$H/.config/systemd/user/graphical-session.target.wants"
 check "extension copiée sous son uuid" test -f "$X/extension.js"
 check "assistant hors de l'extension, dans ~/.local/lib/$P" cmp -s "$REPO/system/$SETUP_NAME" "$H/.local/lib/$P/$SETUP_NAME"
@@ -116,8 +127,15 @@ check "dry-run : rien n'est retiré" test -x "$E/$ENGINE_DAEMON"
 uninst >/dev/null
 check_not "moteur retiré" test -e "$H/.local/lib/$P"
 check_not "unité retirée" test -e "$H/.config/systemd/user/$ENGINE_UNIT"
+check_not "complément d'obex.service retiré" test -e "$H/.config/systemd/user/$OBEX_DROPIN_DIR/$OBEX_DROPIN"
+check_not "dossier du complément retiré (vide)" test -e "$H/.config/systemd/user/$OBEX_DROPIN_DIR"
 check_not "extension retirée" test -e "$X"
 check "données gardées sans --purge" test -f "$H/.config/$P/bluetooth.json"
+inst >/dev/null
+echo '[Service]' > "$H/.config/systemd/user/$OBEX_DROPIN_DIR/autre.conf"
+uninst >/dev/null
+check_not "complément retiré, même à côté d'un autre" test -e "$H/.config/systemd/user/$OBEX_DROPIN_DIR/$OBEX_DROPIN"
+check "le complément d'un autre est laissé" test -f "$H/.config/systemd/user/$OBEX_DROPIN_DIR/autre.conf"
 uninst --purge >/dev/null
 check_not "--purge : ~/.config/$P retiré" test -e "$H/.config/$P"
 check_not "--purge : ~/.local/share/$P retiré" test -e "$H/.local/share/$P"

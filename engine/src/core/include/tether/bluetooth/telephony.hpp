@@ -1,5 +1,6 @@
 #pragma once
 
+#include "tether/bluetooth/call_audio_follow.hpp"
 #include "tether/bluetooth/call_audio_handover.hpp"
 #include "tether/bluetooth/objects.hpp"
 
@@ -76,10 +77,24 @@ namespace tether::bluetooth {
         }
         bool here() const { return here_; }
 
+        // A choice for one call, made before it exists or while it lasts:
+        // it stands in for the standing choice until the last call ends, or
+        // until it is withdrawn. Without it a hands-free link that appears
+        // between the choice and the call was put back on the standing one.
+        void set_once(std::optional<bool> here) {
+            if (once_ != here)
+                due_ = true;
+            once_ = here;
+        }
+        std::optional<bool> once() const { return once_; }
+
         // One reading of the gateway. Returns what to write to the switch
         // now, if anything: true refuses the voice link.
         std::optional<bool> step(const std::string& gateway_path, std::optional<bool> reject_sco, size_t calls) {
             if (gateway_path.empty()) {
+                // The hands-free link went, and the call chosen for with it.
+                if (!path_.empty())
+                    once_.reset();
                 path_.clear();
                 had_calls_ = false;
                 return std::nullopt;
@@ -87,21 +102,31 @@ namespace tether::bluetooth {
             if (gateway_path != path_) {
                 path_ = gateway_path;
                 due_ = true;
+                fresh_ = true;
             }
-            if (had_calls_ && calls == 0)
+            if (had_calls_ && calls == 0) {
                 due_ = true;
+                once_.reset();
+            }
             had_calls_ = calls > 0;
-            // Never under a call in progress: it keeps what was chosen for it.
-            if (!due_ || calls > 0 || !reject_sco)
+            // Never under a call in progress: it keeps what was chosen for
+            // it. Except on a gateway just seen, which PipeWire creates open:
+            // a call already there (the link was opened for it) would have
+            // its sound here whatever was chosen.
+            if (!due_ || !reject_sco || (calls > 0 && !fresh_))
                 return std::nullopt;
             due_ = false;
-            const bool wanted = !here_;
+            fresh_ = false;
+            const bool wanted = !once_.value_or(here_);
             return *reject_sco == wanted ? std::nullopt : std::optional<bool>(wanted);
         }
 
     private:
         bool here_ = false;
+        std::optional<bool> once_;
         bool due_ = true;
+        // The gateway is new and its switch has not been looked at yet.
+        bool fresh_ = false;
         bool had_calls_ = false;
         std::string path_;
     };
@@ -156,6 +181,20 @@ namespace tether::bluetooth {
         // The standing choice for the sound of calls. Applied by poll_calls().
         void set_call_audio_here(bool here);
 
+        // Where the sound of the next call (or the one in progress) is
+        // wanted. Kept until the call ends: the voice link is accepted or
+        // refused accordingly, and when wanted here it is followed, and asked
+        // of the iPhone if it has not come (see call_audio_follow.hpp).
+        void expect_call_audio(bool here);
+        // The call that wish was made for never came.
+        void forget_call_audio();
+
+        // "audio_here" once the sound of a call wanted here is here,
+        // "audio_failed" with a reason when it did not come. Called from
+        // poll_calls().
+        using AudioEventFn = std::function<void(const std::string& stage, const std::string& reason)>;
+        void set_audio_event_handler(AudioEventFn handler);
+
         // The number is normalized here, so callers may pass what the user typed.
         bool dial(const std::string& number, std::string& err);
 
@@ -170,6 +209,9 @@ namespace tether::bluetooth {
         // How the waits of a hand-over are spent. Tests replace it.
         void set_sleep(std::function<void(int)> sleep_ms);
         void set_handover_timing(const HandoverTiming& timing);
+        void set_follow_timing(const CallAudioFollowTiming& timing);
+        // Milliseconds on a steady clock. Tests replace it.
+        void set_clock(std::function<int64_t()> now_ms);
 
     private:
         // The serving source and its snapshot or null for none.
@@ -194,8 +236,13 @@ namespace tether::bluetooth {
 
         std::vector<std::unique_ptr<TelephonySource>> sources_;
         std::string address_;
-        std::mutex policy_mutex_;
+        mutable std::mutex policy_mutex_;
         CallAudioPolicy policy_;
+        CallAudioFollowUp follow_;
+        AudioEventFn on_audio_event_;
+        std::function<int64_t()> now_ms_;
+        // The voice transport as last journalled.
+        std::string audio_state_logged_;
         std::unique_ptr<CallAudioCard> card_;
         std::function<void(int)> sleep_ms_;
         HandoverTiming timing_;

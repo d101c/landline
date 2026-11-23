@@ -29,9 +29,33 @@ configure_file(
 
 include(GNUInstallDirs)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(WAYLAND REQUIRED IMPORTED_TARGET wayland-client)
 pkg_check_modules(AVAHI REQUIRED IMPORTED_TARGET avahi-client)
+
+# Portable release build (scripts/build-release.sh): one build that runs on any
+# recent GNOME desktop. OpenSSL (libcrypto encrypts the message journal; libssl
+# serves the optional network side) and the C++ runtime are linked in; the
+# programs look for any other library outside the system in lib/ next to them
+# (RPATH $ORIGIN/lib), before the system directories.
+option(LANDLINE_PORTABLE "Link OpenSSL and the C++ runtime statically, RPATH \$ORIGIN/lib" OFF)
+if(LANDLINE_PORTABLE)
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+    # Same object files whatever the source directory.
+    add_compile_options("-ffile-prefix-map=${CMAKE_SOURCE_DIR}=." "-ffile-prefix-map=${CMAKE_BINARY_DIR}=build")
+endif()
 find_package(OpenSSL REQUIRED)
+
+# landline_portable_runtime(<target>) : in a portable build, no libstdc++ or
+# libgcc_s of the build machine, and lib/ next to the program searched first.
+# DT_RPATH (not RUNPATH) so that it also serves the bundled libraries' own
+# dependencies.
+function(landline_portable_runtime target)
+    if(LANDLINE_PORTABLE)
+        target_link_options(${target} PRIVATE -static-libstdc++ -static-libgcc -Wl,--disable-new-dtags)
+        set_target_properties(${target} PROPERTIES
+            BUILD_WITH_INSTALL_RPATH TRUE
+            INSTALL_RPATH "\$ORIGIN/lib")
+    endif()
+endfunction()
 find_package(Intl REQUIRED)
 pkg_check_modules(SECRET REQUIRED IMPORTED_TARGET libsecret-1)
 

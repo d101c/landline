@@ -550,3 +550,33 @@ TEST(ContactStore, StructuredNameSurvivesJsonRoundTrip) {
     EXPECT_EQ(restored[0].family, "Lovelace");
     EXPECT_EQ(restored[0].given, "Ada");
 }
+
+// The recent calls are kept on disk like the address book, so the list is
+// there before any link is opened.
+TEST(CallHistoryCache, RoundTripsWhatTheListShows) {
+    std::vector<VCard> history;
+    VCard missed;
+    missed.name = "Camille";
+    missed.tels = {"+41791234567"};
+    missed.call_type = "MISSED";
+    missed.call_time = "20261117T101500";
+    history.push_back(missed);
+    VCard unnamed;
+    unnamed.tels = {"0221234567"};
+    unnamed.call_type = "DIALED";
+    unnamed.call_time = "20261116T184406";
+    history.push_back(unnamed);
+
+    const std::vector<VCard> restored = deserialize_call_history(serialize_call_history(history));
+    ASSERT_EQ(restored.size(), 2u);
+    EXPECT_EQ(restored[0].name, "Camille");
+    EXPECT_EQ(restored[0].tels, missed.tels);
+    EXPECT_EQ(restored[0].call_type, "MISSED");
+    EXPECT_EQ(restored[0].call_time, "20261117T101500");
+    EXPECT_EQ(restored[1].call_type, "DIALED");
+}
+
+TEST(CallHistoryCache, AnUnreadableFileIsAnEmptyList) {
+    EXPECT_TRUE(deserialize_call_history("{not json").empty());
+    EXPECT_TRUE(deserialize_call_history("").empty());
+}

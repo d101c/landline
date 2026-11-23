@@ -47,6 +47,14 @@ namespace tether::bluetooth {
     // up, and held the advert off air for up to 45 s.
     inline constexpr int LE_DIAL_AFTER_SECONDS = 90;
 
+    // How long BR/EDR is still left alone once the LE link has come up first.
+    // On 16 November 2026, four times out of five, the LE link that had just
+    // come first was lost to a timeout 0.2 to 0.8 s after BR/EDR was asked
+    // for in the same tick: one radio, paging the phone while a link a few
+    // intervals old needs it. The subscription to notifications takes about
+    // two seconds on a link that holds.
+    inline constexpr int LE_SETTLE_SECONDS = 5;
+
     inline constexpr int LE_FIRST_SECONDS_MAX = 600;
 
     struct LeFirstConfig {
@@ -55,12 +63,18 @@ namespace tether::bluetooth {
         int recycle_seconds = LE_RECYCLE_SECONDS;
         bool unpin_after_attempt = true;
         int dial_after_seconds = LE_DIAL_AFTER_SECONDS;
+        // The hold starts in the very tick that sees the last link go, even
+        // while a MAP or PBAP session still reads as open: see
+        // session_outlived_link().
+        bool strict_hold = true;
+        // Zero asks for BR/EDR the moment LE is up, as before.
+        int settle_seconds = LE_SETTLE_SECONDS;
 
         bool operator==(const LeFirstConfig&) const = default;
     };
 
     // The behaviour before any of this.
-    inline LeFirstConfig le_first_off() { return LeFirstConfig{0, 0, false, 0}; }
+    inline LeFirstConfig le_first_off() { return LeFirstConfig{0, 0, false, 0, false, 0}; }
 
     inline int le_first_seconds_from(const char* text, int fallback) {
         if (!text || !*text)
@@ -76,10 +90,18 @@ namespace tether::bluetooth {
     // TETHER_LE_FIRST=0 turns everything off at once. Otherwise
     // TETHER_LE_FIRST_HOLD_SECONDS and TETHER_LE_RECYCLE_SECONDS set the two
     // durations, 0 to 600, 0 switching that one measure off.
-    inline LeFirstConfig le_first_config_from(const char* master, const char* hold, const char* recycle) {
+    // TETHER_LE_FIRST_STRICT=0 gives back the hold as it was first written,
+    // which let one BR/EDR connect out before it began.
+    inline LeFirstConfig le_first_config_from(const char* master,
+                                              const char* hold,
+                                              const char* recycle,
+                                              const char* strict = nullptr,
+                                              const char* settle = nullptr) {
         if (master && std::string_view(master) == "0")
             return le_first_off();
         LeFirstConfig config;
+        config.strict_hold = !(strict && std::string_view(strict) == "0");
+        config.settle_seconds = le_first_seconds_from(settle, LE_SETTLE_SECONDS);
         config.hold_seconds = le_first_seconds_from(hold, LE_FIRST_HOLD_SECONDS);
         config.recycle_seconds = le_first_seconds_from(recycle, LE_RECYCLE_SECONDS);
         return config;
@@ -98,6 +120,17 @@ namespace tether::bluetooth {
 
         bool expected() const { return ancs_enabled && le_available && phone_offers_ancs && !standing_back; }
     };
+
+    // An open MAP or PBAP session counts as a link: on a machine that offers
+    // the phone no profile, BlueZ reads BR/EDR as down while obexd reaches it.
+    // But a session whose BR/EDR link has just been seen to drop is only a
+    // record obexd has not cleaned up yet. Counting it as a link kept the hold
+    // from starting in that tick, and the tick asked for BR/EDR instead
+    // (17 November 2026: "asking BlueZ for the BR/EDR link" 4 ms before
+    // "leaving BR/EDR alone", at every complete loss).
+    inline bool session_outlived_link(bool classic_was_connected, bool classic_connected) {
+        return classic_was_connected && !classic_connected;
+    }
 
     struct HoldFacts {
         LeExpectation le;
@@ -119,6 +152,28 @@ namespace tether::bluetooth {
         if (facts.all_down_since < 0 || facts.now < facts.all_down_since)
             return false;
         return facts.now - facts.all_down_since < config.hold_seconds;
+    }
+
+    struct SettleFacts {
+        LeExpectation le;
+        bool le_connected = false;
+        bool classic_connected = false;
+        bool obex_up = false;
+        int64_t now = 0;
+        // Since when the LE link has been up, negative while it is down.
+        int64_t le_up_since = -1;
+    };
+
+    // Whether BR/EDR is still left alone because the LE link is too young to
+    // share the radio with a page: no connect, no MAP or PBAP session.
+    inline bool settle_le_before_classic(const LeFirstConfig& config, const SettleFacts& facts) {
+        if (config.settle_seconds <= 0 || !facts.le.expected())
+            return false;
+        if (!facts.le_connected || facts.classic_connected || facts.obex_up)
+            return false;
+        if (facts.le_up_since < 0 || facts.now < facts.le_up_since)
+            return false;
+        return facts.now - facts.le_up_since < config.settle_seconds;
     }
 
     struct RecycleFacts {

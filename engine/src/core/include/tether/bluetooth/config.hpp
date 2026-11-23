@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tether/bluetooth/bearer_supervisor.hpp"
+#include "tether/bluetooth/link_mode.hpp"
 #include "tether/secret_store.hpp"
 
 #include <map>
@@ -111,6 +112,9 @@ namespace tether::bluetooth {
         // Whether the sound of calls comes to this computer. Off keeps it on
         // the iPhone; answering and hanging up work either way.
         bool call_audio_here = false;
+        // How the links are kept: lean (LE alone, the classic link on
+        // demand) or full (both, all the time). See link_mode.hpp.
+        LinkMode link_mode = LinkMode::Lean;
 
         bool operator==(const Config&) const = default;
     };

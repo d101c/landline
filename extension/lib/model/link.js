@@ -9,12 +9,13 @@
 // "Link again"; and it stays there until the user acts or the link has held
 // for STEADY_MS.
 
-import {FLAP_LIMIT, FLAP_WINDOW_MS, STEADY_MS} from './constants.js';
+import {FLAP_LIMIT, FLAP_WINDOW_MS, RECONNECT_AFTER_LINK_MS, STEADY_MS} from './constants.js';
+import {ENGINE_REASONS} from './reconnect.js';
 
 export const withLink = Base => class extends Base {
     _watchLinks() {
         const now = this._now();
-        const up = this._linkedEither();
+        const up = this._linked();
         if (this._wasUp && !up)
             this._drops.push(now);
         this._drops = this._drops.filter(t => now - t < FLAP_WINDOW_MS);
@@ -24,6 +25,12 @@ export const withLink = Base => class extends Base {
             this._steadySince = null;
         else if (this._steadySince === null)
             this._steadySince = now;
+        // A link the iPhone really serves (notifications answered, or a
+        // messages or contacts session) proves the pairing: drops before it
+        // were range, not a broken pairing (18 November, 02:15: "Link again"
+        // stayed a minute over a working link after a walk out and back).
+        if (this._unsteady?.reason === 'flapping' && this._linkConfirmed())
+            this._steadyReset();
         if (!this.steady || this._unsteady)
             return;
         if (this._needsRepair() === true)
@@ -43,16 +50,27 @@ export const withLink = Base => class extends Base {
         this._drops = [];
     }
 
-    // Links up and one service really working: nothing to wait for.
+    // Linked and one service really working: nothing to wait for.
     _linkConfirmed() {
         const conn = this._conn ?? {};
-        return this._linkedEither() &&
+        return this._linked() &&
             (conn.map_open === true || conn.pbap_open === true || conn.ancs_ready === true);
     }
 
-    // What the indicator should show once things hold.
+    // What the indicator should show once things hold: a state of _link(),
+    // or 'reconnecting'.
     _targetLink() {
         const link = this._link();
+        // Something is under way. A guess gives way to the latch of links
+        // that keep dropping; what the engine says does not.
+        const reconnect = this._reconnecting();
+        const latch = this._unsteady?.reason;
+        if (reconnect && latch !== 'repair' && (latch !== 'flapping' || ENGINE_REASONS.includes(reconnect)))
+            return 'reconnecting';
+        // Out of range, drops are what walking away looks like: shown as away.
+        const outOfRange = this._presence?.state === 'away' && this._presence?.reason === 'out_of_range';
+        if (this._unsteady?.reason === 'flapping' && link === 'away' && outOfRange)
+            return 'away';
         if (this.steady && this._unsteady && (link === 'linked' || link === 'away'))
             return 'broken';
         return link;
@@ -74,10 +92,18 @@ export const withLink = Base => class extends Base {
             this._candidate = null;
         } else if (this._candidate?.link !== target) {
             this._candidate = {link: target, since: now};
-        } else if (now - this._candidate.since >= this.settleMs) {
+        } else if (now - this._candidate.since >= this._settleWait(target)) {
             this._shown = target;
             this._candidate = null;
         }
+    }
+
+    // How long `target` must hold before it is shown. From linked, a drop
+    // that is reconnecting waits longer: a served link that blinks for a few
+    // seconds stays linked.
+    _settleWait(target) {
+        return target === 'reconnecting' && this._shown === 'linked'
+            ? Math.max(this.settleMs, RECONNECT_AFTER_LINK_MS) : this.settleMs;
     }
 
     // 'starting' | 'engine' | 'bluetooth' | 'permission' | 'setup' | 'relink' |
@@ -89,14 +115,14 @@ export const withLink = Base => class extends Base {
         if (this._engine !== 'connected' || !this._status)
             return 'starting';
         const conn = this._conn ?? {};
-        if (this._status.capability?.powered === false && !this._linkedEither())
+        if (this._status.capability?.powered === false && !this._linked())
             return 'bluetooth';
         // A pairing that cannot work is never shown as a link, even while
         // one half of it happens to be up.
         // The engine's word is final; a guess gives way to a working LE link.
         const broken = this._brokenPairing() &&
             (this._needsRepair() === true || conn.le_connected !== true);
-        if (this._linkedEither() && !broken)
+        if (this._linked() && !broken)
             return 'linked';
         if (this._needsPermission())
             return 'permission';
@@ -129,6 +155,22 @@ export const withLink = Base => class extends Base {
         return ['experimental', 'ertm'].filter(key =>
             system.required?.[key] !== false &&
             (system[key] === false || system.persistent?.[key] === false));
+    }
+
+    // Settings that are wished for, never needed: 'le_params', the helper
+    // that lets the engine ask the iPhone for a more tolerant LE link, when
+    // the system helper says it is missing. Only offered where the password
+    // window can be used: nothing to copy into a terminal for a wish.
+    _systemWishes() {
+        const system = this._system;
+        if (!system || system.elevation !== true)
+            return [];
+        return system.le_params === false ? ['le_params'] : [];
+    }
+
+    // A wish the tour may still offer in this session.
+    _wishPending() {
+        return !this._wishesDeclined && this._systemWishes().length > 0;
     }
 
     _setupSteps() {

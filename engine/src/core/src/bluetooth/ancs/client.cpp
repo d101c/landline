@@ -1,4 +1,5 @@
 #include "tether/bluetooth/ancs/client.hpp"
+#include "tether/bluetooth/ancs/liveness.hpp"
 #include "tether/bluetooth/ancs/sequencer.hpp"
 #include "tether/bluetooth/ancs/subscription_guard.hpp"
 #include "tether/bluetooth/bmessage.hpp"
@@ -44,6 +45,8 @@ namespace tether::bluetooth::ancs {
         AncsClient::NotificationFn on_notification;
         AncsClient::WithdrawFn on_withdraw;
         AncsClient::StatusFn on_status;
+        // Called on the GLib thread when the phone has sent something.
+        std::function<void()> on_activity;
 
         std::string device_path;
         // The last non-empty device path, so an LE teardown can be told apart
@@ -70,6 +73,9 @@ namespace tether::bluetooth::ancs {
         // What the last subscription attempt was told, so the same answer is
         // written once and not every second.
         std::string last_subscribe_note;
+
+        // Whether a session that worked still does (liveness.hpp).
+        AncsLiveness liveness;
 
         // Guards everything that crosses a thread boundary: the two GATT buffers
         // filled on the GLib thread, the characteristic paths that thread compares
@@ -99,6 +105,8 @@ namespace tether::bluetooth::ancs {
         std::map<std::string, std::string> app_names;
 
         bool write_control_point(const std::vector<uint8_t>& payload);
+        ProbeAnswer probe_liveness();
+        void step_liveness(int64_t now);
         void set_status(bool now_ready, const std::string& text);
         bool discover();
         bool subscribe();
@@ -146,15 +154,24 @@ namespace tether::bluetooth::ancs {
 
             gsize length = 0;
             const guchar* bytes = static_cast<const guchar*>(g_variant_get_fixed_array(value, &length, 1));
+            bool buffered = false;
             if (bytes && length) {
                 std::vector<uint8_t> copy(bytes, bytes + length);
                 std::lock_guard<std::mutex> lock(state->inbox);
-                if (state->notification_source_path == object_path)
+                if (state->notification_source_path == object_path) {
                     state->pending_source.push_back(std::move(copy));
-                else if (state->data_source_path == object_path)
+                    buffered = true;
+                } else if (state->data_source_path == object_path) {
                     state->pending_data.push_back(std::move(copy));
+                    buffered = true;
+                }
             }
             g_variant_unref(value);
+            // The thread that drains the buffers is asked to do so now: an
+            // answer used to wait up to a second for its next pass, and the
+            // next question with it.
+            if (buffered && state->on_activity)
+                state->on_activity();
         }
 
     } // namespace
@@ -200,6 +217,78 @@ namespace tether::bluetooth::ancs {
         }
         g_variant_unref(reply);
         return true;
+    }
+
+    // The probe of liveness.hpp: GetNotificationAttributes for a UID no
+    // notification has, outside the sequencer, whose answer is an error and
+    // never a packet on the Data Source.
+    ProbeAnswer AncsClientState::probe_liveness() {
+        if (control_point_path.empty() || !monitor || !monitor->connection())
+            return ProbeAnswer::Inconclusive;
+        const Request request = build_notification_request(ANCS_PROBE_UID, {NotificationAttributeId::AppIdentifier});
+        GVariantBuilder options;
+        g_variant_builder_init(&options, G_VARIANT_TYPE("a{sv}"));
+        GVariant* value = g_variant_new_fixed_array(
+            G_VARIANT_TYPE_BYTE, request.payload.data(), request.payload.size(), sizeof(uint8_t));
+        GError* error = nullptr;
+        GVariant* reply = g_dbus_connection_call_sync(monitor->connection(),
+                                                      BLUEZ_NAME,
+                                                      control_point_path.c_str(),
+                                                      IFACE_CHARACTERISTIC,
+                                                      "WriteValue",
+                                                      g_variant_new("(@aya{sv})", value, &options),
+                                                      nullptr,
+                                                      G_DBUS_CALL_FLAGS_NONE,
+                                                      ANCS_PROBE_TIMEOUT_MS,
+                                                      nullptr,
+                                                      &error);
+        if (reply) {
+            g_variant_unref(reply);
+            return classify_probe(true, false, {});
+        }
+        const bool timed_out = g_error_matches(error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT);
+        const std::string message = error ? error->message : "unknown error";
+        g_clear_error(&error);
+        const ProbeAnswer answer = classify_probe(false, timed_out, message);
+        if (answer == ProbeAnswer::Inconclusive)
+            debug::log(INFO, "ancs: the liveness probe was neither answered nor timed out ({}); tried again later", message);
+        return answer;
+    }
+
+    void AncsClientState::step_liveness(int64_t now) {
+        if (ready)
+            liveness.ready(now);
+        else
+            liveness.lost();
+        const bool busy = sequencer->in_flight() || sequencer->queued() > 0;
+        AncsLiveness::Action action = liveness.due(now, busy);
+        if (action == AncsLiveness::Action::Probe) {
+            const auto started = std::chrono::steady_clock::now();
+            const ProbeAnswer answer = probe_liveness();
+            const auto took =
+                std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+            if (answer == ProbeAnswer::Alive)
+                debug::log(DEBUG, "ancs: the iPhone answered the liveness probe in {}ms", took);
+            action = liveness.probe_answer(now, answer);
+        }
+        switch (action) {
+        case AncsLiveness::Action::ResubscribeSilent:
+            debug::log(WARN,
+                       "ancs: the iPhone did not answer the liveness probe within {}ms; the notification session is "
+                       "subscribed again",
+                       ANCS_PROBE_TIMEOUT_MS);
+            rebuild("the liveness probe went unanswered");
+            break;
+        case AncsLiveness::Action::ResubscribeQuiet:
+            debug::log(INFO,
+                       "ancs: no notification from the iPhone for {}h; the notification session is subscribed again in "
+                       "case the iPhone's side of it is stuck",
+                       liveness.config().quiet_seconds / 3600);
+            rebuild("no notification for a long time");
+            break;
+        default:
+            break;
+        }
     }
 
     bool AncsClientState::discover() {
@@ -526,6 +615,9 @@ namespace tether::bluetooth::ancs {
         release(Release::Rebuild);
         subscribed = false;
         next_subscribe = 0;
+        // The session that comes next is asked its first question as soon
+        // as it exists, not when the one before would have been asked again.
+        next_probe = 0;
         settle_since = -1;
         set_status(false, "Subscribing to the iPhone's notifications...");
         sequencer->reset();
@@ -601,12 +693,17 @@ namespace tether::bluetooth::ancs {
     }
 
     void AncsClientState::handle_response(const Request& request, const Response& response, int64_t now) {
-        if (response.command == CommandId::GetAppAttributes) {
-            // The readiness probe: a Data Source answer proves the phone has
-            // authorized notification access, which StartNotify alone does not.
-            if (!ready)
-                set_status(true, "Notification mirroring is active.");
+        // Any answer on the Data Source proves the phone has authorized
+        // notification access, which StartNotify alone does not: the
+        // readiness probe, or the attributes of a notification the phone
+        // listed first. An action is acknowledged here without one.
+        if (!ready &&
+            (response.command == CommandId::GetAppAttributes ||
+             (response.command == CommandId::GetNotificationAttributes && response.uid == request.uid &&
+              !request.attribute_ids.empty())))
+            set_status(true, "Notification mirroring is active.");
 
+        if (response.command == CommandId::GetAppAttributes) {
             const std::string name = response.attribute(static_cast<uint8_t>(AppAttributeId::DisplayName));
             if (!response.app_id.empty() && !name.empty()) {
                 app_names[response.app_id] = name;
@@ -666,6 +763,9 @@ namespace tether::bluetooth::ancs {
         state_->on_notification = std::move(on_notification);
         state_->on_withdraw = std::move(on_withdraw);
         state_->on_status = std::move(on_status);
+        state_->liveness.configure(liveness_config_from(std::getenv("LANDLINE_ANCS_LIVENESS"),
+                                                        std::getenv("LANDLINE_ANCS_PROBE_SECONDS"),
+                                                        std::getenv("LANDLINE_ANCS_QUIET_SECONDS")));
 
         AncsClientState* raw = state_.get();
         state_->sequencer = std::make_unique<ControlPointSequencer>(
@@ -739,6 +839,12 @@ namespace tether::bluetooth::ancs {
     void AncsClient::set_content_enabled(bool enabled) { state_->content_enabled = enabled; }
 
     void AncsClient::set_fast_settle(bool enabled) { state_->fast_settle = enabled; }
+
+    void AncsClient::set_activity_listener(std::function<void()> listener) {
+        state_->on_activity = std::move(listener);
+    }
+
+    bool AncsClient::subscribed() const { return state_->subscribed; }
 
     void AncsClient::retry_now() {
         state_->next_discover = 0;
@@ -859,6 +965,8 @@ namespace tether::bluetooth::ancs {
         for (const auto& packet : data)
             s->sequencer->on_data_source(packet.data(), packet.size(), now);
 
+        if (!source.empty())
+            s->liveness.packet(now);
         for (const auto& packet : source) {
             SourceEvent event;
             if (!parse_source_event(packet.data(), packet.size(), event)) {
@@ -878,7 +986,12 @@ namespace tether::bluetooth::ancs {
                           "Waiting for the iPhone to allow notification access. Settings > Bluetooth > (i) > "
                           "Share System Notifications.");
             s->sequencer->submit(build_app_request(APP_ID_MESSAGES));
+            // Written now when nothing is in flight: it used to wait for the
+            // next pass, a second during which the link was of no use yet.
+            s->sequencer->tick(now);
         }
+
+        s->step_liveness(now);
     }
 
 } // namespace tether::bluetooth::ancs

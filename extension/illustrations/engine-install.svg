@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 240 160" font-family="sans-serif">
+  <!-- Install: into the home folder, the previous engine kept beside it. Drawn for Landline (Phone Settings › Engine); no artwork of anyone else. -->
+  <rect x="0" y="0" width="240" height="160" rx="18" fill="#1d1d20"/>
+  <path d="M40 54 h34 l8 9 h66 a6 6 0 0 1 6 6 v58 a6 6 0 0 1 -6 6 h-108 a6 6 0 0 1 -6 -6 v-67 a6 6 0 0 1 6 -6 z" fill="#3a3a3c" stroke="#77777c" stroke-width="2"/>
+  <path d="M168 84 h20 l5 6 h20 a4 4 0 0 1 4 4 v30 a4 4 0 0 1 -4 4 h-45 a4 4 0 0 1 -4 -4 v-36 a4 4 0 0 1 4 -4 z" fill="none" stroke="#77777c" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="191" y="141" font-size="8" fill="#98989f" text-anchor="middle">previous</text>
+  <g transform="translate(76 22)">
+    <path d="M0 8 L18 0 L36 8 L36 30 L18 38 L0 30 Z" fill="#f2b45c"/>
+    <path d="M0 8 L18 16 L36 8 M18 16 V38" fill="none" stroke="#9a6a24" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>
+  <path d="M94 66 v16 m-6 -6 l6 6 l6 -6" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68 104 h52" stroke="#f2b45c" stroke-width="3" stroke-linecap="round"/>
+</svg>

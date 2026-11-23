@@ -4,13 +4,16 @@
 // import: time comes from the `now` function, commands leave through `send`.
 
 import {
+    ANSWER_HERE_MS,
     FIX_TIMEOUT_MS,
     LINK_SETTLE_MS,
     LOW_BATTERY,
     NOTICE_PILL_MS,
     OBEX_STUCK_MS,
+    PROVISIONAL_MS,
     STEADY_MS,
 } from './constants.js';
+import {ANSWER_HERE, EVENT, RING_FIELD} from './protocol.js';
 
 export class ModelCore {
     constructor({send, now, translate, quickReplies, hostName, callControl, steady} = {}) {
@@ -25,6 +28,9 @@ export class ModelCore {
         // What the system helper says about the Bluetooth settings of this
         // computer: null while unknown or when there is no helper.
         this._system = null;
+        // The wished settings (see _systemWishes()) were turned down, or
+        // could not be made, in this session: not offered again by the tour.
+        this._wishesDeclined = false;
 
         // Called with no argument after anything view() depends on changed.
         this.onChange = null;
@@ -32,27 +38,61 @@ export class ModelCore {
         // the last one given through wantSetting(): 'phone-audio-here',
         // 'lock-on-away', 'lock-away-seconds'. Phone Settings shows them.
         this.onSetting = null;
-        // Called with {kind: 'battery', level, threshold} for what deserves a
-        // quiet desktop notification.
-        this.onAlert = null;
+        // "Tell me when the iPhone battery is low": the icon and the menu
+        // say it, nothing pops up.
         this.batteryAlerts = true;
         // The Internet connection of the iPhone, as NetworkManager sees it:
-        // {state, failed}, given by the extension (lib/hotspot.js).
+        // {state, failed, reason}, given by the extension (lib/hotspot.js);
+        // and what the switch of the menu wants of it (model/internet.js).
         this._hotspot = null;
+        this._internetWish = false;       // on, waiting for the iPhone to be back
+        this._internetLost = null;        // {at, away}: the connection fell
+        this._internetFailure = null;     // {seen}: a failure the icon tells
+        this._internetGuide = null;       // the drawing asked for (true) or put away (false)
+        this._internetWorked = false;     // it has worked once
         this._wanted = new Map();          // setting -> {value, until}
+        // How to choose this computer on the iPhone has been read once.
+        this._phoneAudioHintSeen = false;
+        this._linkModeTold = '';           // what Phone Settings was last told of the mode
+        // The last battery level the engine gave, kept while the link that
+        // carries it is down: {level, at}.
+        this._lastBattery = null;
         // Kept for the whole session of the Shell, whatever the engine and
         // the link do: what was already shown is never shown a second time.
         this._seen = new Set();            // message handles
         this._shownNotes = new Map();      // notification fingerprint -> uid it was shown under
         this._liveNotes = new Set();       // uids shown on the desktop right now
-        // Called with ('show', notification) and ('remove', {uid}) for the
-        // iPhone notifications that become desktop notifications, with
-        // ('reset', {uids}) when the engine gives the full list again, and
-        // with ('reply', {uid, appId, number}) when one of them can be
-        // answered in the app's own client on this computer.
+        // Called with ('show', notification) for an iPhone notification that
+        // is new, ('remove', {uid}) when it left the iPhone, ('reset', {uids})
+        // when the engine gives the full list again, and with
+        // ('reply', {uid, appId, number}) when the sender of one of them is
+        // known for sure (its conversation can be opened, see _handoff()).
         this.onNotification = null;
+        // The official apps of this computer (lib/officialApps.js), given by
+        // the extension: appRoute(bundleId) says how a notification of that
+        // app is handed over, appRunning(bundleId) whether its desktop app
+        // is open now. null: none known.
+        this.appRoute = null;
+        this.appRunning = null;
+        // "Don't double the notifications of an app open on this computer"
+        // (Phone Settings, off by default).
+        this.skipRunningApps = false;
+        // A missing official app is suggested once per service, never again
+        // once "Don't Suggest Apps" was clicked (see setSuggestedApps()).
+        this.suggestApps = true;
+        this._suggested = new Set();       // services already suggested
+        // "Earlier": notifications that left the iPhone, when Phone Settings
+        // asks for them to be kept. In memory only, for this session of the
+        // Shell at most (see setKeepHistory()).
+        this.keepHistory = false;
+        this._earlier = new Map();         // fingerprint -> {appName, title, body, timestamp, at}
+        // Apps that never grow the pill (see setQuietApps()).
+        this._quietApps = new Set();
 
         this._engine = 'connecting';
+        // What is installed: {installed, outdated}, or null before the
+        // extension has looked (see setEngineInstall()).
+        this._engineInstall = null;
         // "Fix It" under way or just done: {state, until, gone}. It outlives
         // the engine, which is restarted on purpose.
         this._fix = null;
@@ -83,6 +123,14 @@ export class ModelCore {
         this._threads = new Map();
         this._history = [];
         this._liveNotes = new Set();
+        this._phoneNotes = new Map();      // uid -> what waits on the iPhone right now
+        this._notePrints = new Map();      // fingerprint -> uid, for those
+        this._noteCard = null;             // uid of the notification its card shows
+        this._showAllNotes = false;        // "Show all" was asked in the open menu
+        this._leUp = false;                // the link that carries notifications is up
+        this._awayNew = new Set();         // uids that came while the iPhone was away
+        this._awayAt = null;               // when their summary is due
+        this._batteryLow = null;           // {level, seen}: the battery went low
         this._unread = new Map();          // message handle -> thread
         this._calls = [];
         this._callNames = new Map();       // call path -> name
@@ -108,6 +156,11 @@ export class ModelCore {
         this._abandoned = null;
         this._obexSince = null;            // since when messages and contacts both fail
         this._compose = null;              // "New Message…": {query, results}
+        this._phoneAsk = null;             // a phone link to confirm: {number, name, where, calls, error}
+        this._phoneLinksOffer = false;     // "Use Landline for phone links" may be offered (#50)
+        this._phoneLinksOffering = false;  // ...and the open menu shows it
+        this._phoneLinksOffered = false;   // ...and it was shown once
+        this._suggestion = null;           // {uid, key}: the card of that notification suggests an app
         this._replyNumbers = new Map();    // sender name -> number, or null: not sure
         this._replyWaiting = new Map();    // sender name -> [{uid, appId}] awaiting the contacts
         this._audioState = null;           // last bt_audio, null with an older engine
@@ -116,19 +169,53 @@ export class ModelCore {
         this._answeredHere = null;         // path of a call answered from this computer
         this._audioMove = null;            // {where, until}: a move of the call sound under way
         this._audioFailed = null;          // 'phone' | 'computer': a move that did not happen, shown until it does or another is asked
+        this._audioReason = null;          // why the sound did not come here, when the engine says
+        this._incoming = null;             // the call that rings, as bt_incoming_call announced it
+        this._dial = null;                 // "Call…": {query, results, where, pending, failed}
+        this._leases = new Map();          // lease on the classic link -> when to renew it
+        this._provisional = new Map();     // messages shown from their notification only
+        this._missed = new Set();          // uids of missed-call notifications not looked at yet
+        this._voicemail = new Set();       // uids of voicemail notifications not looked at yet
+        this._attentionAt = null;          // when the icon last had something new to say
+        this._wasPaused = false;           // notifications were paused at the last change
         // An engine that goes away is not the link dropping.
         this._wasUp = false;
         this._steadySince = null;
+        // Reconnecting (model/reconnect.js).
+        this._reconnect = null;            // {since, reason, calm} while said; {spent} once said too long
+        this._signAt = null;               // the last sign of the iPhone
+        this._anyUp = false;               // a link, any link, is up
+        this._upAt = null;                 // since when the useful link is up
+        this._upServed = false;            // ... and whether the iPhone served it
+        this._fails = [];                  // when links died before they served
+        this._holdOff = null;              // {since, strikes}: the engine leaves the iPhone alone
+        this._phoneAudioWait = null;       // {since}: the sound of the iPhone wanted here, not here yet
+        this._phoneAudioPlayedOpen = false; // it played here while the menu was open
     }
 
     _changed() {
+        this._iconWatch();
+        this._syncLeases();
         this._tourRetry();
         this._steadyCheck();
+        this._reconnectWatch();
+        this._internetWatch();
         this._settle();
+        this._phoneAudioWatch();
         this.onChange?.();
     }
 
     // --- engine side -------------------------------------------------------
+
+    // Whether the engine is installed in the home folder, and older than
+    // the release this extension installs: {installed, outdated}.
+    setEngineInstall(info) {
+        const old = this._engineInstall;
+        if (old?.installed === info?.installed && old?.outdated === info?.outdated)
+            return;
+        this._engineInstall = info ?? null;
+        this._changed();
+    }
 
     // 'connecting' (first try), 'connected', 'absent' (the socket does not
     // answer, the client keeps trying).
@@ -175,6 +262,7 @@ export class ModelCore {
             break;
         case 'bt_presence':
             this._presence = event;
+            this._reconnectPresence(event);
             break;
         case 'bt_battery_low':
             this._onBatteryLow(event);
@@ -206,13 +294,27 @@ export class ModelCore {
             }
             this._dropFresh(event.handles ?? []);
             break;
+        case EVENT.sendProgress:
+            this._onSendProgress(event);
+            break;
         case 'bt_send_result':
             this._onSendResult(event);
             break;
         case 'bt_calls':
             this._onCalls(event);
+            // Read on demand, the list also says which call rings right now.
+            if (RING_FIELD.listed in event)
+                this._onIncomingCall(event[RING_FIELD.listed]);
             break;
-        case 'bt_call_result':
+        case EVENT.incomingCall:
+            this._onIncomingCall(event);
+            break;
+        case EVENT.callProgress:
+            this._onCallProgress(event);
+            break;
+        case EVENT.callResult:
+            if (this._dialResult(event))
+                break;
             if (event.success === false) {
                 this._callError = event.message || this._('The iPhone did not do that.');
                 // Not answered: no sound on its way anywhere.
@@ -235,6 +337,11 @@ export class ModelCore {
             break;
         case 'bt_notification_removed':
             this._liveNotes.delete(event.uid);
+            // Looked at on the iPhone: nothing left to say here.
+            this._missed.delete(event.uid);
+            this._voicemail.delete(event.uid);
+            this._dropProvisional(event.uid);
+            this._unmirror(event.uid);
             this.onNotification?.('remove', {uid: event.uid});
             break;
         case 'bt_scan_result':
@@ -245,6 +352,7 @@ export class ModelCore {
                 this._contactCount = Array.isArray(event.contacts) ? event.contacts.length : null;
             else {
                 this._composeResults(event);
+                this._dialResults(event);
                 this._replyContacts(event);
             }
             break;
@@ -310,7 +418,19 @@ export class ModelCore {
 
     _onConnection(event) {
         this._conn = event;
+        // Notifications travel on the LE link. When it drops, what waits on
+        // the iPhone is no longer known; the engine sends all of it again
+        // when the link is back.
+        const le = event.le_connected === true;
+        if (this._leUp && !le) {
+            for (const uid of [...this._phoneNotes.keys()])
+                this._unmirror(uid);
+        }
+        this._leUp = le;
+        this._noteBattery(event);
+        this._reportLinkMode();
         this._watchLinks();
+        this._reconnectTrack(event);
         this._tourRescue();
         this._tourVerify();
         this._tourSwitches();
@@ -330,15 +450,12 @@ export class ModelCore {
             const announced = typeof event.battery_state === 'string';
             if (!announced && battery < LOW_BATTERY && !this._lowBatteryTold && this._link() === 'linked') {
                 this._lowBatteryTold = true;
-                if (!this._transient && !this._hush()) {
-                    this._transient = {
-                        kind: 'notice',
-                        // Translators: %d is the iPhone battery level.
-                        text: this._('iPhone %d %%').replace('%d', battery).replace('%%', '%'),
-                        until: this._now() + NOTICE_PILL_MS,
-                    };
-                }
+                if (this.batteryAlerts)
+                    this._batteryLow = {level: battery, seen: false};
             }
+            // Charged again, or still falling: the menu follows.
+            if (this._batteryLow)
+                this._batteryLow = battery >= 25 ? null : {...this._batteryLow, level: battery};
         }
     }
 
@@ -353,6 +470,8 @@ export class ModelCore {
             times.push(this._pending.until);
         if (this._pairing)
             times.push(this._pairing.until);
+        if (this._awayAt !== null)
+            times.push(this._awayAt);
         const tour = this._tour;
         if (tour?.code && !tour.answered && !tour.paired && tour.step !== 'failed') {
             // One tick per second for the countdown.
@@ -377,8 +496,24 @@ export class ModelCore {
             times.push(this._fix.until);
         if (this._audioMove)
             times.push(this._audioMove.until);
+        times.push(...this._phoneAudioDeadlines());
+        for (const renewAt of this._leases.values())
+            times.push(renewAt);
+        for (const provisional of this._provisional.values()) {
+            // Not while its card is open: it is let go when the card closes.
+            if (this._thread !== provisional.message.thread)
+                times.push(provisional.at + PROVISIONAL_MS);
+        }
+        if (this._incoming?.answerHere === ANSWER_HERE.connecting && this._now() < this._incoming.seenAt + ANSWER_HERE_MS)
+            times.push(this._incoming.seenAt + ANSWER_HERE_MS);
+        if (this._dial?.pending)
+            times.push(this._dial.pending.until);
         if (this._candidate)
-            times.push(this._candidate.since + this.settleMs);
+            times.push(this._candidate.since + this._settleWait(this._candidate.link));
+        times.push(...this._reconnectDeadlines());
+        // The icon stops moving.
+        if (this._iconSettlesAt() !== null)
+            times.push(this._iconSettlesAt());
         if (this._unsteady && this._steadySince !== null)
             times.push(this._steadySince + STEADY_MS);
         const call = this._activeCall();
@@ -404,6 +539,9 @@ export class ModelCore {
         if (this._pairing && now >= this._pairing.until)
             this._pairing = null;
         this._audioMoved();
+        this._awaySummary();
+        this._provisionalExpire();
+        this._dialExpire();
         const tour = this._tour;
         if (tour?.code && !tour.answered && !tour.paired && tour.step !== 'failed' && now >= tour.until) {
             // The engine declines by itself after its delay.
@@ -432,22 +570,53 @@ export class ModelCore {
     cardOpened() {
         this._cardOpen = true;
         const t = this._transient;
-        if (!this._busy()) {
+        // Opened for a phone link: that card, and nothing else.
+        if (!this._busy() && !this._phoneAsk) {
             if (t?.kind === 'message')
                 this._showThread(t.message.thread, t.message);
             else if (t?.kind === 'failed')
                 this._showThread(t.thread, null);
+            else if (t?.kind === 'note') {
+                // One notification: its card. Several: the menu lists them.
+                const notes = this._pillNotes();
+                this._noteCard = notes.length === 1 ? notes[0].uid : null;
+                this._transient = null;
+                if (this._noteCard !== null)
+                    this._offerSuggestion(this._noteCard);
+            } else if (t?.kind === 'summary') {
+                // The menu says the rest, under "On your iPhone".
+                this._transient = null;
+            }
+        }
+        // The menu itself was opened: the recent calls are in it, the missed
+        // call, the voicemail and the low battery have been seen.
+        if (!this._thread && this._noteCard === null && !this._busy() && !this._phoneAsk) {
+            this._phoneLinksOfferSeen();
+            this._missed.clear();
+            this._voicemail.clear();
+            if (this._batteryLow)
+                this._batteryLow.seen = true;
+            this._internetSeen();
         }
         this._changed();
     }
 
     cardClosed() {
-        if (!this._cardOpen && !this._thread)
+        if (!this._cardOpen && !this._thread && this._noteCard === null && !this._phoneAsk)
             return;
         this._cardOpen = false;
+        this._phoneAsk = null;
+        this._phoneLinksOffering = false;
+        this._suggestion = null;
+        this._phoneAudioCardClosed();
         this._thread = null;
         this._threadMessages = null;
+        this._noteCard = null;
+        this._showAllNotes = false;
         this._compose = null;
+        // A call on its way stays; the card to place one does not.
+        if (this._dial && !this._dial.pending)
+            this._dial = null;
         this._changed();
     }
 

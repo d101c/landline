@@ -17,7 +17,7 @@ namespace tether::bluetooth {
         // 2 since 0.2.24 how to tell "never had a retention setting" from "lost one".
         // 3: phone_audio defaults to "phone"; an "auto" written before that was
         // the old default, not a choice.
-        constexpr int CONFIG_VERSION = 3;
+        constexpr int CONFIG_VERSION = 4;
     } // namespace
 
     const char* to_string(AuthStrategy strategy) {
@@ -108,6 +108,7 @@ namespace tether::bluetooth {
         j["phone_audio"] = to_string(config.phone_audio);
         j["phone_audio_rule"] = config.phone_audio_rule;
         j["call_audio"] = config.call_audio_here ? "here" : "phone";
+        j["link_mode"] = to_string(config.link_mode);
         return j.dump(2);
     }
 
@@ -160,6 +161,9 @@ namespace tether::bluetooth {
             }
             config.phone_audio_rule = j.value("phone_audio_rule", false);
             config.call_audio_here = j.value("call_audio", "phone") == "here";
+            // A file written before the setting existed has none: lean.
+            if (j.contains("link_mode") && j["link_mode"].is_string())
+                config.link_mode = link_mode_from_string(j["link_mode"].get<std::string>());
         } catch (const std::exception&) {
             // A corrupt file must not stop the daemon; defaults are safe.
         }

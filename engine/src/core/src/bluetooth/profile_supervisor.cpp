@@ -39,9 +39,40 @@ namespace tether::bluetooth {
             return "no_daemon";
         case ObexError::BusClosed:
             return "bus_closed";
+        case ObexError::DaemonDown:
+            return "daemon_down";
         default:
             return "other";
         }
+    }
+
+    const char* to_string(ObexDaemonState state) {
+        switch (state) {
+        case ObexDaemonState::Alive:
+            return "alive";
+        case ObexDaemonState::Absent:
+            return "absent";
+        case ObexDaemonState::Silent:
+            return "silent";
+        default:
+            return "unknown";
+        }
+    }
+
+    ObexDaemonState classify_obex_ping(const std::string& message) {
+        if (message.empty())
+            return ObexDaemonState::Alive;
+        const std::string text = lowered(message);
+        // dbus-broker: "NameHasNoOwner: Destination does not exist"; dbus-daemon
+        // says the same error name with other words.
+        if (contains(text, "namehasnoowner") || contains(text, "serviceunknown") ||
+            contains(text, "destination does not exist"))
+            return ObexDaemonState::Absent;
+        // GLib's own timeout, or the bus giving up on the owner.
+        if (contains(text, "timeout was reached") || contains(text, "error.noreply") ||
+            contains(text, "error.timeout"))
+            return ObexDaemonState::Silent;
+        return ObexDaemonState::Unknown;
     }
 
     ObexError classify_obex_error(const std::string& message) {
@@ -60,6 +91,16 @@ namespace tether::bluetooth {
         if (contains(text, "not activatable") || contains(text, "serviceunknown") ||
             contains(text, "was not provided by any .service files"))
             return ObexError::NoDaemon;
+
+        // GLib gave up waiting (CONNECT_TIMEOUT_MS): obexd did not answer at all.
+        // The phone's own failures come back from obexd as errors well before.
+        if (contains(text, "timeout was reached"))
+            return ObexError::DaemonDown;
+
+        // obexd exited while the call was in flight (stopped, crashed): the bus
+        // answers for it. Seen on 18 November when obex.service was stopped.
+        if (contains(text, "remote peer disconnected") || contains(text, "dbus.error.noreply"))
+            return ObexError::DaemonDown;
 
         // permission toggle is off on the phone
         if (contains(text, "forbidden") || contains(text, "0x43"))
@@ -125,6 +166,11 @@ namespace tether::bluetooth {
             return tr_format(_("{} is unavailable because the engine lost this computer's session bus. It "
                                "restarts on its own; nothing needs changing on the iPhone."),
                              label);
+        case ObexError::DaemonDown:
+            // TRANSLATORS: {} is Messages or Contacts.
+            return tr_format(_("{} is waiting for this computer's OBEX service, which is starting again. "
+                               "Nothing needs changing on the iPhone."),
+                             label);
         case ObexError::Other:
             return tr_format(_("{} could not be opened."), label);
         default:
@@ -148,6 +194,61 @@ namespace tether::bluetooth {
         next_attempt_ = 0;
         status_.map_open = false;
         status_.pbap_open = false;
+    }
+
+    void ProfileSupervisor::close_sessions() {
+        if (!map_path_.empty())
+            ops_.remove_session(map_path_);
+        if (!pbap_path_.empty())
+            ops_.remove_session(pbap_path_);
+        map_path_.clear();
+        pbap_path_.clear();
+        map_retried_ = false;
+        pbap_retried_ = false;
+        status_.map_open = false;
+        status_.pbap_open = false;
+    }
+
+    void ProfileSupervisor::set_on_demand(bool on_demand) {
+        if (on_demand == on_demand_)
+            return;
+        on_demand_ = on_demand;
+        want_data_ = false;
+        demand_attempted_ = false;
+        // Back to the full mode: open at the next tick, not at a stale date.
+        next_attempt_ = 0;
+        absent_backoff_ = 0;
+    }
+
+    void ProfileSupervisor::set_demand(bool want_data, bool keep_open) {
+        if (!on_demand_)
+            return;
+        if (!keep_open && !want_data && (status_.map_open || status_.pbap_open || !map_path_.empty() ||
+                                         !pbap_path_.empty()))
+            close_sessions();
+        if (want_data && !want_data_) {
+            // Wanted from now: tried at the next tick, whatever was scheduled.
+            next_attempt_ = 0;
+            absent_backoff_ = 0;
+            map_next_fast_ = 0;
+            pbap_next_fast_ = 0;
+            demand_attempted_ = false;
+        }
+        want_data_ = want_data;
+    }
+
+    bool ProfileSupervisor::demand_refused() const {
+        if (!on_demand_ || !want_data_ || !demand_attempted_ || status_.map_open || status_.pbap_open)
+            return false;
+        // obexd being started or restarted is not the phone saying no: the
+        // opening waits for it (18 November, 01:13: the hourly sync gave up
+        // one second after asking systemd for obexd).
+        const auto out = [](bool held, ObexError error) {
+            return held || (error != ObexError::None && error != ObexError::DaemonDown);
+        };
+        const bool map_out = out(status_.map_held, status_.map_error);
+        const bool pbap_out = out(status_.pbap_held, status_.pbap_error);
+        return map_out && pbap_out;
     }
 
     void ProfileSupervisor::retry_now(int64_t now) {
@@ -227,9 +328,68 @@ namespace tether::bluetooth {
         }
     }
 
+    void ProfileSupervisor::forget_sessions() {
+        map_path_.clear();
+        pbap_path_.clear();
+        map_retried_ = false;
+        pbap_retried_ = false;
+        status_.map_open = false;
+        status_.pbap_open = false;
+    }
+
+    bool ProfileSupervisor::recover_daemon(int64_t now, ObexDaemonState state) {
+        if (recovery_at_ >= 0 && now - recovery_at_ < OBEX_DAEMON_RECOVERY_SECONDS)
+            return recovery_requested_;
+        recovery_at_ = now;
+        std::string err;
+        if (state == ObexDaemonState::Absent) {
+            recovery_requested_ = ops_.start_daemon(err);
+            if (recovery_requested_)
+                debug::log(INFO, "bluetooth: obexd is not on the session bus; asked systemd to start {}", OBEX_UNIT);
+            else
+                debug::log(WARN, "bluetooth: obexd is not on the session bus and systemd could not start {}: {}",
+                           OBEX_UNIT, err);
+            return recovery_requested_;
+        }
+        recovery_requested_ = ops_.restart_daemon(err);
+        if (recovery_requested_) {
+            debug::log(WARN, "bluetooth: obexd holds its name but does not answer; asked systemd to restart {}",
+                       OBEX_UNIT);
+            // Whatever it held goes with it.
+            forget_sessions();
+        } else {
+            debug::log(WARN, "bluetooth: obexd does not answer and systemd could not restart {}: {}", OBEX_UNIT, err);
+        }
+        return recovery_requested_;
+    }
+
+    bool ProfileSupervisor::daemon_ready(int64_t now) {
+        const ObexDaemonState state = ops_.probe_daemon();
+        switch (state) {
+        case ObexDaemonState::Absent:
+            // No systemd to ask: CreateSession goes through D-Bus activation
+            // as it always did, and its error names a missing obexd.
+            return !recover_daemon(now, state);
+        case ObexDaemonState::Silent:
+            // Never worth a CreateSession: it would wait out the full timeout.
+            recover_daemon(now, state);
+            debug::log(DEBUG, "bluetooth: obexd did not answer a ping; no session asked of it");
+            return false;
+        default:
+            return true;
+        }
+    }
+
     bool ProfileSupervisor::open_profile(
         const std::string& target, std::string& path, ObexError& error, bool& retried, int64_t& logged_at) {
         std::string err;
+        // obexd already found down in this tick: a second CreateSession would
+        // only wait out the same timeout.
+        if (daemon_down_this_tick_) {
+            path.clear();
+            error = ObexError::DaemonDown;
+            return false;
+        }
         // create_session() clears `path` on failure, so the session that may need
         // dropping has to be captured before the call.
         const std::string previous = path;
@@ -251,6 +411,17 @@ namespace tether::bluetooth {
             logged_at = tick_now_;
         debug::log(repeated ? TRACE : WARN, "bluetooth: {} session failed ({}): {}", target, to_string(error), err);
 
+        // Unanswered until the timeout: obexd was looked at before the call,
+        // so it froze or went away meanwhile. Looked at again; brought back
+        // when the look confirms it.
+        if (error == ObexError::DaemonDown) {
+            daemon_down_this_tick_ = true;
+            const ObexDaemonState state = ops_.probe_daemon();
+            if (state == ObexDaemonState::Absent || state == ObexDaemonState::Silent)
+                recover_daemon(tick_now_, state);
+            return false;
+        }
+
         // A stale session from a previous run can present as Forbidden. Drop only
         // this profile's session and try once more, rather than restarting obexd.
         if (error == ObexError::Forbidden && !retried) {
@@ -262,6 +433,8 @@ namespace tether::bluetooth {
                 return true;
             }
             error = classify_obex_error(err);
+            if (error == ObexError::DaemonDown)
+                daemon_down_this_tick_ = true;
         }
         return false;
     }
@@ -272,6 +445,20 @@ namespace tether::bluetooth {
 
         if (!device_ready) {
             status_.reason = _("Waiting for the iPhone.");
+            return !(status_ == previous);
+        }
+
+        // The lean link mode, and nothing needs a session: none is opened.
+        // What the phone last answered is still what there is to say.
+        if (on_demand_ && !want_data_) {
+            if (status_.map_open && status_.pbap_open)
+                status_.reason = _("Messages and contacts are connected.");
+            else if (!status_.map_open && !status_.map_held && status_.map_error == ObexError::Forbidden)
+                status_.reason = obex_error_advice(ObexError::Forbidden, "map");
+            else if (!status_.pbap_open && !status_.pbap_held && status_.pbap_error == ObexError::Forbidden)
+                status_.reason = obex_error_advice(ObexError::Forbidden, "pbap");
+            else
+                status_.reason = _("Messages and contacts connect when needed.");
             return !(status_ == previous);
         }
 
@@ -312,6 +499,8 @@ namespace tether::bluetooth {
 
         if (try_map || try_pbap) {
             attempted_once_ = true;
+            demand_attempted_ = true;
+            daemon_down_this_tick_ = !daemon_ready(now);
             if (try_map) {
                 status_.map_open = open_profile("map", map_path_, status_.map_error, map_retried_, map_logged_at_);
                 note_attempt(now, status_.map_open, status_.map_error, status_.pbap_error, map_next_fast_);
@@ -330,7 +519,13 @@ namespace tether::bluetooth {
             }
             if (status_.map_open || status_.pbap_open)
                 opened_once_ = true;
-            if (due) {
+            if (daemon_down_this_tick_ && reachable) {
+                // obexd is coming back within seconds: looked at again soon,
+                // inside the classic opening's own window. Without the phone,
+                // the backoff below applies as for any failure (review of 18
+                // November: otherwise a ping, or a 30 s CreateSession, every pass).
+                next_attempt_ = now + OBEX_DAEMON_RETRY_SECONDS;
+            } else if (due) {
                 next_attempt_ = now + (opened_once_ ? PROFILE_STEADY_POLL_SECONDS : PROFILE_INITIAL_POLL_SECONDS);
                 if (!reachable && !status_.map_open && !status_.pbap_open) {
                     next_absent_attempt_ = now + absent_backoff_;

@@ -116,6 +116,11 @@ for unit in "$ENGINE_UNIT" "$OLD_ENGINE_UNIT"; do
     remove "$UNIT_DIR/graphical-session.target.wants/$unit"
     remove "$UNIT_DIR/$unit"
 done
+remove "$UNIT_DIR/$OBEX_DROPIN_DIR/$OBEX_DROPIN"
+# Le dossier du complément n'est retiré que s'il ne contient rien d'autre.
+if [ -d "$UNIT_DIR/$OBEX_DROPIN_DIR" ] && [ -z "$(ls -A "$UNIT_DIR/$OBEX_DROPIN_DIR")" ]; then
+    run rmdir "$UNIT_DIR/$OBEX_DROPIN_DIR"
+fi
 remove "$HOME/.local/lib/$NAME_PREFIX"
 remove "$HOME/.local/lib/$OLD_INSTALL_NAME"
 for dir in "${ext_dirs[@]}"; do

@@ -284,6 +284,112 @@ namespace tether::bluetooth {
         return true;
     }
 
+    std::string call_history_path(Retention mode) {
+        const std::filesystem::path dir = paths::data_dir();
+        if (dir.empty() || mode == Retention::None)
+            return {};
+        return (dir / (mode == Retention::Encrypted ? "call_history.json.enc" : "call_history.json")).string();
+    }
+
+    std::string serialize_call_history(const std::vector<VCard>& history) {
+        nlohmann::json j;
+        j["calls"] = nlohmann::json::array();
+        for (const auto& card : history) {
+            nlohmann::json c;
+            c["name"] = card.name;
+            c["tels"] = card.tels;
+            c["type"] = card.call_type;
+            c["time"] = card.call_time;
+            j["calls"].push_back(std::move(c));
+        }
+        return secret::seal(j.dump(2));
+    }
+
+    std::vector<VCard> deserialize_call_history(const std::string& text) {
+        std::vector<VCard> history;
+        std::string plain;
+        if (!secret::unseal(text, plain))
+            return history;
+        try {
+            const auto j = nlohmann::json::parse(plain);
+            for (const auto& c : j.value("calls", nlohmann::json::array())) {
+                VCard card;
+                card.name = c.value("name", "");
+                card.tels = c.value("tels", std::vector<std::string>{});
+                card.call_type = c.value("type", "");
+                card.call_time = c.value("time", "");
+                if (!card.empty())
+                    history.push_back(std::move(card));
+            }
+        } catch (const std::exception&) {
+            // A corrupt cache costs the list until the next read, nothing more.
+            history.clear();
+        }
+        return history;
+    }
+
+    bool save_call_history(const std::vector<VCard>& history) {
+        const Retention mode = secret::retention();
+        const std::string path = call_history_path(mode);
+        if (path.empty())
+            return false;
+        const std::string body = serialize_call_history(history);
+        if (body.empty())
+            return false;
+
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
+        const std::string tmp = path + ".tmp";
+        {
+            std::ofstream out(tmp, std::ios::trunc);
+            if (!out.is_open())
+                return false;
+            out << body;
+            if (!out)
+                return false;
+        }
+        std::filesystem::permissions(tmp,
+                                     std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+                                     std::filesystem::perm_options::replace,
+                                     ec);
+        std::filesystem::rename(tmp, path, ec);
+        if (ec) {
+            std::filesystem::remove(tmp, ec);
+            return false;
+        }
+        return true;
+    }
+
+    std::vector<VCard> load_call_history() {
+        const Retention mode = secret::retention();
+        if (mode == Retention::None || !secret::have_key())
+            return {};
+        migrate_call_history(mode == Retention::Encrypted ? Retention::Plaintext : Retention::Encrypted, mode);
+        const std::string path = call_history_path(mode);
+        if (path.empty())
+            return {};
+        std::ifstream in(path);
+        if (!in.is_open())
+            return {};
+        const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        return deserialize_call_history(text);
+    }
+
+    // Read under the old mode, written under the new one, the source removed.
+    bool migrate_call_history(Retention from, Retention to) {
+        const std::string source = call_history_path(from);
+        const std::string destination = call_history_path(to);
+        if (source.empty() || destination.empty() || source == destination)
+            return false;
+        std::error_code ec;
+        if (!std::filesystem::exists(source, ec))
+            return false;
+        // The list is read again from the phone at the next opening: a copy
+        // under the wrong sealing is simply dropped.
+        std::filesystem::remove(source, ec);
+        return false;
+    }
+
     bool migrate_contacts(Retention from, Retention to) {
         const std::string source = contacts_path(from);
         const std::string destination = contacts_path(to);

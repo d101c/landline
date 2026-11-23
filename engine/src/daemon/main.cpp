@@ -40,7 +40,6 @@
 #include <tether/otp.hpp>
 #include <tether/paths.hpp>
 #include <tether/secret_store.hpp>
-#include <tether/wayland.hpp>
 #include <thread>
 #include <unistd.h>
 
@@ -252,24 +251,6 @@ int main(int argc, char** argv) {
         tcp_srv.set_peers_changed_callback([&discovery] { discovery.refresh(); });
     }
 
-    tether::WaylandContext wayland_srv(loop);
-    tether::g_wayland = &wayland_srv;
-    wayland_srv.set_clipboard_callback([](const std::string& text) {
-        if (!tether::clipboard_auto_share())
-            return;
-        nlohmann::json j;
-        j["command"] = "clipboard_updated";
-        j["content"] = text;
-        // replace bad UTF-8 instead of throwing; a clipboard
-        // app can still mislabel binary as text/plain. Don't abort the daemon.
-        tether::broadcast_message(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
-    });
-    wayland_srv.set_clipboard_image_callback([](const std::string& png) {
-        if (tether::clipboard_auto_share())
-            tether::broadcast_clipboard_image(png);
-    });
-    wayland_srv.init();
-
     tether::FileReceiveManager file_mgr;
     tether::DesktopNotifier notifier;
     const bool notifier_ready = notifier.init();
@@ -282,18 +263,6 @@ int main(int argc, char** argv) {
             notifier.notify_file_arrived(path);
     });
     tether::g_file_manager = &file_mgr;
-
-    notifier.set_copy_handler([&loop](const std::string& code, const std::string& handle) {
-        // libnotify dispatches actions on its own thread; the clipboard belongs to the loop.
-        loop.post([code] {
-            if (tether::g_wayland)
-                tether::g_wayland->copy_to_clipboard(code);
-        });
-
-        // copying the code is having read the message
-        if (!handle.empty())
-            tether::bluetooth::mark_messages_read_async({handle}, true);
-    });
 
     notifier.set_mute_handler([&loop](const std::string& app_id, const std::string& app_name) {
         loop.post([app_id, app_name] { tether::set_app_muted(app_id, app_name, true); });
@@ -765,6 +734,18 @@ int main(int argc, char** argv) {
         tether::bluetooth::g_airpods = &airpods;
         tether::g_media = &media;
         media.watch(on_local_play);
+        // The phone's sound wanted here holds the classic link open in the
+        // lean link mode; the supervisor reads the standing choice itself at
+        // start, this follows what changes after.
+        phone_audio.set_lease_handler([](bool here) {
+            return tether::bluetooth::g_bt_connections &&
+                   tether::bluetooth::g_bt_connections->set_phone_audio_here(here);
+        });
+        // Under a call the stream is left alone: closing it is one more
+        // exchange on a link that is setting up the voice.
+        phone_audio.set_hold([] {
+            return tether::bluetooth::g_bt_connections && tether::bluetooth::g_bt_connections->call_in_hand();
+        });
         phone_audio.configure(tether::bluetooth::supervised_address(bt_config), bt_config.phone_audio);
         tether::bluetooth::g_phone_audio = &phone_audio;
         loop.addFd(bluez.event_fd(), [&bluez, &follow_airpods, &phone_audio, &place_lan_info](int) {
@@ -895,7 +876,6 @@ int main(int argc, char** argv) {
     tether::bluetooth::g_phone_audio = nullptr;
     lan_info.reset();
     bluez.stop();
-    tether::g_wayland = nullptr;
     tether::g_file_manager = nullptr;
     g_loop = nullptr;
 

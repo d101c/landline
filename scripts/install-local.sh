@@ -11,6 +11,10 @@
 #
 # Ce qui est posé :
 #   ~/.local/lib/<préfixe>/engine/          le démon et l'outil en ligne de commande
+#   ~/.local/lib/<préfixe>/engine/<préfixe>-le-params
+#       auxiliaire des paramètres de connexion LE, sans aucun droit ici : seul
+#       « <préfixe>-setup apply » (root) en pose une copie à root avec
+#       cap_net_raw dans /usr/local/libexec/<préfixe>/, d'où le moteur le lance
 #   ~/.local/lib/<préfixe>/engine/lib/      bibliothèques hors système (voir plus bas)
 #   ~/.local/lib/<préfixe>/engine/locale/   traductions du moteur
 #   ~/.local/lib/<préfixe>/engine/LICENSE   licence MIT du moteur (Tether, Zack Bartel)
@@ -19,6 +23,11 @@
 #       des droits ; elle n'y lit que « status », et montre la commande
 #       « sudo … apply » à lancer soi-même tant que la copie de root manque)
 #   ~/.config/systemd/user/<préfixe>-engine.service
+#   ~/.config/systemd/user/obex.service.d/<préfixe>.conf
+#       complément d'obex.service : obexd relancé s'il s'arrête en erreur
+#       (il le fait s'il démarre avant que la session soit active ; voir
+#       docs/moteur-reconnexion.md §16). obexd n'est pas relancé ici : le
+#       complément vaut à son prochain démarrage.
 #   ~/.local/share/gnome-shell/extensions/<uuid>/   copie de extension/
 #
 # Migration. Une installation sous les noms d'avant (extension et service
@@ -58,12 +67,14 @@ ENGINE_DIR="$INSTALL_DIR/engine"
 UNIT_SRC="$REPO/system/$ENGINE_UNIT"
 UNIT_DIR="$HOME/.config/systemd/user"
 SETUP_SRC="$REPO/system/$SETUP_NAME"
+OBEX_DROPIN_PATH="$REPO/system/$OBEX_DROPIN_SRC"
 EXT_SRC="${EXTENSION_DIR:-$REPO/extension}"
 EXT_BASE="$HOME/.local/share/gnome-shell/extensions"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 BINARIES=("$ENGINE_DAEMON" "$ENGINE_CLI")
+LE_HELPER="$NAME_PREFIX-le-params"
 
 dry=0
 activate=1
@@ -111,6 +122,7 @@ fi
 
 [ -x "$BUILD_DIR/$ENGINE_DAEMON" ] || die "moteur introuvable dans $BUILD_DIR : lancer d'abord scripts/build-engine.sh"
 [ -f "$UNIT_SRC" ] || die "$UNIT_SRC introuvable"
+[ -f "$OBEX_DROPIN_PATH" ] || die "$OBEX_DROPIN_PATH introuvable"
 
 # --- migration d'une installation sous les anciens noms -----------------------
 
@@ -251,6 +263,13 @@ done
 if [ -d "$BUILD_DIR/locale" ]; then
     run cp -r "$BUILD_DIR/locale" "$ENGINE_DIR/locale"
 fi
+# L'auxiliaire des paramètres de connexion LE : lié au seul libc, rien à
+# regrouper. Copié sans droit particulier ; voir l'en-tête.
+if [ -x "$BUILD_DIR/$LE_HELPER" ]; then
+    run install -m 0755 "$BUILD_DIR/$LE_HELPER" "$ENGINE_DIR/$LE_HELPER"
+else
+    say "attention : $LE_HELPER absent de $BUILD_DIR (moteur compilé avant lui ?) : la tolérance du lien LE ne pourra pas être posée"
+fi
 # La licence MIT du moteur suit ses binaires.
 run install -m 0644 "$REPO/engine/LICENSE" "$ENGINE_DIR/LICENSE"
 
@@ -288,6 +307,8 @@ run install -m 0755 "$SETUP_SRC" "$INSTALL_DIR/$SETUP_NAME"
 say "== Unité utilisateur"
 run mkdir -p "$UNIT_DIR"
 run install -m 0644 "$UNIT_SRC" "$UNIT_DIR/$ENGINE_UNIT"
+run mkdir -p "$UNIT_DIR/$OBEX_DROPIN_DIR"
+run install -m 0644 "$OBEX_DROPIN_PATH" "$UNIT_DIR/$OBEX_DROPIN_DIR/$OBEX_DROPIN"
 
 # --- extension --------------------------------------------------------------
 
@@ -338,3 +359,4 @@ fi
 
 say
 say "Réglages Bluetooth du système : $INSTALL_DIR/$SETUP_NAME status (voir docs/systeme.md)."
+say "Tolérance du lien LE : « sudo $INSTALL_DIR/$SETUP_NAME apply » pose l'auxiliaire $LE_HELPER (droit cap_net_raw), ou l'écran d'autorisation de l'extension."

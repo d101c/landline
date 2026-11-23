@@ -36,7 +36,6 @@
 #include "tether/otp.hpp"
 #include "tether/paths.hpp"
 #include "tether/service.hpp"
-#include "tether/wayland.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -73,6 +72,9 @@ namespace tether {
     static std::mutex g_sessions_mutex;
     static std::set<int> local_subscribers;
     static std::mutex g_subscribers_mutex;
+    // Local clients owed the answer of a command carried out off the loop.
+    // Same mutex: a client that leaves is removed before its fd is closed.
+    static std::set<int> pending_repliers;
 
     // last known mdns peers.
     static std::mutex g_discovered_mutex;
@@ -114,6 +116,7 @@ namespace tether {
         }
         std::lock_guard<std::mutex> lock(g_subscribers_mutex);
         local_subscribers.erase(fd);
+        pending_repliers.erase(fd);
     }
 
     // The extension may send the code as a JSON string or a JSON number. Reading a
@@ -316,6 +319,23 @@ namespace tether {
         }
     }
 
+    // The answer of a command that runs off the event loop. Subscribers get
+    // it as an event; the client that asked gets it as its reply, even when
+    // it never subscribed (landlinectl), unless it has left meanwhile.
+    static void expect_reply(int fd) {
+        std::lock_guard<std::mutex> lock(g_subscribers_mutex);
+        pending_repliers.insert(fd);
+    }
+
+    static void finish_reply(const std::string& msg, int fd) {
+        {
+            std::lock_guard<std::mutex> lock(g_subscribers_mutex);
+            if (pending_repliers.erase(fd) > 0 && local_subscribers.count(fd) == 0)
+                write_plain_packet(fd, msg.back() == '\n' ? msg : msg + "\n");
+        }
+        broadcast_local_event(msg);
+    }
+
     // How long an unanswered pairing request stays offerable.
     static constexpr int64_t PENDING_PAIR_TTL_SECONDS = 3600;
 
@@ -420,8 +440,6 @@ namespace tether {
         const auto config = bluetooth::load_config();
         if (config.calls_enabled && bluetooth::g_bluez && bluetooth::g_bluez->running())
             capabilities.push_back("calls");
-        if (g_wayland && g_wayland->clipboard_available())
-            capabilities.push_back("clipboard");
         return {{"command", "protocol_info"}, {"version", 1}, {"capabilities", std::move(capabilities)}};
     }
 
@@ -483,21 +501,6 @@ namespace tether {
         broadcast_local_event(now);
     }
 
-    // "audio": "here" or "phone" on bt_call_dial and on bt_call_action answer:
-    // where the sound of that one call goes, set before the call is placed or
-    // taken. Absent, nothing is touched.
-    static void route_call_audio_for(const nlohmann::json& command) {
-        const auto it = command.find("audio");
-        if (it == command.end() || !it->is_string() || !bluetooth::g_bt_connections)
-            return;
-        const std::string audio = it->get<std::string>();
-        if (audio != "here" && audio != "phone")
-            return;
-        std::string err;
-        if (!bluetooth::g_bt_connections->call_action({}, audio == "here" ? "audio_here" : "audio_phone", err))
-            debug::log(INFO, "telephony: call audio not routed: {}", err);
-    }
-
     // The WirePlumber rule follows the selected phone and the remembered
     // route. Restarts WirePlumber when the file changes, so never on the loop.
     static void sync_phone_audio_rule(const bluetooth::Config& config) {
@@ -542,6 +545,23 @@ namespace tether {
             status["phone_audio_route"] = bluetooth::phone_audio_route(objects, config.device_address);
         } else {
             status["phone_audio_route"] = "unavailable";
+        }
+        // The link mode and what follows from it, as bt_connection_changed has them.
+        {
+            const nlohmann::json connection =
+                bluetooth::g_bt_connections ? bluetooth::g_bt_connections->status() : nlohmann::json::object();
+            status["link_mode"] = connection.value("link_mode", std::string(to_string(config.link_mode)));
+            for (const char* key : {"link_mode_effective",
+                                    "link_mode_reason",
+                                    "classic_state",
+                                    "classic_leases",
+                                    "classic_opened_by",
+                                    "messages",
+                                    "contacts",
+                                    "calls_available",
+                                    "last_sync",
+                                    "next_sync"})
+                status[key] = connection.contains(key) ? connection[key] : nlohmann::json(nullptr);
         }
         status["version"] = TETHER_VERSION;
         put_bt_bond(status, config);
@@ -772,7 +792,17 @@ namespace tether {
             event["command"] = "bt_send_result";
             event["thread"] = thread;
             set_operation_id(event, operation_id);
-            const bool success = bluetooth::send_message(thread, body, sent, err);
+            // "connecting" while the classic link is opened for it (the lean
+            // link mode), then "sending".
+            const auto progress = [&thread, &operation_id](const char* stage) {
+                nlohmann::json step;
+                step["command"] = "bt_send_progress";
+                step["thread"] = thread;
+                step["stage"] = stage;
+                set_operation_id(step, operation_id);
+                broadcast_local_event(step.dump());
+            };
+            const bool success = bluetooth::send_message(thread, body, sent, err, progress);
             event["success"] = success;
             if (success) {
                 nlohmann::json message = bluetooth::to_json(sent);
@@ -892,8 +922,12 @@ namespace tether {
             // Point supervision at the device we just bonded with.
             if (bluetooth::g_phone_audio)
                 bluetooth::g_phone_audio->configure(bluetooth::supervised_address(config), config.phone_audio);
-            if (bluetooth::g_bt_connections)
+            if (bluetooth::g_bt_connections) {
                 bluetooth::g_bt_connections->set_device(bluetooth::supervised_address(config), config.ancs_enabled);
+                // The user is about to go through the iPhone's switches:
+                // the classic link stays for that, whatever the link mode.
+                bluetooth::g_bt_connections->client_lease("setup", true);
+            }
             sync_phone_audio_rule(config);
         }
 
@@ -1153,7 +1187,9 @@ namespace tether {
         }
 
         snapshot["mdns_available"] = g_mdns_available.load();
-        snapshot["clipboard_available"] = g_wayland && g_wayland->clipboard_available();
+        // No clipboard access under GNOME (Mutter offers no data-control protocol):
+        // the Wayland client is gone, the field stays for older clients.
+        snapshot["clipboard_available"] = false;
         snapshot["firewall_active"] = firewall_active();
 
         return snapshot;
@@ -1769,6 +1805,9 @@ namespace tether {
                                 bluetooth::g_phone_audio && bluetooth::g_bluez &&
                                 bluetooth::g_phone_audio->apply_now(bluetooth::g_bluez->connection(),
                                                                     request.route == bluetooth::PhoneAudio::Here);
+                            // Lean mode: the link is opened and offered to the iPhone (#43).
+                            if (request.route == bluetooth::PhoneAudio::Here && bluetooth::g_bt_connections)
+                                bluetooth::g_bt_connections->ask_phone_audio();
                             result["success"] = moved;
                             if (!moved)
                                 result["message"] = "not_connected";
@@ -1787,6 +1826,11 @@ namespace tether {
                                     if (bluetooth::g_bluez)
                                         bluetooth::g_phone_audio->apply_now(bluetooth::g_bluez->connection());
                                 }
+                                // Turned on, or asked for again while on: in the lean
+                                // mode the link is opened and offered to the iPhone for
+                                // a while, then kept only while the sound plays (#43).
+                                if (config.phone_audio == bluetooth::PhoneAudio::Here && bluetooth::g_bt_connections)
+                                    bluetooth::g_bt_connections->ask_phone_audio();
                                 broadcast_local_event(result.dump());
                                 broadcast_local_event(build_bt_status().dump());
                                 publish_bt_audio();
@@ -1830,6 +1874,28 @@ namespace tether {
                         if (bluetooth::g_bt_connections &&
                             bluetooth::g_bt_connections->set_hold(j.value("profile", ""), j.value("held", true)))
                             broadcast_local_event(build_bt_status().dump());
+                    } else if (j.contains("command") && j["command"] == "bt_set_link_mode") {
+                        // "lean" or "full"; anything else changes nothing.
+                        if (const auto mode = bluetooth::parse_link_mode(j.value("mode", std::string{}))) {
+                            auto config = bluetooth::load_config();
+                            config.link_mode = *mode;
+                            bluetooth::save_config(config);
+                            if (bluetooth::g_bt_connections)
+                                bluetooth::g_bt_connections->set_link_mode(*mode);
+                            // bt_connection_changed follows from the supervisor,
+                            // once the mode is applied.
+                            broadcast_local_event(build_bt_status().dump());
+                        } else {
+                            debug::log(WARN, "bt_set_link_mode: mode must be lean or full");
+                        }
+                    } else if (j.contains("command") && j["command"] == "bt_lease") {
+                        // A client holding the classic link open: "reading" while
+                        // a conversation is on screen, "setup" during the tour of
+                        // the iPhone's switches. Lapses after 300 s unless renewed.
+                        const bool held = !j.contains("held") || (j["held"].is_boolean() && j["held"].get<bool>());
+                        if (!bluetooth::g_bt_connections ||
+                            !bluetooth::g_bt_connections->client_lease(j.value("name", std::string{}), held))
+                            debug::log(DEBUG, "bt_lease: not taken (name must be reading or setup)");
                     } else if (j.contains("command") && j["command"] == "bt_retry_profiles") {
                         // The answer is the bt_connection_changed that follows, if anything moved.
                         if (bluetooth::g_bt_connections)
@@ -1865,6 +1931,11 @@ namespace tether {
                         payload["command"] = "bt_calls";
                         payload["calls"] = bluetooth::g_bt_connections ? bluetooth::g_bt_connections->calls()
                                                                        : nlohmann::json::array();
+                        // A call ringing before hands-free shows it: the last
+                        // bt_incoming_call, for a client that arrives mid-ring.
+                        payload["incoming"] = bluetooth::g_bt_connections
+                                                  ? bluetooth::g_bt_connections->incoming_call()
+                                                  : nlohmann::json(nullptr);
                         std::string out = payload.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n";
                         write_plain_packet(client_fd, out);
                         continue;
@@ -1877,33 +1948,84 @@ namespace tether {
                         write_plain_packet(client_fd, out);
                         continue;
                     } else if (j.contains("command") && j["command"] == "bt_call_dial" && j.contains("number")) {
-                        std::string err = _("Bluetooth is unavailable.");
-                        nlohmann::json payload;
-                        payload["command"] = "bt_call_result";
-                        payload["action"] = "dial";
-                        route_call_audio_for(j);
-                        payload["success"] = bluetooth::g_bt_connections &&
-                                             bluetooth::g_bt_connections->dial(j.value("number", std::string{}), err);
-                        if (!payload["success"])
-                            payload["message"] = err;
-                        broadcast_local_event(payload.dump());
-                        write_plain_packet(client_fd, payload.dump() + "\n");
+                        // Never on the loop: the classic link may have to be
+                        // opened and hands-free waited for. bt_call_progress
+                        // says where it is, bt_call_result how it ended.
+                        const std::string number = j["number"].is_string() ? j["number"].get<std::string>() : std::string{};
+                        const std::string operation_id =
+                            j.contains("operation_id") && j["operation_id"].is_string()
+                                ? j["operation_id"].get<std::string>()
+                                : std::string{};
+                        const std::string audio =
+                            j.contains("audio") && j["audio"].is_string() ? j["audio"].get<std::string>() : std::string{};
+                        expect_reply(client_fd);
+                        const auto finish = [operation_id, client_fd](bool ok,
+                                                                      const std::string& reason,
+                                                                      const std::string& message) {
+                            nlohmann::json payload;
+                            payload["command"] = "bt_call_result";
+                            payload["action"] = "dial";
+                            payload["success"] = ok;
+                            if (!ok)
+                                payload["message"] = message;
+                            if (!reason.empty())
+                                payload["reason"] = reason;
+                            set_operation_id(payload, operation_id);
+                            finish_reply(payload.dump(), client_fd);
+                        };
+                        if (!bluetooth::g_bt_connections) {
+                            finish(false, "no_link", _("Bluetooth is unavailable."));
+                            continue;
+                        }
+                        bluetooth::g_bt_connections->dial_async(
+                            number,
+                            audio,
+                            operation_id,
+                            [operation_id, number](const char* stage) {
+                                nlohmann::json step;
+                                step["command"] = "bt_call_progress";
+                                step["number"] = number;
+                                step["stage"] = stage;
+                                set_operation_id(step, operation_id);
+                                broadcast_local_event(step.dump());
+                            },
+                            finish);
                         continue;
+                    } else if (j.contains("command") && j["command"] == "bt_call_cancel") {
+                        // Without effect once the dialling has begun: hanging up
+                        // is then bt_call_action hangup.
+                        if (bluetooth::g_bt_connections)
+                            bluetooth::g_bt_connections->cancel_dial(
+                                j.contains("operation_id") && j["operation_id"].is_string()
+                                    ? j["operation_id"].get<std::string>()
+                                    : std::string{});
                     } else if (j.contains("command") && j["command"] == "bt_call_action" && j.contains("action")) {
-                        const std::string action = j.value("action", std::string{});
-                        std::string err = _("Bluetooth is unavailable.");
-                        nlohmann::json payload;
-                        payload["command"] = "bt_call_result";
-                        payload["action"] = action;
-                        if (action == "answer")
-                            route_call_audio_for(j);
-                        payload["success"] =
-                            bluetooth::g_bt_connections &&
-                            bluetooth::g_bt_connections->call_action(j.value("path", std::string{}), action, err);
-                        if (!payload["success"])
-                            payload["message"] = err;
-                        broadcast_local_event(payload.dump());
-                        write_plain_packet(client_fd, payload.dump() + "\n");
+                        // Off the loop: a hands-free call can wait ten seconds on
+                        // the stack, and the other clients are served meanwhile.
+                        expect_reply(client_fd);
+                        std::thread([j, client_fd]() {
+                            const std::string action = j.value("action", std::string{});
+                            std::string err = _("Bluetooth is unavailable.");
+                            std::string via;
+                            nlohmann::json payload;
+                            payload["command"] = "bt_call_result";
+                            payload["action"] = action;
+                            bluetooth::ConnectionManager::CallActionOptions options;
+                            if (const auto uid = j.find("uid"); uid != j.end() && uid->is_number_integer() &&
+                                                                uid->get<int64_t>() >= 0)
+                                options.uid = static_cast<uint32_t>(uid->get<int64_t>());
+                            if (const auto audio = j.find("audio"); audio != j.end() && audio->is_string())
+                                options.audio = audio->get<std::string>();
+                            const std::string path =
+                                j.contains("path") && j["path"].is_string() ? j["path"].get<std::string>() : std::string{};
+                            payload["success"] = bluetooth::g_bt_connections &&
+                                                 bluetooth::g_bt_connections->call_action(path, action, options, err, via);
+                            if (!payload["success"])
+                                payload["message"] = err;
+                            if (!via.empty())
+                                payload["via"] = via;
+                            finish_reply(payload.dump(), client_fd);
+                        }).detach();
                         continue;
                     } else if (j.contains("command") && j["command"] == "bt_call_tones" && j.contains("tones")) {
                         std::string err = _("Bluetooth is unavailable.");
@@ -1931,6 +2053,7 @@ namespace tether {
                                 for (auto mode : {Retention::Encrypted, Retention::Plaintext}) {
                                     std::filesystem::remove(bluetooth::journal_path(mode), ec);
                                     std::filesystem::remove(bluetooth::contacts_path(mode), ec);
+                                    std::filesystem::remove(bluetooth::call_history_path(mode), ec);
                                     std::filesystem::remove(bluetooth::removed_threads_path(mode), ec);
                                 }
                             } else {
@@ -1969,35 +2092,14 @@ namespace tether {
                         std::string out = bluetooth::build_diagnostics(build_bt_status(), connection).dump() + "\n";
                         write_plain_packet(client_fd, out);
                         continue;
-                    } else if (j.contains("command") && j["command"] == "clipboard_set" && j.contains("content")) {
-                        std::string content = j["content"];
-                        if (g_wayland)
-                            g_wayland->copy_to_clipboard(content);
-                    } else if (j.contains("command") && j["command"] == "clipboard_get") {
-                        if (g_wayland) {
-                            nlohmann::json resp;
-                            resp["command"] = "clipboard_content";
-                            resp["content"] = g_wayland->get_clipboard();
-                            std::string payload = resp.dump() + "\n";
-                            write_plain_packet(client_fd, payload);
-                            continue;
-                        }
+                    } else if (j.contains("command") &&
+                               (j["command"] == "clipboard_set" || j["command"] == "clipboard_get")) {
+                        // No local clipboard (see clipboard_available): accepted, nothing done,
+                        // as before when no compositor offered one.
                     } else if (j.contains("command") && j["command"] == "clipboard_send") {
-                        const std::string image = g_wayland ? g_wayland->get_clipboard_image() : std::string{};
-                        if (!image.empty())
-                            broadcast_clipboard_image(image);
-                        nlohmann::json resp;
-                        resp["command"] = "clipboard_content";
-                        resp["content"] = g_wayland ? g_wayland->get_clipboard() : std::string{};
-                        // with an image selected the cached text is stale don't push it
-                        if (image.empty() && !resp["content"].get_ref<const std::string&>().empty()) {
-                            nlohmann::json bc;
-                            bc["command"] = "clipboard_updated";
-                            bc["content"] = resp["content"];
-                            broadcast_message(bc.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
-                        }
-                        write_plain_packet(client_fd,
-                                           resp.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + "\n");
+                        // Nothing to share without a local clipboard: an empty answer.
+                        nlohmann::json resp{{"command", "clipboard_content"}, {"content", ""}};
+                        write_plain_packet(client_fd, resp.dump() + "\n");
                         continue;
                     } else if (j.contains("command") && j["command"] == "new_otp" && j.contains("otp")) {
                         otp_publish(otp_from_json(j["otp"]), j.value("sender_domain", std::string{}), client_fd);
@@ -2665,8 +2767,6 @@ namespace tether {
 
                     if (j.contains("command") && j["command"] == "clipboard_set" && j.contains("content")) {
                         std::string content = j["content"];
-                        if (g_wayland)
-                            g_wayland->copy_to_clipboard(content);
                         // Broadcast to everyone (including sender) to ensure robust transport
                         nlohmann::json bc;
                         bc["command"] = "clipboard_updated";
@@ -2720,24 +2820,7 @@ namespace tether {
                                j["content"].is_string()) {
                         open_web_url(j["content"].get<std::string>());
                     } else if (j.contains("command") && j["command"] == "clipboard_get") {
-                        if (g_wayland) {
-                            std::vector<std::string> image;
-                            if (session_accepts_clipboard_images(client_fd))
-                                image = clipboard_image_messages(g_wayland->get_clipboard_image(), "content");
-                            if (!image.empty()) {
-                                for (auto& m : image) {
-                                    m += "\n";
-                                    robust_ssl_write(ssl, m.c_str(), m.size());
-                                }
-                                continue;
-                            }
-                            nlohmann::json resp;
-                            resp["command"] = "clipboard_content";
-                            resp["content"] = g_wayland->get_clipboard();
-                            std::string payload = resp.dump() + "\n";
-                            robust_ssl_write(ssl, payload.c_str(), payload.size());
-                            continue;
-                        }
+                        // No local clipboard to read: no answer, as without a compositor.
                     } else if (j.contains("command") && j["command"] == "new_otp" && j.contains("otp")) {
                         // OTP sent from a mobile client (iPhone Share Extension) over mTLS.
                         otp_publish(otp_from_json(j["otp"]), j.value("sender_domain", std::string{}));
@@ -2755,8 +2838,6 @@ namespace tether {
                             g_file_manager->handle_chunk(j["transfer_id"], j["chunk_index"], j["data"]);
                     } else if (j.contains("command") && j["command"] == "file_end") {
                         if (std::string png = clipboard_images_[client_fd].finish(j["transfer_id"]); !png.empty()) {
-                            if (g_wayland)
-                                g_wayland->copy_image_to_clipboard(png);
                             broadcast_clipboard_image(png, client_fd);
                             nlohmann::json resp{{"command", "file_status"}, {"status", "success"}};
                             resp["transfer_id"] = j["transfer_id"];
@@ -2953,11 +3034,9 @@ namespace tether {
         // A headless client approves through the command socket. No GUI is not a rejection.
         // WAYLAND_DISPLAY alone would also skip a working X11 session: tether-dialog
         // falls back to an ordinary window when gtk-layer-shell isn't available.
-        // A daemon started before the compositor finds it later, without WAYLAND_DISPLAY.
-        const std::string live_display = g_wayland ? g_wayland->display_name() : std::string{};
         const char* wayland_display = std::getenv("WAYLAND_DISPLAY");
         const char* x11_display = std::getenv("DISPLAY");
-        if (live_display.empty() && (!wayland_display || !*wayland_display) && (!x11_display || !*x11_display))
+        if ((!wayland_display || !*wayland_display) && (!x11_display || !*x11_display))
             return;
 
         // Translated before the fork: gettext takes a lock, and calling it in the
@@ -2973,14 +3052,9 @@ namespace tether {
         const std::string reject = _("Reject");
 
         // build before the fork, child of a thread must not allocate
-        const std::string live_env = "WAYLAND_DISPLAY=" + live_display;
         std::vector<char*> envp;
-        for (char** e = environ; *e; ++e) {
-            if (live_display.empty() || std::strncmp(*e, "WAYLAND_DISPLAY=", 16) != 0)
-                envp.push_back(*e);
-        }
-        if (!live_display.empty())
-            envp.push_back(const_cast<char*>(live_env.c_str()));
+        for (char** e = environ; *e; ++e)
+            envp.push_back(*e);
         envp.push_back(nullptr);
         const char* const argv[] = {"landline-dialog",
                                     "--title",

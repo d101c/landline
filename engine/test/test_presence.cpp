@@ -335,3 +335,35 @@ TEST(LockOnAwayConfig, IsOffByDefaultAndSurvivesARoundTrip) {
     EXPECT_EQ(read.wake_command, "true");
     EXPECT_EQ(deserialize_config(R"({"lock_away_seconds": 100000})").lock_away_seconds, MAX_AWAY_LOCK_GRACE_SECONDS);
 }
+
+// The lean link mode: the classic link is closed at rest, so the LE link is
+// the whole of presence.
+TEST(Presence, WithTheClassicLinkClosedTheLeLinkAloneIsPresence) {
+    PresenceTracker tracker;
+    PresenceInput in = here(0);
+    in.bearer.classic_connected = false;
+    EXPECT_TRUE(tracker.step(in).changed);
+    EXPECT_EQ(tracker.to_json().value("state", ""), "here");
+
+    // The LE link times out with nothing else up: the phone has left.
+    bool changed = false;
+    for (int64_t now = 10; now < 10 + PRESENCE_CONFIRM_SECONDS + 1; ++now)
+        changed = tracker.step(gone(now, REASON_TIMEOUT)).changed || changed;
+    EXPECT_TRUE(changed);
+    EXPECT_EQ(tracker.to_json().value("state", ""), "away");
+    EXPECT_EQ(tracker.to_json().value("reason", ""), "out_of_range");
+}
+
+// A classic link opened for a lease does not make the phone leave when the
+// LE link blinks under it.
+TEST(Presence, AnLeBlinkUnderAnOpenClassicLinkIsNotAnAbsence) {
+    PresenceTracker tracker;
+    tracker.step(here(0));
+    PresenceInput in = here(5);
+    in.bearer.le_connected = false;
+    for (int64_t now = 5; now < 60; ++now) {
+        in.now = now;
+        EXPECT_FALSE(tracker.step(in).changed);
+    }
+    EXPECT_EQ(tracker.to_json().value("state", ""), "here");
+}

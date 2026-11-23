@@ -7,7 +7,6 @@
 #include <tether/event_loop.hpp>
 #include <tether/log.hpp>
 #include <tether/net.hpp>
-#include <tether/wayland.hpp>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -662,8 +661,8 @@ namespace {
         EXPECT_EQ(std::find(capabilities.begin(), capabilities.end(), "calls") != capabilities.end(),
                   tether::bluetooth::load_config().calls_enabled && tether::bluetooth::g_bluez &&
                       tether::bluetooth::g_bluez->running());
-        EXPECT_EQ(std::find(capabilities.begin(), capabilities.end(), "clipboard") != capabilities.end(),
-                  tether::g_wayland && tether::g_wayland->clipboard_available());
+        // No clipboard: the engine has no Wayland client any more.
+        EXPECT_EQ(std::find(capabilities.begin(), capabilities.end(), "clipboard"), capabilities.end());
     }
 
     // What a client reads to know this engine speaks bt_audio, bt_presence and bt_battery_low.
@@ -1156,3 +1155,170 @@ TEST(PendingPairs, IgnoresJunkEntries) {
     EXPECT_TRUE(tether::prune_pending_pairs(raw, 1'700'000'000).empty());
     EXPECT_TRUE(tether::prune_pending_pairs(nlohmann::json::array(), 1).empty());
 }
+
+namespace {
+
+    // What a client reads to know this engine has the lean link mode, and
+    // what it reads before any phone is supervised.
+    TEST(ControlProtocolTest, StatusCarriesTheLinkModeAndItsFields) {
+        const auto status = tether::build_bt_status();
+        EXPECT_EQ(status.value("link_mode", ""), "lean");
+        for (const char* key : {"link_mode_effective",
+                                "link_mode_reason",
+                                "classic_state",
+                                "classic_leases",
+                                "classic_opened_by",
+                                "messages",
+                                "contacts",
+                                "calls_available",
+                                "last_sync",
+                                "next_sync"})
+            EXPECT_TRUE(status.contains(key)) << key;
+    }
+
+    TEST(UnixServerTest, LinkModeAndLeaseCommands) {
+        const std::string runtime_dir = unique_test_dir("tether_unix_link_mode_test");
+        CleanupGuard cleanup_guard(runtime_dir);
+        std::filesystem::remove_all(runtime_dir);
+        std::filesystem::create_directories(runtime_dir);
+        ScopedEnvVar xdg_runtime_dir("XDG_RUNTIME_DIR", runtime_dir);
+
+        tether::EpollEventLoop loop;
+        tether::TcpServer tcp_server(loop, 0);
+        tether::UnixServer unix_server(loop, tcp_server);
+        ASSERT_TRUE(unix_server.start());
+        EventLoopGuard loop_guard(loop);
+
+        const int client = socket(AF_UNIX, SOCK_STREAM, 0);
+        ASSERT_GE(client, 0);
+        timeval timeout{2, 0};
+        ASSERT_EQ(setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)), 0);
+        sockaddr_un address{};
+        address.sun_family = AF_UNIX;
+        std::snprintf(
+            address.sun_path, sizeof(address.sun_path), "%s", (tether::get_runtime_dir() + "/landlined.sock").c_str());
+        ASSERT_EQ(connect(client, reinterpret_cast<sockaddr*>(&address), sizeof(address)), 0);
+
+        const std::string subscribe = "{\"command\":\"subscribe\"}\n";
+        ASSERT_EQ(write(client, subscribe.data(), subscribe.size()), static_cast<ssize_t>(subscribe.size()));
+        ASSERT_FALSE(read_socket_line(client).empty());
+
+        // The next bt_status after `command`, or null when none came.
+        const auto status_after = [client](const nlohmann::json& command) {
+            const std::string payload = command.dump() + "\n";
+            EXPECT_EQ(write(client, payload.data(), payload.size()), static_cast<ssize_t>(payload.size()));
+            for (int attempt = 0; attempt < 8; ++attempt) {
+                const std::string line = read_socket_line(client);
+                if (line.empty())
+                    break;
+                try {
+                    auto candidate = nlohmann::json::parse(line);
+                    if (candidate.value("command", "") == "bt_status")
+                        return candidate;
+                } catch (...) {
+                }
+            }
+            return nlohmann::json();
+        };
+
+        const auto full = status_after({{"command", "bt_set_link_mode"}, {"mode", "full"}});
+        ASSERT_FALSE(full.is_null());
+        EXPECT_EQ(full.value("link_mode", ""), "full");
+        EXPECT_EQ(tether::bluetooth::load_config().link_mode, tether::bluetooth::LinkMode::Full);
+
+        // An unknown mode changes nothing and announces nothing.
+        const std::string junk = "{\"command\":\"bt_set_link_mode\",\"mode\":\"turbo\"}\n";
+        ASSERT_EQ(write(client, junk.data(), junk.size()), static_cast<ssize_t>(junk.size()));
+        EXPECT_EQ(read_socket_line(client), "OK\n");
+        EXPECT_EQ(tether::bluetooth::load_config().link_mode, tether::bluetooth::LinkMode::Full);
+
+        const auto lean = status_after({{"command", "bt_set_link_mode"}, {"mode", "lean"}});
+        ASSERT_FALSE(lean.is_null());
+        EXPECT_EQ(lean.value("link_mode", ""), "lean");
+        EXPECT_EQ(tether::bluetooth::load_config().link_mode, tether::bluetooth::LinkMode::Lean);
+
+        // With no phone supervised a lease is accepted and does nothing.
+        for (const char* name : {"reading", "setup", "sync"}) {
+            const std::string lease =
+                nlohmann::json{{"command", "bt_lease"}, {"name", name}, {"held", true}}.dump() + "\n";
+            ASSERT_EQ(write(client, lease.data(), lease.size()), static_cast<ssize_t>(lease.size()));
+            std::string line = read_socket_line(client);
+            // The bt_status of the mode change may still be on its way.
+            for (int attempt = 0; attempt < 4 && line != "OK\n" && !line.empty(); ++attempt)
+                line = read_socket_line(client);
+            EXPECT_EQ(line, "OK\n") << name;
+        }
+        close(client);
+    }
+
+} // namespace
+
+namespace {
+
+    // With no Bluetooth there is nothing to dial through: the answer still
+    // comes as the reply of the client that asked, with its operation id, and
+    // a cancel is taken without complaint.
+    TEST(UnixServerTest, DialAnswersItsCallerOffTheLoopAndCancelIsAccepted) {
+        const std::string runtime_dir = unique_test_dir("tether_unix_dial_test");
+        CleanupGuard cleanup_guard(runtime_dir);
+        std::filesystem::remove_all(runtime_dir);
+        std::filesystem::create_directories(runtime_dir);
+        ScopedEnvVar xdg_runtime_dir("XDG_RUNTIME_DIR", runtime_dir);
+
+        tether::EpollEventLoop loop;
+        tether::TcpServer tcp_server(loop, 0);
+        tether::UnixServer unix_server(loop, tcp_server);
+        ASSERT_TRUE(unix_server.start());
+        EventLoopGuard loop_guard(loop);
+
+        const int client = socket(AF_UNIX, SOCK_STREAM, 0);
+        ASSERT_GE(client, 0);
+        timeval timeout{2, 0};
+        ASSERT_EQ(setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)), 0);
+        sockaddr_un address{};
+        address.sun_family = AF_UNIX;
+        std::snprintf(
+            address.sun_path, sizeof(address.sun_path), "%s", (tether::get_runtime_dir() + "/landlined.sock").c_str());
+        ASSERT_EQ(connect(client, reinterpret_cast<sockaddr*>(&address), sizeof(address)), 0);
+
+        // Not subscribed, like landlinectl: the result is its reply.
+        const std::string dial =
+            nlohmann::json{{"command", "bt_call_dial"}, {"number", "+41791234567"}, {"operation_id", "dial-1"}}
+                .dump() +
+            "\n";
+        ASSERT_EQ(write(client, dial.data(), dial.size()), static_cast<ssize_t>(dial.size()));
+        const std::string line = read_socket_line(client);
+        ASSERT_FALSE(line.empty());
+        const auto result = nlohmann::json::parse(line);
+        EXPECT_EQ(result.value("command", ""), "bt_call_result");
+        EXPECT_EQ(result.value("action", ""), "dial");
+        EXPECT_FALSE(result.value("success", true));
+        EXPECT_EQ(result.value("operation_id", ""), "dial-1");
+        EXPECT_FALSE(result.value("reason", "").empty());
+        EXPECT_FALSE(result.value("message", "").empty());
+
+        const std::string cancel = "{\"command\":\"bt_call_cancel\",\"operation_id\":\"dial-1\"}\n";
+        ASSERT_EQ(write(client, cancel.data(), cancel.size()), static_cast<ssize_t>(cancel.size()));
+        EXPECT_EQ(read_socket_line(client), "OK\n");
+
+        // A call action is answered the same way.
+        const std::string decline = "{\"command\":\"bt_call_action\",\"action\":\"decline\",\"uid\":7}\n";
+        ASSERT_EQ(write(client, decline.data(), decline.size()), static_cast<ssize_t>(decline.size()));
+        const std::string answer = read_socket_line(client);
+        ASSERT_FALSE(answer.empty());
+        const auto declined = nlohmann::json::parse(answer);
+        EXPECT_EQ(declined.value("command", ""), "bt_call_result");
+        EXPECT_EQ(declined.value("action", ""), "decline");
+        EXPECT_FALSE(declined.value("success", true));
+
+        // And bt_list_calls says whether a call is ringing.
+        const std::string list = "{\"command\":\"bt_list_calls\"}\n";
+        ASSERT_EQ(write(client, list.data(), list.size()), static_cast<ssize_t>(list.size()));
+        const auto calls = nlohmann::json::parse(read_socket_line(client));
+        EXPECT_EQ(calls.value("command", ""), "bt_calls");
+        ASSERT_TRUE(calls.contains("incoming"));
+        EXPECT_TRUE(calls["incoming"].is_null());
+        close(client);
+    }
+
+} // namespace

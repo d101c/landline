@@ -8,10 +8,22 @@
 #   landline-setup revert [--dry-run]  retire tout ce que « apply » a créé
 #   landline-setup version             numéro de version de l'assistant
 #
-# Les deux réglages :
+# Les deux réglages exigés :
 #   experimental  bluetoothd lancé avec --experimental (lien double BR/EDR + LE).
 #                 Non requis à partir de BlueZ 5.88, où l'API Bearer est stable.
 #   ertm          ERTM L2CAP actif (disable_ertm = N), nécessaire à MAP et PBAP
+#
+# Le réglage souhaité, jamais bloquant (« ready » n'en dépend pas) :
+#   le_params     l'auxiliaire landline-le-params, copié appartenant à root
+#                 dans /usr/local/libexec/landline/ avec le seul droit
+#                 cap_net_raw (setcap cap_net_raw+ep). Le moteur s'en sert pour
+#                 demander à l'iPhone une supervision de 6 s sur le lien LE
+#                 (commande HCI LE Connection Update). Sa source est cherchée
+#                 uniquement à côté de l'assistant en cours (voir
+#                 le_params_source), jamais dans le dossier personnel de
+#                 l'utilisateur qui a lancé pkexec ou sudo. Introuvable, ou
+#                 setcap absent : « apply » le dit, laisse ce réglage de côté
+#                 et réussit quand même.
 #
 # La classe d'appareil (device_class) n'est plus exigée : l'iPhone propose
 # messages, contacts et notifications avec la classe d'origine de l'ordinateur.
@@ -36,7 +48,7 @@
 # mais une étape d'activation a échoué ; 64 mauvais usage.
 set -euo pipefail
 
-VERSION=3
+VERSION=4
 # Le nom court : tout ce que l'assistant écrit sur le système en dérive.
 NAME=landline
 # Le nom des premières installations.
@@ -67,6 +79,13 @@ LIBEXEC_PARENT=/usr/local/libexec
 LIBEXEC=$LIBEXEC_PARENT/$NAME
 SELF_INSTALLED=$LIBEXEC/$NAME-setup
 PARENT_MARK=$LIBEXEC/.parent-created
+LE_HELPER_NAME=$NAME-le-params
+LE_HELPER=$LIBEXEC/$LE_HELPER_NAME
+# Noté par apply à côté de l'auxiliaire (un binaire ne porte pas d'en-tête) :
+# revert ne retire l'auxiliaire que s'il le trouve.
+LE_HELPER_MARK=$LIBEXEC/$LE_HELPER_NAME.managed
+# Taille au-delà de laquelle une source n'est pas prise pour l'auxiliaire.
+LE_HELPER_MAX_BYTES=8388608
 POLICY_ID=io.github.d101c.$NAME
 POLICY=/usr/share/polkit-1/actions/$POLICY_ID.policy
 
@@ -91,6 +110,8 @@ ERTM_PARAM=/sys/module/bluetooth/parameters/disable_ertm
 
 say()  { printf '%s\n' "$*"; }
 warn() { printf 'attention : %s\n' "$*" >&2; WARNINGS=$((WARNINGS + 1)); }
+# Pour le réglage souhaité : dit, sans faire échouer apply.
+note() { printf 'remarque : %s\n' "$*" >&2; }
 die()  { printf 'erreur : %s\n' "$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
@@ -480,11 +501,36 @@ experimental_required() {
     ! version_at_least "$(bluez_version)" "$BEARER_STABLE_MAJOR" "$BEARER_STABLE_MINOR"
 }
 
+# L'auxiliaire des paramètres de connexion LE est en place et peut servir :
+# fichier ordinaire exécutable, à root, que personne d'autre ne peut écrire,
+# portant cap_net_raw dans ses ensembles effectif et permis.
+le_params_ready() {
+    local path="$ROOT$LE_HELPER" caps owner mode
+    [ -f "$path" ] && [ ! -L "$path" ] && [ -x "$path" ] || return 1
+    if [ -z "$ROOT" ]; then
+        owner="$(stat -c %u "$path" 2>/dev/null || true)"
+        [ "$owner" = 0 ] || return 1
+    fi
+    mode="$(stat -c %a "$path" 2>/dev/null || true)"
+    [[ "$mode" =~ ^[0-7]*[0-7][0145][0145]$ ]] || return 1
+    caps="$(le_params_getcap "$path")"
+    [[ "$caps" =~ cap_net_raw([,a-z_]*)?[=+](ep|pe) ]]
+}
+
+le_params_getcap() {
+    if [ -n "$ROOT" ]; then
+        sys_query getcap "$1" 2>/dev/null || true
+    else
+        "$(tool_path getcap /usr/sbin/getcap)" "$1" 2>/dev/null || true
+    fi
+}
+
 json_bool() { if "$@"; then printf true; else printf false; fi; }
 
 # « ready » ne dépend que de ce qui est exigé sur cette machine : l'ERTM, et le
 # mode expérimental quand BlueZ en a encore besoin. « device_class » n'est
-# publié que pour information.
+# publié que pour information. « le_params » (l'auxiliaire des paramètres de
+# connexion LE) est souhaité : l'extension le propose quand il manque.
 status_json() {
     local experimental device_class ertm need_experimental ready=false version
     experimental="$(json_bool current_experimental)"
@@ -495,10 +541,10 @@ status_json() {
     if [ "$ertm" = true ] && { [ "$experimental" = true ] || [ "$need_experimental" = false ]; }; then
         ready=true
     fi
-    printf '{"experimental":%s,"device_class":%s,"ertm":%s,"ready":%s,"persistent":{"experimental":%s,"device_class":%s,"ertm":%s},"required":{"experimental":%s,"ertm":true},"bluez_version":"%s"}\n' \
+    printf '{"experimental":%s,"device_class":%s,"ertm":%s,"ready":%s,"persistent":{"experimental":%s,"device_class":%s,"ertm":%s},"required":{"experimental":%s,"ertm":true},"bluez_version":"%s","le_params":%s}\n' \
         "$experimental" "$device_class" "$ertm" "$ready" \
         "$(json_bool persistent_experimental)" "$(json_bool persistent_class)" "$(json_bool persistent_ertm)" \
-        "$need_experimental" "$version"
+        "$need_experimental" "$version" "$(json_bool le_params_ready)"
 }
 
 # ---------------------------------------------------------------------------
@@ -639,6 +685,115 @@ install_self() {
     write_file "$POLICY" 0644 < <(content_policy)
 }
 
+# La source de l'auxiliaire : uniquement à côté de l'assistant en cours, là
+# où elle a la même provenance que lui :
+#   <dossier>/landline-le-params          copie de root (/usr/local/libexec/
+#                                         landline) ou copie vérifiée du script
+#                                         que lance l'extension
+#   <dossier>/engine/landline-le-params   installation locale
+#                                         (~/.local/lib/landline/landline-setup)
+#   <dossier>/../landline-le-params       moteur installé en un clic, quand
+#                                         l'assistant est dans engine/system/
+# Jamais dans le dossier personnel de l'utilisateur qui a demandé les droits
+# (PKEXEC_UID, SUDO_UID) : la copie de root lancée par pkexec donnerait sinon
+# cap_net_raw à un fichier que cet utilisateur peut changer à volonté.
+# Racine factice : LANDLINE_LE_PARAMS_SRC d'abord (essais).
+le_params_source() {
+    local dir candidate
+    local -a candidates=()
+    if [ -n "$ROOT" ] && [ -n "${LANDLINE_LE_PARAMS_SRC:-}" ]; then
+        candidates+=("$LANDLINE_LE_PARAMS_SRC")
+    fi
+    dir="$(dirname "$(self_path)")"
+    candidates+=("$dir/$LE_HELPER_NAME" "$dir/engine/$LE_HELPER_NAME")
+    if [ "$(basename "$dir")" = system ]; then
+        candidates+=("$(dirname "$dir")/$LE_HELPER_NAME")
+    fi
+    for candidate in "${candidates[@]}"; do
+        # Un exécutable ELF ordinaire, de taille raisonnable.
+        [ -f "$candidate" ] && [ ! -L "$candidate" ] || continue
+        [ "$(stat -c %s "$candidate" 2>/dev/null || echo 0)" -le "$LE_HELPER_MAX_BYTES" ] || continue
+        [ "$(head -c 4 "$candidate" | od -An -tx1 | tr -d ' \n')" = 7f454c46 ] || continue
+        printf '%s\n' "$candidate"
+        return 0
+    done
+    return 1
+}
+
+# Pose l'auxiliaire et son droit. Jamais d'échec d'apply pour lui.
+install_le_params() {
+    local src tmp setcap_bin
+    if ! src="$(le_params_source)"; then
+        if le_params_ready; then
+            say "auxiliaire déjà en place ; pas de nouvelle version à côté de l'assistant"
+        else
+            note "auxiliaire $LE_HELPER_NAME introuvable à côté de l'assistant : réglage laissé de côté, le lien marche sans"
+        fi
+        return 0
+    fi
+    if [ -f "$ROOT$LE_HELPER" ] && cmp -s "$src" "$ROOT$LE_HELPER" && le_params_ready; then
+        say "inchangé : $LE_HELPER (cap_net_raw posé)"
+        write_file "$LE_HELPER_MARK" 0644 <<< "# $MARKER: $LE_HELPER was installed by $NAME-setup."
+        return 0
+    fi
+    setcap_bin="$(tool_path setcap /usr/sbin/setcap)"
+    if [ -z "$ROOT" ] && [ ! -x "$setcap_bin" ]; then
+        note "setcap introuvable (paquet libcap2-bin) : auxiliaire non posé, le lien marche sans"
+        return 0
+    fi
+    CHANGED=1
+    if [ "$DRY" = 1 ]; then
+        say "copierait : $src -> $LE_HELPER (root, mode 0755)"
+        say "exécuterait : setcap cap_net_raw+ep $LE_HELPER"
+        return 0
+    fi
+    mkdir -p "$ROOT$LIBEXEC"
+    # Copié sous un nom provisoire, le droit posé dessus, puis mis en place
+    # d'un coup : jamais de fichier à moitié écrit ni de droit sur une copie
+    # qui change encore.
+    tmp="$LIBEXEC/.$LE_HELPER_NAME.new"
+    if [ -n "$ROOT" ]; then
+        install -m 0755 "$src" "$ROOT$tmp"
+    else
+        install -o root -g root -m 0755 "$src" "$tmp"
+    fi
+    if ! cmp -s "$src" "$ROOT$tmp"; then
+        rm -f "$ROOT$tmp"
+        note "la copie de l'auxiliaire diffère de sa source : non posé"
+        return 0
+    fi
+    if ! sys_run setcap cap_net_raw+ep "$tmp"; then
+        rm -f "$ROOT$tmp"
+        note "setcap a échoué : auxiliaire non posé, le lien marche sans"
+        return 0
+    fi
+    mv -f "$ROOT$tmp" "$ROOT$LE_HELPER"
+    say "copié : $src -> $LE_HELPER"
+    write_file "$LE_HELPER_MARK" 0644 <<< "# $MARKER: $LE_HELPER was installed by $NAME-setup."
+    if le_params_ready; then
+        say "auxiliaire en place avec cap_net_raw : le moteur demandera à l'iPhone une supervision de 6 s au prochain lien LE"
+    else
+        note "auxiliaire copié mais cap_net_raw ne se relit pas (système de fichiers sans attributs étendus ?) : le moteur ne s'en servira pas"
+    fi
+}
+
+remove_le_params() {
+    if [ ! -e "$ROOT$LE_HELPER_MARK" ]; then
+        if [ -e "$ROOT$LE_HELPER" ]; then
+            warn "$LE_HELPER n'a pas été posé par $NAME-setup : laissé en place"
+        fi
+        return 0
+    fi
+    CHANGED=1
+    if [ "$DRY" = 1 ]; then
+        say "retirerait : $LE_HELPER (et son droit cap_net_raw)"
+    else
+        rm -f "$ROOT$LE_HELPER" "$ROOT$LIBEXEC/.$LE_HELPER_NAME.new"
+        say "retiré : $LE_HELPER (et son droit cap_net_raw)"
+    fi
+    remove_path "$LE_HELPER_MARK"
+}
+
 # ---------------------------------------------------------------------------
 # apply
 # ---------------------------------------------------------------------------
@@ -731,6 +886,9 @@ do_apply() {
     write_file "$UNIT_ERTM" 0644 < <(content_unit_ertm "$modprobe_bin")
     make_link "$UNIT_ERTM" "$WANTS_ERTM"
     if [ "$CHANGED" = 1 ]; then units_changed=1; ertm_changed=1; fi
+
+    say "== Tolérance du lien LE (souhaitée, non bloquante)"
+    install_le_params
 
     say "== Installation sous l'ancien nom ($OLD_NAME)"
     remove_old_install
@@ -827,6 +985,9 @@ do_revert() {
     else
         say "aucune configuration ne fixe disable_ertm : valeur laissée telle quelle"
     fi
+
+    say "== Tolérance du lien LE"
+    remove_le_params
 
     say "== Assistant et fiche polkit"
     remove_path "$POLICY" marque

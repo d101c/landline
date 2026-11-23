@@ -108,7 +108,6 @@ namespace tether {
         };
 
         // Set once during startup, before any notification exists.
-        std::function<void(const std::string&, const std::string&)> g_copy_handler;
         std::function<void(const std::string&, const std::string&)> g_reply_handler;
         std::function<void(const std::string&, const std::string&)> g_mute_handler;
 
@@ -198,12 +197,6 @@ namespace tether {
                 debug::log(ERR, "Failed to open tether-gtk: {}", error ? error->message : "unknown");
                 g_clear_error(&error);
             }
-        }
-
-        void on_copy_code_action(NotifyNotification*, char*, gpointer user_data) {
-            auto* action = static_cast<NotificationActionData*>(user_data);
-            if (action && g_copy_handler)
-                g_copy_handler(action->payload, action->handle);
         }
 
         void on_reply_action(NotifyNotification*, char*, gpointer user_data) {
@@ -399,8 +392,7 @@ namespace tether {
             notify_notification_set_urgency(notification, spec->quiet ? NOTIFY_URGENCY_LOW : NOTIFY_URGENCY_NORMAL);
 
             const AppLauncher launcher = spec->app_id.empty() ? AppLauncher{} : resolve_launcher(spec->app_id);
-            const bool has_actions = !spec->reply_thread.empty() || !spec->otp_code.empty() ||
-                                     !launcher.payload.empty() || spec->ancs_uid >= 0;
+            const bool has_actions = !spec->reply_thread.empty() || !launcher.payload.empty() || spec->ancs_uid >= 0;
             if (has_actions)
                 g_signal_connect(notification, "closed", G_CALLBACK(on_notification_closed), nullptr);
 
@@ -433,15 +425,6 @@ namespace tether {
                                                    new NotificationActionData{spec->reply_thread},
                                                    free_action_data);
                 }
-            }
-
-            if (!spec->otp_code.empty()) {
-                notify_notification_add_action(notification,
-                                               "copy-code",
-                                               _("Copy Code"),
-                                               on_copy_code_action,
-                                               new NotificationActionData{spec->otp_code, spec->read_handle},
-                                               free_action_data);
             }
 
             if (!launcher.payload.empty()) {
@@ -567,11 +550,6 @@ namespace tether {
     void DesktopNotifier::set_mute_handler(
         std::function<void(const std::string& app_id, const std::string& app_name)> handler) {
         g_mute_handler = std::move(handler);
-    }
-
-    void DesktopNotifier::set_copy_handler(
-        std::function<void(const std::string& code, const std::string& handle)> handler) {
-        g_copy_handler = std::move(handler);
     }
 
     void DesktopNotifier::set_reply_handler(

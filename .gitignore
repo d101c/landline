@@ -2,3 +2,4 @@ essais/
 dist/
 out/
 docs/captures/
+__pycache__/

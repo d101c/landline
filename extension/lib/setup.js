@@ -112,7 +112,8 @@ class PhoneSetupDialog extends ModalDialog.ModalDialog {
         const key = [tour.step, tour.at, tour.permission, tour.repair, tour.found, tour.candidates.length,
             tour.answered, tour.canRetry, tour.checking, tour.proof !== null, tour.allOn && tour.reviewed,
             tour.canBack, tour.noNotifications, tour.obex, tour.forget?.state, this._helpOpen,
-            tour.permissionNeeds.join('+'), tour.permissionManual, tour.permissionCommands.join('\n'),
+            tour.permissionNeeds.join('+'), (tour.permissionWishes ?? []).join('+'), tour.permissionManual,
+            tour.permissionCommands.join('\n'),
             this._art.language].join('|');
         if (key !== this._key) {
             const stepChanged = this._step !== null && this._step !== tour.step;
@@ -490,20 +491,39 @@ class PhoneSetupDialog extends ModalDialog.ModalDialog {
 
     _permission(tour) {
         const _ = this._;
-        // Only what this computer really lacks: one point or two.
+        // Only what this computer really lacks: one point or two, and the
+        // steadier link when it is wished for, in the same password pass.
         const known = {
             experimental: [_('Turn on newer Bluetooth features'), _('Needed for notifications and calls.')],
             ertm: [_('Allow reliable data transfer'),
                 _('Needed to read messages. Some game controllers may need it off.')],
+            le_params: [_('Keep the link steady'),
+                _('Lets this computer ask the iPhone for a more tolerant Bluetooth connection, as Apple recommends for accessories. Optional: without it, everything works as before.')],
         };
-        const points = tour.permissionNeeds.map(id => known[id]).filter(point => point);
+        const wishes = tour.permissionWishes ?? [];
+        const points = [...tour.permissionNeeds, ...wishes].map(id => known[id]).filter(point => point);
+        // Only wished settings: nothing has to change, so nothing blocks.
+        const optional = tour.permissionNeeds.length === 0 && wishes.length > 0;
         const manual = tour.permissionManual && tour.permission !== 'done';
-        const [one, two] = manual
+        const [one, two, three] = manual
             ? [_('One Bluetooth setting needs to change. It is done once, as administrator, in a terminal: this extension cannot ask for your password on this computer.'),
-                _('Two Bluetooth settings need to change. It is done once, as administrator, in a terminal: this extension cannot ask for your password on this computer.')]
+                _('Two Bluetooth settings need to change. It is done once, as administrator, in a terminal: this extension cannot ask for your password on this computer.'),
+                _('Three Bluetooth settings need to change. It is done once, as administrator, in a terminal: this extension cannot ask for your password on this computer.')]
             : [_('One Bluetooth setting needs to change. It is done once, and it asks for your password because it belongs to the whole computer.'),
-                _('Two Bluetooth settings need to change. It is done once, and it asks for your password because they belong to the whole computer.')];
-        this._heading(_('Let this computer talk to your iPhone'), points.length === 1 ? one : two);
+                _('Two Bluetooth settings need to change. It is done once, and it asks for your password because they belong to the whole computer.'),
+                _('Three Bluetooth settings need to change. It is done once, and it asks for your password because they belong to the whole computer.')];
+        const needs = tour.permissionNeeds.length;
+        let heading;
+        if (optional)
+            heading = _('One more Bluetooth setting is recommended. It is done once, and it asks for your password because it belongs to the whole computer.');
+        else if (wishes.length > 0 && !manual)
+            heading = needs === 1
+                ? _('One Bluetooth setting needs to change, and one more is recommended. It is done once, and it asks for your password because they belong to the whole computer.')
+                : _('Two Bluetooth settings need to change, and one more is recommended. It is done once, and it asks for your password because they belong to the whole computer.');
+        else
+            heading = [one, two, three][Math.min(points.length, 3) - 1] ?? one;
+        this._heading(optional ? _('Keep the link to your iPhone steady') : _('Let this computer talk to your iPhone'),
+            heading);
         const steps = new St.BoxLayout({
             style_class: 'landline-dialog-steps',
             orientation: Clutter.Orientation.VERTICAL,
@@ -521,7 +541,10 @@ class PhoneSetupDialog extends ModalDialog.ModalDialog {
         }
         this._body.add_child(steps);
 
-        const notNow = {label: _('Not Now'), action: () => this._model.cancelTour()};
+        // Turning down a wished setting lets the setup go on.
+        const notNow = optional
+            ? {label: _('Skip'), action: () => this._model.tourSkipPermission()}
+            : {label: _('Not Now'), action: () => this._model.cancelTour()};
         if (tour.permissionManual && tour.permission !== 'done') {
             this._commands(tour.permissionCommands);
             this._buttons([notNow, {
@@ -559,10 +582,17 @@ class PhoneSetupDialog extends ModalDialog.ModalDialog {
             this._status(_('This computer is ready'), {busy: false});
             this._buttons([]);
             break;
+        case 'skipped':
+            this._body.add_child(wrapped(_('Nothing was changed. Everything works as before.'),
+                'landline-tour-note', true));
+            this._buttons([]);
+            break;
         default:
             this._body.add_child(wrapped(tour.restartsBluetooth
                 ? _('Bluetooth restarts once: keyboards, mice and headphones drop for a few seconds. Nothing else is changed. Undo any time in Phone Settings.')
-                : _('Nothing else is changed. Undo any time in Phone Settings.'),
+                : optional
+                    ? _('Bluetooth is not restarted. Undo any time in Phone Settings.')
+                    : _('Nothing else is changed. Undo any time in Phone Settings.'),
             'landline-sub', true));
             this._buttons([notNow, {...again, label: _('Continue')}]);
             break;

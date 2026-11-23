@@ -43,16 +43,13 @@ add_library(tether STATIC
     src/bluetooth/telephony.cpp
     src/bluetooth/telephony_pipewire.cpp
     src/bluetooth/airpods.cpp
+    src/bluetooth/le_conn_update.cpp
     src/bluetooth/connection.cpp
     src/bluetooth/diagnostics.cpp
     src/session_lock.cpp
+    src/sleep_watch.cpp
     src/bus_watch.cpp
     src/log_file.cpp
-    src/wayland.cpp
-    src/wayland_protocols/wayland.cpp
-    src/wayland_protocols/wlr-data-control-unstable-v1.cpp
-    src/wayland_protocols/ext-data-control-v1.cpp
-    src/wayland_protocols/ext-idle-notify-v1.cpp
 )
 
 pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0 gio-2.0)
@@ -72,7 +69,6 @@ target_compile_definitions(tether PRIVATE
 
 target_link_libraries(tether PUBLIC
     nlohmann_json::nlohmann_json
-    PkgConfig::WAYLAND
     OpenSSL::SSL
     OpenSSL::Crypto
     PkgConfig::AVAHI
