@@ -14,5 +14,10 @@ override_dh_auto_install:
 	packaging/install-tree.sh debian/landline /usr/libexec build-pkg $(VERSION)
 	rm -rf debian/landline/usr/share/licenses
 
+# The engine is started by the extension, for the users who turned it on:
+# never enabled for every session of the computer.
+override_dh_installsystemduser:
+	dh_installsystemduser --no-enable
+
 execute_after_dh_fixperms:
 	chmod 0644 debian/landline/usr/libexec/landline/VERSION

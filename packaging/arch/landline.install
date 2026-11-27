@@ -1,7 +1,8 @@
 post_install() {
     # Lets the engine ask the iPhone for a steadier Bluetooth link.
     setcap cap_net_raw+ep /usr/lib/landline/landline-le-params || true
-    echo ":: Log out and back in, then turn Landline on in Extensions."
+    /usr/lib/landline/landline-setup apply >/dev/null 2>&1 || true
+    echo ":: Restart the computer: Landline is turned on at your next login."
 }
 post_upgrade() {
     setcap cap_net_raw+ep /usr/lib/landline/landline-le-params || true

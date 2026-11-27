@@ -1,6 +1,6 @@
 Name:           landline
 Version:        0.3.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        iPhone calls, messages and notifications on the GNOME desktop
 License:        GPL-2.0-or-later AND MIT
 URL:            https://github.com/d101c/landline
@@ -32,6 +32,31 @@ This package holds the GNOME Shell extension and its engine.
 packaging/install-tree.sh %{buildroot} %{_libexecdir} %{__cmake_builddir} %{version}
 %find_lang %{name}
 
+%post
+# The Bluetooth settings iPhones need, when this system does not have them.
+# Removing the package puts them back (%%preun).
+%{_libexecdir}/landline/landline-setup apply >/dev/null 2>&1 || :
+# Installed from a downloaded file: add the repository the package comes from.
+if ! grep -rqs 'd101c:landline' /etc/yum.repos.d 2>/dev/null; then
+    cat > /etc/yum.repos.d/landline.repo <<'REPO'
+# Written by the landline package. Removed with it.
+[copr:copr.fedorainfracloud.org:d101c:landline]
+name=Landline (Copr d101c/landline)
+baseurl=https://download.copr.fedorainfracloud.org/results/d101c/landline/fedora-$releasever-$basearch/
+type=rpm-md
+skip_if_unavailable=True
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/d101c/landline/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+REPO
+fi
+
+%postun
+if [ "$1" -eq 0 ] && grep -qs 'Written by the landline package' /etc/yum.repos.d/landline.repo; then
+    rm -f /etc/yum.repos.d/landline.repo
+fi
+
 %preun
 if [ "$1" -eq 0 ]; then
     # Put the Bluetooth settings back the way they were.
@@ -44,6 +69,9 @@ fi
 %{_libexecdir}/landline/landlined
 %{_libexecdir}/landline/landlinectl
 %{_libexecdir}/landline/landline-setup
+%{_libexecdir}/landline/landline-first-run
+%{_sysconfdir}/xdg/autostart/landline-first-run.desktop
+%exclude %{_datadir}/keyrings/landline-ppa.asc
 %{_libexecdir}/landline/VERSION
 %caps(cap_net_raw=ep) %{_libexecdir}/landline/landline-le-params
 %{_userunitdir}/landline-engine.service
@@ -52,6 +80,11 @@ fi
 %{_datadir}/gnome-shell/extensions/landline@d101c.github.io/
 
 %changelog
+* Fri Nov 27 2026 Landline <landline@d101c.github.io> - 0.3.0-2
+- The extension is turned on at the first login after the install.
+- The Bluetooth settings iPhones need are set at install time when missing.
+- Installed from a downloaded file, the package adds its own repository.
+
 * Fri Nov 27 2026 Landline <landline@d101c.github.io> - 0.3.0-1
 - Engine 0.3.0: a classic link BlueZ keeps "In Progress" is freed, the charging state is told.
 

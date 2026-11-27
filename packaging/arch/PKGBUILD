@@ -1,7 +1,7 @@
 # Maintainer: Landline <landline@d101c.github.io>
 pkgname=landline
 pkgver=0.3.0
-pkgrel=1
+pkgrel=2
 pkgdesc="iPhone calls, messages and notifications on the GNOME desktop (Shell extension and its engine)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/d101c/landline"

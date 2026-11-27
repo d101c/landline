@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+if [ "$1" = remove ] || [ "$1" = purge ]; then
+    if [ -f /etc/apt/sources.list.d/landline.sources ] && grep -q 'Written by the landline package' /etc/apt/sources.list.d/landline.sources; then
+        rm -f /etc/apt/sources.list.d/landline.sources
+    fi
+fi
+#DEBHELPER#

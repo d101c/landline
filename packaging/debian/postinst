@@ -3,5 +3,26 @@ set -e
 if [ "$1" = configure ]; then
     # Lets the engine ask the iPhone for a steadier Bluetooth link.
     setcap cap_net_raw+ep /usr/libexec/landline/landline-le-params || true
+
+    # The Bluetooth settings iPhones need, when this system does not have
+    # them: BlueZ older than 5.88 needs its experimental mode, and L2CAP ERTM
+    # must be on. Bluetooth restarts for a few seconds when one is changed.
+    # Removing the package puts them back (prerm).
+    /usr/libexec/landline/landline-setup apply >/dev/null 2>&1 || true
+
+    # Installed from a downloaded file: add the repository the package comes
+    # from, so that its updates arrive with the system's. Left alone when a
+    # source for it is already there (add-apt-repository).
+    series=$(. /etc/os-release 2>/dev/null; printf '%s' "${VERSION_CODENAME:-}")
+    if [ "$series" = stonking ] && ! grep -rqs 'd101c101d/landline' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
+        cat > /etc/apt/sources.list.d/landline.sources <<SRC
+# Written by the landline package. Removed with it.
+Types: deb
+URIs: https://ppa.launchpadcontent.net/d101c101d/landline/ubuntu/
+Suites: $series
+Components: main
+Signed-By: /usr/share/keyrings/landline-ppa.asc
+SRC
+    fi
 fi
 #DEBHELPER#

@@ -1,3 +1,13 @@
+landline (0.3.0-2) unstable; urgency=medium
+
+  * The extension is turned on at the first login after the install.
+  * The Bluetooth settings iPhones need are set at install time, when the
+    system lacks them; removing the package puts them back.
+  * The engine is no longer enabled for every session of the computer.
+  * Installed from a downloaded file, the package adds its own repository.
+
+ -- Landline <landline@d101c.github.io>  Fri, 27 Nov 2026 17:00:00 +0100
+
 landline (0.3.0-1) unstable; urgency=medium
 
   * Engine 0.3.0: a classic link BlueZ keeps "In Progress" is freed, the

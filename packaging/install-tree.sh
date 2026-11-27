@@ -79,5 +79,23 @@ rm -f "$ext/schemas/gschemas.compiled" "$ext/.gitignore"
 glib-compile-schemas --strict "$ext/schemas"
 find "$ext" -type d -exec chmod 0755 {} + ; find "$ext" -type f -exec chmod 0644 {} +
 
+# First login after the install: the extension is turned on for that user, once.
+install -m 0755 "$repo/packaging/landline-first-run" "$dest$dir/landline-first-run"
+install -d "$dest/etc/xdg/autostart"
+cat > "$dest/etc/xdg/autostart/landline-first-run.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Landline first run
+Exec=$dir/landline-first-run
+OnlyShowIn=GNOME;
+NoDisplay=true
+X-GNOME-Autostart-Phase=Application
+DESKTOP
+chmod 0644 "$dest/etc/xdg/autostart/landline-first-run.desktop"
+
+# The key of the package repository, for the source the package scripts write
+# when the package was installed from a downloaded file (deb only).
+install -Dm 0644 "$repo/packaging/repo/landline-ppa.asc" "$dest/usr/share/keyrings/landline-ppa.asc"
+
 install -Dm 0644 "$repo/engine/LICENSE" "$dest/usr/share/licenses/landline/LICENSE.engine"
 install -Dm 0644 "$repo/extension/LICENSE" "$dest/usr/share/licenses/landline/LICENSE.extension"

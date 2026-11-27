@@ -1,0 +1,26 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Run once per user, at the first login after the package is installed: turns
+# the extension on, so that nobody has to type a command or open the Extensions
+# app. Done once: a user who switches Landline off afterwards keeps it off.
+uuid="landline@d101c.github.io"
+mark="${XDG_CONFIG_HOME:-$HOME/.config}/landline/first-run-done"
+[ -e "$mark" ] && exit 0
+command -v gsettings >/dev/null 2>&1 || exit 0
+schema=org.gnome.shell
+
+cur=$(gsettings get $schema enabled-extensions 2>/dev/null) || exit 0
+case "$cur" in
+    *"'$uuid'"*) ;;
+    "@as []"|"[]") gsettings set $schema enabled-extensions "['$uuid']" ;;
+    *) gsettings set $schema enabled-extensions "${cur%]}, '$uuid']" ;;
+esac
+# Left over from an earlier install: the list of the disabled ones wins.
+off=$(gsettings get $schema disabled-extensions 2>/dev/null)
+case "$off" in
+    *"'$uuid'"*)
+        off=$(printf '%s' "$off" | sed -e "s/'$uuid', //" -e "s/, '$uuid'//" -e "s/'$uuid'//")
+        [ "$off" = "[]" ] && off="@as []"
+        gsettings set $schema disabled-extensions "$off" ;;
+esac
+mkdir -p "$(dirname "$mark")" && : > "$mark"
