@@ -39,7 +39,12 @@ namespace tether::bluetooth {
 
     // Where the helper is looked for: LANDLINE_LE_PARAMS_HELPER when set,
     // the path the system assistant installs it under otherwise.
-    inline constexpr const char* LE_PARAMS_HELPER_PATH = "/usr/local/libexec/landline/landline-le-params";
+#ifndef LANDLINE_LE_PARAMS_HELPER_PATH
+#define LANDLINE_LE_PARAMS_HELPER_PATH "/usr/local/libexec/landline/landline-le-params"
+#endif
+    // A distribution package sets it to its own directory
+    // (-DLANDLINE_LIBEXECDIR=/usr/libexec/landline).
+    inline constexpr const char* LE_PARAMS_HELPER_PATH = LANDLINE_LE_PARAMS_HELPER_PATH;
     std::string le_params_helper_path(const char* env_override);
 
     // Whether the helper at `path` can do its work: executable, and, unless

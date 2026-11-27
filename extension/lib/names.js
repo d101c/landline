@@ -16,6 +16,15 @@ export const SOCKET_PATH = ['landline', 'landlined.sock'];
 // first the one of an engine installed from Phone Settings, then the one
 // scripts/install-local.sh leaves.
 export const ROOT_HELPER = '/usr/local/libexec/landline/landline-setup';
+
+// Where a distribution package (deb, rpm, Arch) puts the engine, its VERSION
+// file and the setup helper: /usr/libexec on Debian, Ubuntu and Fedora,
+// /usr/lib on Arch. An engine found there belongs to the package manager:
+// the extension starts it and never installs, updates or removes it.
+export const SYSTEM_ENGINE_DIRS = ['/usr/libexec/landline', '/usr/lib/landline'];
+export const SYSTEM_DAEMON = 'landlined';
+export const SYSTEM_VERSION_FILE = 'VERSION';
+export const SYSTEM_HELPER = 'landline-setup';
 export const LOCAL_HELPERS = [
     ['.local', 'lib', 'landline', 'engine', 'system', 'landline-setup'],
     ['.local', 'lib', 'landline', 'landline-setup'],

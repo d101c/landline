@@ -61,12 +61,22 @@ pkg_check_modules(SECRET REQUIRED IMPORTED_TARGET libsecret-1)
 
 include(FetchContent)
 
+# A distribution package builds without network, with the nlohmann/json of
+# the distribution: LANDLINE_JSON_MIN lowers the version asked of it.
+set(LANDLINE_JSON_MIN "3.12" CACHE STRING "Oldest system nlohmann/json accepted instead of fetching 3.12")
+# Where a distribution package puts the engine's helpers
+# (/usr/libexec/landline, /usr/lib/landline). Empty: /usr/local/libexec/landline.
+set(LANDLINE_LIBEXECDIR "" CACHE STRING "Directory of landline-le-params in a distribution package")
+if(LANDLINE_LIBEXECDIR)
+    add_compile_definitions(LANDLINE_LE_PARAMS_HELPER_PATH="${LANDLINE_LIBEXECDIR}/landline-le-params")
+endif()
+
 FetchContent_Declare(
   nlohmann_json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
   GIT_TAG v3.12.0
   GIT_SHALLOW ON
-  FIND_PACKAGE_ARGS 3.12
+  FIND_PACKAGE_ARGS ${LANDLINE_JSON_MIN}
 )
 set(JSON_Install OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(nlohmann_json)

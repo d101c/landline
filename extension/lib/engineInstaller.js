@@ -35,7 +35,7 @@ import {
     LAYOUT, advance, archiveName, archiveRoot, classify, newFlow, obexDropinText,
     releaseIsPinned, sameSum, unitText,
 } from './engineInstall.js';
-import {LOG_PREFIX, SOCKET_PATH} from './names.js';
+import {LOG_PREFIX, SOCKET_PATH, SYSTEM_DAEMON, SYSTEM_ENGINE_DIRS, SYSTEM_VERSION_FILE} from './names.js';
 
 Gio._promisify(Gio.File.prototype, 'replace_contents_async');
 Gio._promisify(Gio.File.prototype, 'load_contents_async');
@@ -153,8 +153,27 @@ export function readFacts(p) {
     };
 }
 
-export function detect(p, release) {
+// The engine of a distribution package, when there is one: {dir, version}.
+export function systemEngine(dirs = SYSTEM_ENGINE_DIRS) {
+    for (const dir of dirs) {
+        if (isExecutable(GLib.build_filenamev([dir, SYSTEM_DAEMON]))) {
+            const version = (readText(GLib.build_filenamev([dir, SYSTEM_VERSION_FILE])) ?? '').trim() || null;
+            return {dir, version};
+        }
+    }
+    return null;
+}
+
+// An engine in the home folder comes first: its user unit hides the one of
+// the package. With none there, the engine of the package is state 'system':
+// nothing to install, update or remove from here.
+export function detect(p, release, systemDirs = SYSTEM_ENGINE_DIRS) {
     const facts = readFacts(p);
+    const system = facts.daemon || facts.previous || facts.incoming ? null : systemEngine(systemDirs);
+    if (system) {
+        return {state: 'system', action: null, installed: true, version: system.version,
+            canRollback: false, needsConfirm: false, facts, system};
+    }
     return {...classify(facts, release), facts};
 }
 

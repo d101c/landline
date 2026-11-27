@@ -75,6 +75,12 @@ DROPIN=$DROPIN_DIR/$NAME-experimental.conf
 UNIT_ERTM_NAME=$NAME-ertm.service
 UNIT_ERTM=$SYSTEMD_DIR/$UNIT_ERTM_NAME
 WANTS_ERTM=$SYSTEMD_DIR/multi-user.target.wants/$UNIT_ERTM_NAME
+# Paquet d'une distribution (deb, rpm, Arch) : packaging/install-tree.sh met
+# PACKAGED à 1 et LIBEXEC_PARENT au dossier du paquet (/usr/libexec, /usr/lib).
+# L'assistant, sa fiche polkit et l'auxiliaire des paramètres LE sont alors
+# des fichiers du paquet, posés et retirés par le gestionnaire de paquets :
+# « apply » ne les copie pas, « revert » ne les retire pas.
+PACKAGED=0
 LIBEXEC_PARENT=/usr/local/libexec
 LIBEXEC=$LIBEXEC_PARENT/$NAME
 SELF_INSTALLED=$LIBEXEC/$NAME-setup
@@ -661,6 +667,10 @@ bluetoothd_command() {
 # root.
 install_self() {
     local src
+    if [ "$PACKAGED" = 1 ]; then
+        say "inchangé : $SELF_INSTALLED et sa fiche polkit (fichiers du paquet)"
+        return 0
+    fi
     src="$(self_path)"
 
     if [ ! -e "$ROOT$PARENT_MARK" ] &&
@@ -723,6 +733,14 @@ le_params_source() {
 # Pose l'auxiliaire et son droit. Jamais d'échec d'apply pour lui.
 install_le_params() {
     local src tmp setcap_bin
+    if [ "$PACKAGED" = 1 ]; then
+        if le_params_ready; then
+            say "inchangé : $LE_HELPER (fichier du paquet, cap_net_raw posé)"
+        else
+            note "$LE_HELPER (fichier du paquet) ne porte pas cap_net_raw : réinstaller le paquet le repose ; le lien marche sans"
+        fi
+        return 0
+    fi
     if ! src="$(le_params_source)"; then
         if le_params_ready; then
             say "auxiliaire déjà en place ; pas de nouvelle version à côté de l'assistant"
@@ -778,6 +796,10 @@ install_le_params() {
 }
 
 remove_le_params() {
+    if [ "$PACKAGED" = 1 ]; then
+        say "laissé : $LE_HELPER (fichier du paquet)"
+        return 0
+    fi
     if [ ! -e "$ROOT$LE_HELPER_MARK" ]; then
         if [ -e "$ROOT$LE_HELPER" ]; then
             warn "$LE_HELPER n'a pas été posé par $NAME-setup : laissé en place"
@@ -990,11 +1012,17 @@ do_revert() {
     remove_le_params
 
     say "== Assistant et fiche polkit"
-    remove_path "$POLICY" marque
-    remove_path "$SELF_INSTALLED" marque
+    if [ "$PACKAGED" = 1 ]; then
+        say "laissés : $SELF_INSTALLED et sa fiche polkit (fichiers du paquet)"
+    else
+        remove_path "$POLICY" marque
+        remove_path "$SELF_INSTALLED" marque
+    fi
     remove_path "$OLD_POLICY" marque
     remove_path "$OLD_SELF" marque
-    if [ -e "$ROOT$PARENT_MARK" ] || [ -e "$ROOT$OLD_PARENT_MARK" ]; then
+    if [ "$PACKAGED" = 1 ]; then
+        remove_dir_if_empty "$OLD_LIBEXEC"
+    elif [ -e "$ROOT$PARENT_MARK" ] || [ -e "$ROOT$OLD_PARENT_MARK" ]; then
         remove_path "$PARENT_MARK"
         remove_path "$OLD_PARENT_MARK"
         remove_dir_if_empty "$LIBEXEC"

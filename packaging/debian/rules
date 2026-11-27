@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+VERSION := $(shell dpkg-parsechangelog -SVersion | sed 's/[-+~].*//')
+%:
+	dh $@ --buildsystem=cmake+ninja --sourcedirectory=engine --builddirectory=build-pkg
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DTETHER_VERSION=$(VERSION) -DTETHER_BUILD_EXTENSIONS=OFF \
+	    -DTETHER_CAMERA=OFF -DBUILD_TESTING=OFF -DLANDLINE_JSON_MIN=3.11 \
+	    -DLANDLINE_LIBEXECDIR=/usr/libexec/landline -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+	packaging/install-tree.sh debian/landline /usr/libexec build-pkg $(VERSION)
+	rm -rf debian/landline/usr/share/licenses
+
+execute_after_dh_fixperms:
+	chmod 0644 debian/landline/usr/libexec/landline/VERSION

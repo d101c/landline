@@ -9,7 +9,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-import {LOCAL_HELPERS, LOG_PREFIX, ROOT_HELPER} from './names.js';
+import {LOCAL_HELPERS, LOG_PREFIX, ROOT_HELPER, SYSTEM_ENGINE_DIRS, SYSTEM_HELPER} from './names.js';
 import {run} from './subprocess.js';
 
 Gio._promisify(Gio.File.prototype, 'query_info_async');
@@ -48,6 +48,12 @@ async function executable(path, cancellable = null) {
 // Resolves to the installed helper, when it is a file of root that nobody
 // else can write; to null otherwise.
 export async function rootHelper(cancellable = null) {
+    // The one of a distribution package first, then the one "apply" copied.
+    for (const dir of SYSTEM_ENGINE_DIRS) {
+        const path = `${dir}/${SYSTEM_HELPER}`;
+        if (await ownedByRoot(path, cancellable))
+            return path;
+    }
     return await ownedByRoot(ROOT_HELPER, cancellable) ? ROOT_HELPER : null;
 }
 

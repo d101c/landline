@@ -1,0 +1,21 @@
+Source: landline
+Section: gnome
+Priority: optional
+Maintainer: Landline <landline@d101c.github.io>
+Build-Depends: debhelper-compat (= 13), cmake, ninja-build, pkgconf, g++,
+ libglib2.0-dev, libsecret-1-dev, libnotify-dev, libssl-dev,
+ libavahi-client-dev, gettext, nlohmann-json3-dev
+Standards-Version: 4.7.0
+Homepage: https://github.com/d101c/landline
+Rules-Requires-Root: no
+
+Package: landline
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}, gnome-shell (>= 51), bluez,
+ bluez-obexd, libcap2-bin, pkexec, procps
+Description: iPhone calls, messages and notifications on the GNOME desktop
+ A quiet dot in the top bar when the iPhone is linked over Bluetooth: read
+ and answer messages, answer or decline calls, see the notifications of the
+ other apps. Nothing is installed on the iPhone.
+ .
+ This package holds the GNOME Shell extension and its engine.

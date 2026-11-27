@@ -1,0 +1,12 @@
+landline (0.3.0-1) unstable; urgency=medium
+
+  * Engine 0.3.0: a classic link BlueZ keeps "In Progress" is freed, the
+    charging state is told.
+
+ -- Landline <landline@d101c.github.io>  Fri, 27 Nov 2026 13:30:00 +0100
+
+landline (0.2.1-1) unstable; urgency=medium
+
+  * First package: the extension and its engine together.
+
+ -- Landline <landline@d101c.github.io>  Tue, 24 Nov 2026 23:00:00 +0100

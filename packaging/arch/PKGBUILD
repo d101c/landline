@@ -1,0 +1,28 @@
+# Maintainer: Landline <landline@d101c.github.io>
+pkgname=landline
+pkgver=0.3.0
+pkgrel=1
+pkgdesc="iPhone calls, messages and notifications on the GNOME desktop (Shell extension and its engine)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/d101c/landline"
+license=('GPL-2.0-or-later' 'MIT')
+depends=('gnome-shell>=1:51' 'bluez' 'bluez-utils' 'bluez-obex' 'glib2' 'libsecret' 'libnotify'
+         'openssl' 'avahi' 'polkit' 'libcap' 'procps-ng')
+makedepends=('cmake' 'ninja' 'nlohmann-json' 'gettext')
+install=landline.install
+# In the AUR: the archive of the tag on GitHub, with its sum.
+source=("landline-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cmake -S "landline-$pkgver/engine" -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+        -DTETHER_VERSION="$pkgver" -DTETHER_BUILD_EXTENSIONS=OFF -DTETHER_CAMERA=OFF \
+        -DBUILD_TESTING=OFF -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
+        -DLANDLINE_LIBEXECDIR=/usr/lib/landline
+    cmake --build build
+}
+
+package() {
+    "landline-$pkgver/packaging/install-tree.sh" "$pkgdir" /usr/lib "$srcdir/build" "$pkgver"
+}

@@ -236,6 +236,11 @@ export function buildEnginePage({window, settings, dir, gettext: _, release = EN
             return [_('An update is ready'),
                 // Translators: the first %s is the new version, the second the one installed.
                 _('Version %s replaces version %s. The one you have now is kept, so you can go back.').replace('%s', release.version).replace('%s', v)];
+        case 'system':
+            return [_('The engine is installed'),
+                v ? // Translators: %s is a version number.
+                    _('Version %s, installed with your system’s packages. It is updated with them.').replace('%s', v)
+                    : _('Installed with your system’s packages. It is updated with them.')];
         case 'newer':
             return [_('The engine is up to date'),
                 // Translators: %s is a version number.
@@ -334,7 +339,7 @@ export function buildEnginePage({window, settings, dir, gettext: _, release = EN
             const [t, b] = restWords();
             title.label = t;
             body.label = b;
-            drawing(installed.state === 'current' || installed.state === 'newer' ? 'start' : 'download');
+            drawing(['current', 'newer', 'system'].includes(installed.state) ? 'start' : 'download');
             const action = installed.action;
             if (action === 'restore')
                 button(_('Put Back'), 'suggested-action', () => rollback());
@@ -352,7 +357,7 @@ export function buildEnginePage({window, settings, dir, gettext: _, release = EN
         // While something runs, only Cancel of an install stays usable.
         if (working && !flow.running)
             buttons.sensitive = false;
-        removeGroup.visible = installed.installed || installed.canRollback;
+        removeGroup.visible = installed.state !== 'system' && (installed.installed || installed.canRollback);
         manualGroup.visible = manualShown;
         stepsGroup.visible = flow.running || flow.failedAt !== null || flow.finished ||
             flow.steps.system.state === 'waiting' || flow.rolledBack;
@@ -455,7 +460,10 @@ export function buildEnginePage({window, settings, dir, gettext: _, release = EN
 
     // Can the system step be done from here: the engine of the pinned
     // release, with the two files the script checks.
-    const canBootstrap = () => releaseIsPinned(release) && installed.version === release.version &&
+    // The engine of a distribution package: its setup helper is already a
+    // file of root, run as it is.
+    const packaged = () => installed.state === 'system';
+    const canBootstrap = () => packaged() || releaseIsPinned(release) && installed.version === release.version &&
         GLib.file_test(paths.setup, GLib.FileTest.IS_REGULAR) &&
         GLib.file_test(paths.leParams, GLib.FileTest.IS_REGULAR);
 
@@ -472,7 +480,7 @@ export function buildEnginePage({window, settings, dir, gettext: _, release = EN
             else
                 installer.systemNeeded(!canBootstrap());
         } else if (!ready && !installer.flow.running && installer.flow.steps.system.state === 'pending' &&
-            installed.state === 'current' && status !== null) {
+            ['current', 'system'].includes(installed.state) && status !== null) {
             // Installed earlier, settings still to do: offer them.
             installer.systemNeeded(!canBootstrap(), true);
         }
@@ -490,9 +498,15 @@ export function buildEnginePage({window, settings, dir, gettext: _, release = EN
         installer.systemAsking();
         let result = 'failed';
         try {
-            const argv = bootstrapArgv(bootstrapScript(release), paths.setup, paths.leParams);
-            const {exited, status} = await run(argv, cancellable);
-            result = exited ? bootstrapResult(status) : 'failed';
+            if (packaged()) {
+                result = await runAsRoot(await rootHelper(cancellable), 'apply', cancellable);
+                if (result === 'unavailable')
+                    result = 'failed';
+            } else {
+                const argv = bootstrapArgv(bootstrapScript(release), paths.setup, paths.leParams);
+                const {exited, status} = await run(argv, cancellable);
+                result = exited ? bootstrapResult(status) : 'failed';
+            }
         } catch (e) {
             if (!cancellable.is_cancelled())
                 warn(e, 'system step');
@@ -553,7 +567,7 @@ export function buildEnginePage({window, settings, dir, gettext: _, release = EN
     });
 
     render();
-    if (installed.state === 'current')
+    if (['current', 'system'].includes(installed.state))
         checkSystem().catch(warn);
     return page;
 }

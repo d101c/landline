@@ -1,0 +1,11 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Landline
+Source: https://github.com/d101c/landline
+
+Files: *
+Copyright: 2026 the Landline authors
+License: GPL-2+
+
+Files: engine/*
+Copyright: Zack Bartel and the Landline authors
+License: Expat

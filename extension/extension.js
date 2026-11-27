@@ -16,7 +16,7 @@ import {ENGINE_RELEASE} from './lib/engineRelease.js';
 import {Illustrations} from './lib/illustrations.js';
 import {Indicator} from './lib/indicator.js';
 import {Model, STARTUP_COMMANDS} from './lib/model.js';
-import {ENGINE_UNIT, LOG_PREFIX} from './lib/names.js';
+import {ENGINE_UNIT, LOG_PREFIX, SYSTEM_DAEMON, SYSTEM_ENGINE_DIRS} from './lib/names.js';
 import {bilingual, phoneLanguage} from './lib/phoneLabels.js';
 import {Hotspot, NetworkManagerBackend} from './lib/hotspot.js';
 import {QuietWatch} from './lib/quiet.js';
@@ -546,6 +546,19 @@ export default class PhoneExtension extends Extension {
                 version = new TextDecoder().decode(bytes).trim();
             } catch (e) {
                 version = null;
+            }
+        } else {
+            // The engine of a distribution package: there, and never
+            // "outdated" from here (its updates come with the system's).
+            for (const system of SYSTEM_ENGINE_DIRS) {
+                try {
+                    await Gio.File.new_for_path(`${system}/${SYSTEM_DAEMON}`).query_info_async('standard::type',
+                        Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, cancellable);
+                    present = true;
+                    break;
+                } catch (e) {
+                    // not this one
+                }
             }
         }
         if (!cancellable?.is_cancelled())
