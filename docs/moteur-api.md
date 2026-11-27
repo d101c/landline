@@ -236,7 +236,7 @@ Ce que le moteur sait de l'iPhone, et d'où (`phone_battery()`, `connection.cpp`
 | Information | Champ | Source | Disponible sur cette machine |
 |---|---|---|---|
 | Niveau de batterie | `battery`, `battery_source`, `battery_state` | service Batterie LE lu par BlueZ (`org.bluez.Battery1.Percentage`), sinon indicateur mains-libres `BattChg` (0 à 5, publié × 20) | oui par le LE, dès que le lien LE est monté |
-| En charge ou non | — | aucune : `Battery1` ne porte que le pourcentage, le mains-libres n'a pas d'indicateur de charge, et l'iPhone n'expose pas la caractéristique « Battery Level Status » | **non**, et rien à activer |
+| En charge ou non | `battery_charging` (`true`, `false` ou `null`) | **déduit** de l'évolution du niveau LE, faute de mieux : `Battery1` ne porte que le pourcentage, le mains-libres n'a pas d'indicateur de charge, et l'iPhone n'expose pas la caractéristique « Battery Level Status ». Un point gagné = en charge, un point perdu = pas en charge, une montée arrêtée depuis 15 min ou un retour d'absence = `null` (`ChargeWatch`, `phone_state.hpp`) | oui par le LE, avec une à deux minutes de retard sur le branchement |
 | Opérateur | `calls.operator` | mains-libres de BlueZ (`org.bluez.Telephony1.OperatorName`) | non avec PipeWire (`calls.indicators:false`) |
 | Force du signal | `calls.signal` (0 à 5) | idem (`Signal`) | non avec PipeWire |
 | Réseau disponible | `calls.service` | idem (`Service`) | non avec PipeWire |

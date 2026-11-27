@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cctype>
+#include <cstdint>
+#include <cstring>
 #include <optional>
 #include <string>
 
@@ -77,6 +79,49 @@ namespace tether::bluetooth {
         // The lowest threshold already announced, 0 for none.
         int announced_ = 0;
         bool seen_ = false;
+    };
+
+    // How long a rise keeps saying "charging" once the level stops moving. A
+    // charge nearing full gains a point every 5 to 10 minutes; past this the
+    // phone is full, held at its limit, or unplugged and not yet a point down.
+    inline constexpr int64_t CHARGE_RISE_VALID_MS = 15 * 60'000;
+
+    // Whether the iPhone is on charge, read off the way its level moves: the
+    // iPhone publishes no charging state over Bluetooth, only the level. A
+    // level that climbs is a phone on charge, one that drops is not, and a
+    // rise that has stopped for a while says nothing. So this lags the plug
+    // by the time one point takes (a minute or two on a charger), and it is
+    // an inference: nullopt whenever the level does not settle it.
+    class ChargeWatch {
+    public:
+        // `source` as in BatteryReading; `now_ms` on any steady clock.
+        std::optional<bool> observe(int percent, const char* source, int64_t now_ms) {
+            // Only the 1 % steps of the LE reading are fine enough, and a
+            // level read after an absence compares with nothing.
+            if (percent < 0 || std::strcmp(source, "le") != 0) {
+                reset();
+                return std::nullopt;
+            }
+            if (last_ < 0) {
+                last_ = percent;
+                return std::nullopt;
+            }
+            if (percent != last_) {
+                charging_ = percent > last_;
+                moved_ms_ = now_ms;
+                last_ = percent;
+            } else if (charging_ == std::optional<bool>(true) && now_ms - moved_ms_ > CHARGE_RISE_VALID_MS) {
+                charging_.reset();
+            }
+            return charging_;
+        }
+
+        void reset() { *this = ChargeWatch{}; }
+
+    private:
+        int last_ = -1;
+        int64_t moved_ms_ = 0;
+        std::optional<bool> charging_;
     };
 
     // Whether the network name the phone reports over hands-free says calls

@@ -12,6 +12,7 @@
 #include "tether/bluetooth/le_conn_update.hpp"
 #include "tether/bluetooth/le_after_reset.hpp"
 #include "tether/bluetooth/le_first_use.hpp"
+#include "tether/bluetooth/classic_stuck.hpp"
 #include "tether/bluetooth/le_ghost.hpp"
 #include "tether/bluetooth/le_health.hpp"
 #include "tether/bluetooth/le_recovery.hpp"
@@ -549,6 +550,7 @@ namespace tether::bluetooth {
 
                 // bluez only exposes the per-bearer Connect while the device is connected on some bearer
                 auto* request = new ClassicCall{classic_, le_, device->path, device->has_classic_bearer && device->connected};
+                request->busy = classic_busy_;
                 request->pin_bredr = !link_up(*device);
                 // Never over an LE dial in flight: the write aborts it.
                 if (!request->via_bearer && request->pin_bredr && !le_connect_outstanding())
@@ -578,6 +580,7 @@ namespace tether::bluetooth {
                     return begun;
                 auto* request = new ClassicCall{classic_, le_, device->path, true};
                 request->bearer_only = true;
+                request->busy = classic_busy_;
                 debug::log(INFO, "bluetooth: asking BlueZ for the BR/EDR link on demand (Bearer.BREDR1.Connect)");
                 monitor_.invoke_sync([this, request] { issue_classic(monitor_.connection(), request); });
                 return ConnectResult::Requested;
@@ -628,6 +631,26 @@ namespace tether::bluetooth {
             }
 
             void forget_classic_refusal() override { classic_->discard_error(); }
+
+            // #64: "In Progress" answers in a row to the per-bearer connect.
+            int classic_busy_answers() const { return classic_busy_->load(); }
+            void forget_classic_busy() { *classic_busy_ = 0; }
+
+            // #64, second half: Device1.Connect, the path that makes BlueZ
+            // answer and drop the request its BR/EDR bearer kept. False when
+            // a connect of ours is still in flight; asked again next pass.
+            bool reconnect_through_device() {
+                auto device = lookup();
+                if (!device)
+                    return false;
+                classic_->discard_error();
+                std::string ignored;
+                if (classic_->begin(ignored) != ConnectResult::Requested)
+                    return false;
+                auto* request = new ClassicCall{classic_, le_, device->path, false};
+                monitor_.invoke_sync([this, request] { issue_classic(monitor_.connection(), request); });
+                return true;
+            }
 
             // One profile, over the link as it stands. Asynchronous: the answer
             // is only worth a line in the journal, the telephony object showing
@@ -839,6 +862,10 @@ namespace tether::bluetooth {
             // Outlives the ops object for the same reason.
             std::shared_ptr<PendingConnect> classic_ = std::make_shared<PendingConnect>();
 
+            // #64: how many times in a row BlueZ answered "In Progress" to
+            // Bearer.BREDR1.Connect. Written where the answers land.
+            std::shared_ptr<std::atomic<int>> classic_busy_ = std::make_shared<std::atomic<int>>(0);
+
             // One BR/EDR connect in flight, owned by its D-Bus callback.
             struct ClassicCall {
                 std::shared_ptr<PendingConnect> state;
@@ -850,6 +877,8 @@ namespace tether::bluetooth {
                 std::string bearer_error;
                 // The lean link mode: never Device1.Connect behind a refusal.
                 bool bearer_only = false;
+                // #64: "In Progress" answers to the per-bearer call, in a row.
+                std::shared_ptr<std::atomic<int>> busy;
             };
 
             static bool sync_classic_connect() {
@@ -888,6 +917,13 @@ namespace tether::bluetooth {
                     g_variant_unref(reply);
                 g_clear_error(&error);
 
+                // #64: an unanswered call says nothing either way.
+                if (request->via_bearer && request->busy && !timed_out) {
+                    if (!ok && message.find("InProgress") != std::string::npos)
+                        ++*request->busy;
+                    else
+                        *request->busy = 0;
+                }
                 const ClassicReply verdict =
                     classify_classic_reply(request->via_bearer, ok, timed_out, message, request->bearer_error);
                 if (verdict.fall_back && request->bearer_only) {
@@ -1222,6 +1258,8 @@ namespace tether::bluetooth {
         PresenceTracker presence;
         // Each low-battery threshold once per crossing. Supervisor thread only.
         BatteryWatch battery_watch;
+        // Whether the phone is on charge, from the way its level moves.
+        ChargeWatch charge_watch;
         // The phone the two above are about.
         std::string watched_address;
         // Events other than the status: bt_presence, bt_battery_low.
@@ -1311,6 +1349,8 @@ namespace tether::bluetooth {
         LeRecovery le_recovery;
         // #63: BlueZ's LE link that the controller no longer holds.
         LeGhost le_ghost;
+        // #64: BlueZ answering "In Progress" for ever to the classic connect.
+        ClassicStuck classic_stuck;
         bool le_dial_wanted = false;
         std::atomic<bool> le_stuck{false};
         int64_t le_stuck_since = -1;
@@ -1501,6 +1541,7 @@ namespace tether::bluetooth {
         void bluez_restarted();
         void watch_sleep(int64_t now);
         void watch_strangers(int64_t now);
+        void watch_classic_stuck(int64_t now);
         void watch_le_health(int64_t now);
         void watch_le_strikes(int64_t now);
         LeState le_state(int64_t now) const;
@@ -1552,6 +1593,11 @@ namespace tether::bluetooth {
             payload["battery_source"] = nullptr;
             payload["battery_state"] = nullptr;
         }
+        // Read off the way the level moves; null when that does not settle it.
+        if (const auto charging = charge_watch.observe(battery.percent, battery.source, tick_now * 1000))
+            payload["battery_charging"] = *charging;
+        else
+            payload["battery_charging"] = nullptr;
         const auto alert = battery_watch.observe(battery.percent);
         // The notification link, said outright: a client can show
         // "Notifications paused" and why without reading five fields.
@@ -1879,6 +1925,47 @@ namespace tether::bluetooth {
 
     // An LE link came and went on a device BlueZ holds no pairing for,
     // while the paired iPhone has no LE link and the advert is on air.
+    // #64: see classic_stuck.hpp.
+    void ConnectionState::watch_classic_stuck(int64_t now) {
+        const bool classic_up = bearer_ops->classic_connected();
+        if (classic_up)
+            bearer_ops->forget_classic_busy();
+        const auto step = classic_stuck.observe(now,
+                                                bearer_ops->classic_busy_answers(),
+                                                classic_up,
+                                                bearer_ops->le_connected(),
+                                                bearer_ops->device_paired());
+        switch (step) {
+        case ClassicStuck::Step::None:
+            break;
+        case ClassicStuck::Step::Disconnect: {
+            debug::log(WARN,
+                       "bluetooth: BlueZ keeps answering \"In Progress\" to the BR/EDR connect with no link to show "
+                       "for it: a connect of its own never ended (#64). Disconnecting the iPhone in BlueZ to release "
+                       "it; the LE link comes back by itself, then the classic link is asked for by the other path");
+            bearer_ops->forget_classic_busy();
+            std::string err;
+            if (!bearer_ops->disconnect_all(err))
+                debug::log(WARN, "bluetooth: the disconnect could not be asked ({})", err);
+            break;
+        }
+        case ClassicStuck::Step::Connect:
+            if (bearer_ops->reconnect_through_device()) {
+                classic_stuck.asked();
+                bearer_ops->forget_classic_busy();
+                debug::log(INFO,
+                           "bluetooth: the LE link is back; asking BlueZ for the classic link through Device1.Connect, "
+                           "which clears what its BR/EDR bearer kept (#64)");
+            }
+            break;
+        case ClassicStuck::Step::GaveUp:
+            debug::log(WARN,
+                       "bluetooth: the LE link did not come back after the disconnect (#64); the classic link is "
+                       "left to the usual rules");
+            break;
+        }
+    }
+
     void ConnectionState::watch_strangers(int64_t now) {
         const BluezMonitor::LeStranger stranger = monitor->le_stranger();
         if (stranger.count == strangers_seen)
@@ -3541,6 +3628,7 @@ namespace tether::bluetooth {
                 }
                 s.watch_sleep(now);
                 s.watch_strangers(now);
+                s.watch_classic_stuck(now);
                 // The BR/EDR link has dropped since the last look. The OBEX
                 // sessions that rode on it are forgotten before the supervisor
                 // runs, not after: it took them for a link still up, asked
@@ -3822,6 +3910,7 @@ namespace tether::bluetooth {
         // announced about its battery; another phone starts from nothing.
         if (!same_address(state_->watched_address, address)) {
             state_->battery_watch.reset();
+            state_->charge_watch.reset();
             state_->watched_address = address;
         }
         state_->yield_when_inactive = config.yield_when_inactive;

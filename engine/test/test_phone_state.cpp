@@ -127,6 +127,61 @@ TEST(BatteryState, NamesTheBands) {
     EXPECT_STREQ(battery_state(0), "critical");
 }
 
+namespace {
+    constexpr int64_t MINUTE = 60'000;
+}
+
+TEST(ChargeWatch, SaysNothingBeforeTheLevelHasMoved) {
+    ChargeWatch watch;
+    EXPECT_FALSE(watch.observe(50, "le", 0));
+    EXPECT_FALSE(watch.observe(50, "le", 5 * MINUTE));
+}
+
+TEST(ChargeWatch, ARisingLevelIsAPhoneOnCharge) {
+    ChargeWatch watch;
+    watch.observe(20, "le", 0);
+    EXPECT_EQ(watch.observe(21, "le", 2 * MINUTE), std::optional<bool>(true));
+    // Steady between two points: still charging.
+    EXPECT_EQ(watch.observe(21, "le", 3 * MINUTE), std::optional<bool>(true));
+    EXPECT_EQ(watch.observe(22, "le", 4 * MINUTE), std::optional<bool>(true));
+}
+
+TEST(ChargeWatch, AFallingLevelIsAPhoneOffCharge) {
+    ChargeWatch watch;
+    watch.observe(20, "le", 0);
+    watch.observe(21, "le", 2 * MINUTE);
+    EXPECT_EQ(watch.observe(20, "le", 30 * MINUTE), std::optional<bool>(false));
+    // A phone at rest holds a point for a long time: still off charge.
+    EXPECT_EQ(watch.observe(20, "le", 120 * MINUTE), std::optional<bool>(false));
+}
+
+TEST(ChargeWatch, ARiseThatStopsIsNoLongerKnown) {
+    ChargeWatch watch;
+    watch.observe(99, "le", 0);
+    EXPECT_EQ(watch.observe(100, "le", 5 * MINUTE), std::optional<bool>(true));
+    EXPECT_EQ(watch.observe(100, "le", 5 * MINUTE + CHARGE_RISE_VALID_MS), std::optional<bool>(true));
+    // Full and plugged, or unplugged and not yet a point lower: no telling.
+    EXPECT_FALSE(watch.observe(100, "le", 5 * MINUTE + CHARGE_RISE_VALID_MS + 1));
+}
+
+TEST(ChargeWatch, AnAbsenceForgetsEverything) {
+    ChargeWatch watch;
+    watch.observe(20, "le", 0);
+    watch.observe(21, "le", MINUTE);
+    EXPECT_FALSE(watch.observe(-1, "", 2 * MINUTE));
+    // Higher than before the absence: charged meanwhile, perhaps not now.
+    EXPECT_FALSE(watch.observe(60, "le", 90 * MINUTE));
+}
+
+TEST(ChargeWatch, TheHandsFreeLevelIsTooCoarse) {
+    ChargeWatch watch;
+    watch.observe(40, "hfp", 0);
+    EXPECT_FALSE(watch.observe(60, "hfp", 20 * MINUTE));
+    // And a change of source is not a change of level.
+    EXPECT_FALSE(watch.observe(63, "le", 21 * MINUTE));
+    EXPECT_EQ(watch.observe(64, "le", 23 * MINUTE), std::optional<bool>(true));
+}
+
 TEST(WifiCalling, IsReadOffTheNetworkName) {
     EXPECT_TRUE(operator_says_wifi_calling("Carrier WiFi-Calling"));
     EXPECT_TRUE(operator_says_wifi_calling("Wi-Fi Calling"));

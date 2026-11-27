@@ -16,6 +16,7 @@ add_executable(tether_test
     test_le_after_reset.cpp
     test_le_recovery.cpp
     test_le_ghost.cpp
+    test_classic_stuck.cpp
     test_ancs_liveness.cpp
     test_le_first_use.cpp
     test_le_health.cpp

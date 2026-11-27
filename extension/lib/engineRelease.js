@@ -15,12 +15,12 @@
 // copies have these very sums.
 
 export const ENGINE_RELEASE = Object.freeze({
-    version: '0.2.1',
+    version: '0.3.0',
     arch: 'x86_64',
-    url: 'https://github.com/d101c/landline/releases/download/engine-v0.2.1/landline-engine-0.2.1-x86_64.tar.zst',
-    // sha256sum of the published archive (6623933 bytes) and of the two
+    url: 'https://github.com/d101c/landline/releases/download/engine-v0.3.0/landline-engine-0.3.0-x86_64.tar.zst',
+    // sha256sum of the published archive (6642026 bytes) and of the two
     // files of it that the system step runs as root.
-    sha256: '6590473c7afbc8f9e2eadcf8cea916a6b52ee1c6157006dad98fc5b9c52d81fe',
+    sha256: 'd1b0b997b979a5218559cd8f34ea211f084d79e9cf8e694c43168129478d02d7',
     setupSha256: '4a65e24b2ebd4e59bd2c84a27164ab6b6aed480f18c19553bbd1ce7c5911e27e',
-    leParamsSha256: '54f7763439a87a916ffa1c90ddc4d9eacab827b3b21238d16ecd0eb5330bb9b4',
+    leParamsSha256: '0a09cb0f97c734ad0d1a151fc0aafd1abd93836d091c913ccf8c9cc8519d3719',
 });
