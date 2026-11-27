@@ -1,3 +1,12 @@
+landline (0.3.0-3) unstable; urgency=medium
+
+  * Bluetooth is no longer restarted while the package is installed or
+    removed: doing so while a Bluetooth headset plays crashed the session's
+    sound service (WirePlumber 0.5.17). The settings take effect at the next
+    start of the computer.
+
+ -- Landline <landline@d101c.github.io>  Fri, 27 Nov 2026 17:30:00 +0100
+
 landline (0.3.0-2) unstable; urgency=medium
 
   * The extension is turned on at the first login after the install.

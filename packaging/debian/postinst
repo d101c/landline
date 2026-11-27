@@ -6,9 +6,11 @@ if [ "$1" = configure ]; then
 
     # The Bluetooth settings iPhones need, when this system does not have
     # them: BlueZ older than 5.88 needs its experimental mode, and L2CAP ERTM
-    # must be on. Bluetooth restarts for a few seconds when one is changed.
+    # must be on. Bluetooth is not restarted here (that can crash the session's
+    # sound service while a headset plays): the experimental mode takes effect
+    # at the next start of the computer, which the install asks for anyway.
     # Removing the package puts them back (prerm).
-    /usr/libexec/landline/landline-setup apply >/dev/null 2>&1 || true
+    /usr/libexec/landline/landline-setup apply --later >/dev/null 2>&1 || true
 
     # Installed from a downloaded file: add the repository the package comes
     # from, so that its updates arrive with the system's. Left alone when a

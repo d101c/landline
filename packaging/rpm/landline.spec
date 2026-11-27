@@ -1,6 +1,6 @@
 Name:           landline
 Version:        0.3.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        iPhone calls, messages and notifications on the GNOME desktop
 License:        GPL-2.0-or-later AND MIT
 URL:            https://github.com/d101c/landline
@@ -35,7 +35,7 @@ packaging/install-tree.sh %{buildroot} %{_libexecdir} %{__cmake_builddir} %{vers
 %post
 # The Bluetooth settings iPhones need, when this system does not have them.
 # Removing the package puts them back (%%preun).
-%{_libexecdir}/landline/landline-setup apply >/dev/null 2>&1 || :
+%{_libexecdir}/landline/landline-setup apply --later >/dev/null 2>&1 || :
 # Installed from a downloaded file: add the repository the package comes from.
 if ! grep -rqs 'd101c:landline' /etc/yum.repos.d 2>/dev/null; then
     cat > /etc/yum.repos.d/landline.repo <<'REPO'
@@ -60,7 +60,7 @@ fi
 %preun
 if [ "$1" -eq 0 ]; then
     # Put the Bluetooth settings back the way they were.
-    %{_libexecdir}/landline/landline-setup revert >/dev/null 2>&1 || :
+    %{_libexecdir}/landline/landline-setup revert --later >/dev/null 2>&1 || :
 fi
 
 %files -f %{name}.lang
@@ -80,6 +80,10 @@ fi
 %{_datadir}/gnome-shell/extensions/landline@d101c.github.io/
 
 %changelog
+* Fri Nov 27 2026 Landline <landline@d101c.github.io> - 0.3.0-3
+- Bluetooth is no longer restarted during install or removal (it crashed the
+  session's sound service while a headset played); settings take effect at the next start.
+
 * Fri Nov 27 2026 Landline <landline@d101c.github.io> - 0.3.0-2
 - The extension is turned on at the first login after the install.
 - The Bluetooth settings iPhones need are set at install time when missing.

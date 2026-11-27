@@ -4,7 +4,8 @@
 # a besoin. Managed by landline-setup.
 #
 #   landline-setup status              état courant et persistance, une ligne JSON
-#   landline-setup apply  [--dry-run]  règle tout, maintenant et pour les redémarrages
+#   landline-setup apply  [--dry-run] [--later]  règle tout, maintenant et pour les redémarrages
+#                                      (--later : sans redémarrer le Bluetooth en service)
 #   landline-setup revert [--dry-run]  retire tout ce que « apply » a créé
 #   landline-setup version             numéro de version de l'assistant
 #
@@ -60,6 +61,11 @@ OLD_MARKER="géré par $OLD_NAME"
 ROOT="${LANDLINE_ROOT:-}"
 ROOT="${ROOT%/}"
 DRY=0
+# --later : les fichiers sont écrits, mais le Bluetooth en service n'est pas
+# redémarré ; le réglage prend effet au prochain démarrage de l'ordinateur.
+# C'est le mode des paquets : redémarrer bluetoothd pendant qu'un casque joue
+# peut faire planter le service de son de la session (WirePlumber 0.5.17).
+LATER=0
 WARNINGS=0
 CHANGED=0
 
@@ -933,7 +939,9 @@ do_apply() {
         say "ERTM déjà actif"
     fi
 
-    if [ "$need_restart" = 1 ]; then
+    if [ "$need_restart" = 1 ] && [ "$LATER" = 1 ]; then
+        say "pas de redémarrage du Bluetooth maintenant (--later) : le mode expérimental prend effet au prochain démarrage de l'ordinateur"
+    elif [ "$need_restart" = 1 ]; then
         say "REDÉMARRAGE DU BLUETOOTH : nécessaire pour le mode expérimental. Clavier, souris et casques Bluetooth sont coupés quelques secondes."
         sys_run systemctl restart bluetooth.service || warn "bluetooth.service n'a pas redémarré"
     else
@@ -990,6 +998,9 @@ do_revert() {
     fi
 
     if [ "$dropin_removed" = 1 ] && [ "$was_experimental" = 1 ] && ! has_experimental_flag "$(effective_execstart sans-nous)" \
+        && ! main_conf_experimental && [ "$LATER" = 1 ]; then
+        say "pas de redémarrage du Bluetooth maintenant (--later) : il quitte le mode expérimental au prochain démarrage de l'ordinateur"
+    elif [ "$dropin_removed" = 1 ] && [ "$was_experimental" = 1 ] && ! has_experimental_flag "$(effective_execstart sans-nous)" \
         && ! main_conf_experimental; then
         say "REDÉMARRAGE DU BLUETOOTH : nécessaire pour quitter le mode expérimental. Clavier, souris et casques Bluetooth sont coupés quelques secondes."
         sys_run systemctl restart bluetooth.service || warn "bluetooth.service n'a pas redémarré"
@@ -1049,6 +1060,7 @@ main() {
     for arg in "$@"; do
         case "$arg" in
             --dry-run) DRY=1 ;;
+            --later) LATER=1 ;;
             *) usage >&2; exit 64 ;;
         esac
     done

@@ -2,6 +2,6 @@
 set -e
 if [ "$1" = remove ] && [ -x /usr/libexec/landline/landline-setup ]; then
     # Put the Bluetooth settings back the way they were.
-    /usr/libexec/landline/landline-setup revert >/dev/null 2>&1 || true
+    /usr/libexec/landline/landline-setup revert --later >/dev/null 2>&1 || true
 fi
 #DEBHELPER#
